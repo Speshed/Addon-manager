@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, Property, QPropertyAnimation, QEasingCurve, QPoint, QTimer
 from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap
 
-from theme_toggle import (
+from shared.theme_toggle import (
     ThemeToggle, is_dark_theme, theme, resolve_icon_path, nik_icon, 
     load_saved_theme, enable_theme_sync, set_back_to_menu_callback
 )

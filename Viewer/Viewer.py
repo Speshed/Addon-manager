@@ -26,7 +26,7 @@ LOGO_NAME = "logo"
 
 # --- Import from theme_toggle ---
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from theme_toggle import (
+from shared.theme_toggle import (
     ThemeToggle, apply_themed_icon, theme, is_dark_theme, resolve_icon_path, nik_icon, PALETTE,
     load_saved_theme, enable_theme_sync, apply_dark_titlebar,
     create_back_button, go_to_main_menu,
@@ -386,7 +386,7 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
         selection-color: #000000;
     }}
 
-    QWidget[rowlike="true"] {{ background: {BG}; border: 1px solid {BORDER}; border-radius: 12px; padding: 6px 8px; }}
+    QWidget[rowlike="true"] {{ background: {BG}; border: none; border-radius: 12px; padding: 6px 8px; }}
     QWidget[rowlike="true"]:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; }}
     QWidget[rowlike="true"] QLabel {{ background: transparent; }}
     """

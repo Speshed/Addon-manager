@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple, Set
 from PySide6 import QtCore, QtGui, QtWidgets
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from theme_toggle import (
+from shared.theme_toggle import (
     ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu,
     resolve_icon_path, apply_dark_titlebar,
     load_saved_theme, enable_theme_sync,

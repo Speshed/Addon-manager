@@ -21,7 +21,7 @@ except Exception:
     Slot = QtCore.pyqtSlot      # type: ignore
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from theme_toggle import ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu, resolve_icon_path, load_saved_theme, enable_theme_sync
+from shared.theme_toggle import ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu, resolve_icon_path, load_saved_theme, enable_theme_sync
 
 import pandas as pd
 from collections import defaultdict, Counter
@@ -584,8 +584,7 @@ class Section(QtWidgets.QWidget):
 
         self.frame = QtWidgets.QFrame(self)
         self.frame.setObjectName("sectionFrame")
-        self.frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        self.frame.setFrameShadow(QtWidgets.QFrame.Plain)
+        self.frame.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.frame_l = QtWidgets.QGridLayout(self.frame)
         self.frame_l.setHorizontalSpacing(8)
         self.frame_l.setVerticalSpacing(6)
@@ -971,8 +970,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # Header bar and sections
         # no framed header bar
         css.append(f"QLabel#sectionTitle {{ font-size: 10pt; font-weight: 600; background: {bcol}; padding: 0 8px; border-radius: 6px; color: {fcol}; }}")
-        css.append(f"QFrame#sectionFrame {{ margin-top: 8px; border: 1px solid {self._BORDER}; border-radius: 10px; background: {bcol}; }}")
+        css.append(f"QFrame#sectionFrame {{ margin-top: 8px; border: none; border-radius: 10px; background: {bcol}; }}")
         css.append("QStatusBar::item { border: none; }")
+
+        # Tables: remove default grid lines / frames
+        css.append("QTableView, QTableWidget { border: none; gridline-color: transparent; }")
 
         # Buttons: rounded with hover/pressed highlight (slightly orange on hover)
         hover_bg = "#FFE3C2"
@@ -1031,7 +1033,7 @@ class MainWindow(QtWidgets.QMainWindow):
         css.append(f"QWidget {{ color: {fcol}; background: {bcol}; font-family: 'Segoe UI'; font-size: 10pt; }}")
         # no framed header bar
         css.append(f"QLabel#sectionTitle {{ font-size: 10pt; font-weight: 600; background: {bcol}; padding: 0 8px; border-radius: 6px; color: {fcol}; }}")
-        css.append(f"QFrame#sectionFrame {{ margin-top: 8px; border: 1px solid {self._BORDER}; border-radius: 8px; background: {bcol}; }}")
+        css.append(f"QFrame#sectionFrame {{ margin-top: 8px; border: none; border-radius: 8px; background: {bcol}; }}")
         css.append("QStatusBar::item { border: none; }")
         css.append(f"QLineEdit, QComboBox {{ border: 1px solid {self._BORDER}; border-radius: 6px; padding: 6px 8px; background: {bcol}; }}")
         css.append("QComboBox { padding-right: 26px; }")

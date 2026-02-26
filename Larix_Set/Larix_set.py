@@ -25,7 +25,7 @@ except Exception:
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from theme_toggle import (
+from shared.theme_toggle import (
     ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu,
     resolve_icon_path, apply_dark_titlebar,
     load_saved_theme, enable_theme_sync,
@@ -1047,8 +1047,8 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
     QHeaderView::section:last:hover,
     QHeaderView::section:last:pressed  {{ border-top-right-radius: 8px; }}
 
-    /* Отдельно для demo-таблицы делаем вид "прям таблица" с видимыми сетками */
-    QTableView#list_table {{ gridline-color: {BORDER}; }}
+    /* Отдельно для demo-таблицы: без бросающихся в глаза сеток */
+    QTableView#list_table {{ gridline-color: transparent; }}
     QHeaderView#list_table_header::section {{
         border: 1px solid {BORDER};
         border-left: none;
@@ -1118,8 +1118,8 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
     }}
 
 
-    /* Псевдо-табличные строки: подсветка всей строки при hover */
-    QWidget[rowlike="true"] {{ background: {BG}; border: 1px solid {BORDER}; border-radius: 12px; padding: 6px 8px; }}
+    /* Псевдо-табличные строки: без рамок вокруг каждого блока */
+    QWidget[rowlike="true"] {{ background: {BG}; border: none; border-radius: 12px; padding: 6px 8px; }}
     QWidget[rowlike="true"]:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; }}
     QWidget[rowlike="true"] QLabel {{ background: transparent; }}
     """

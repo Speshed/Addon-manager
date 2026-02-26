@@ -23,8 +23,8 @@ except Exception:
     from PyQt5 import QtWidgets, QtCore, QtGui  # type: ignore
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from theme_toggle import ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu, load_saved_theme, enable_theme_sync
-import theme_toggle as _theme
+from shared.theme_toggle import ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu, load_saved_theme, enable_theme_sync
+import shared.theme_toggle as _theme
 
 # 3rd-party
 try:
@@ -614,7 +614,7 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
         selection-color: #000000;
     }}
 
-    QWidget[rowlike="true"] {{ background: {BG}; border: 1px solid {BORDER}; border-radius: 12px; padding: 6px 8px; }}
+    QWidget[rowlike="true"] {{ background: {BG}; border: none; border-radius: 12px; padding: 6px 8px; }}
     QWidget[rowlike="true"]:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; }}
     QWidget[rowlike="true"] QLabel {{ background: transparent; }}
     """

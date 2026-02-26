@@ -1,0 +1,116 @@
+<?xml version="1.0"?>
+<ExportProfilesCollection xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Profiles>
+    <BaseExportProfile xsi:type="CollisionsExportProfile">
+      <Id>0</Id>
+      <Title>CollisionValidation</Title>
+      <Comment>Профиль созданный по умолчанию</Comment>
+      <ProfileItems>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>196904</Id>
+          <ParentId>196901</ParentId>
+          <Title>Полы ~ Полы</Title>
+          <IsFolder>false</IsFolder>
+          <Index>2</Index>
+          <ConditionBlock1>
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+          </ConditionBlock1>
+          <ConditionBlock2>
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.1}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>196906</Id>
+          <ParentId>196901</ParentId>
+          <Title>Стены ~ Стены</Title>
+          <IsFolder>false</IsFolder>
+          <Index>0</Index>
+          <ConditionBlock1>
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+          </ConditionBlock1>
+          <ConditionBlock2>
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.2}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>196903</Id>
+          <ParentId>196902</ParentId>
+          <Title>Полы ~ Полы</Title>
+          <IsFolder>false</IsFolder>
+          <Index>3</Index>
+          <ConditionBlock1>
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+          </ConditionBlock1>
+          <ConditionBlock2>
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.DuplicationValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>196905</Id>
+          <ParentId>196902</ParentId>
+          <Title>Стены ~ Стены</Title>
+          <IsFolder>false</IsFolder>
+          <Index>1</Index>
+          <ConditionBlock1>
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+          </ConditionBlock1>
+          <ConditionBlock2>
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.DuplicationValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>196902</Id>
+          <ParentId xsi:nil="true" />
+          <Title>АР / Дублирование</Title>
+          <IsFolder>true</IsFolder>
+          <Index>1</Index>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>196901</Id>
+          <ParentId xsi:nil="true" />
+          <Title>АР / Пересечение</Title>
+          <IsFolder>true</IsFolder>
+          <Index>0</Index>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+      </ProfileItems>
+    </BaseExportProfile>
+  </Profiles>
+</ExportProfilesCollection>

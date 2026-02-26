@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<ExportProfilesCollection xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Profiles>
+    <BaseExportProfile xsi:type="CollisionsExportProfile">
+      <Id>0</Id>
+      <Title>Матрица</Title>
+      <ProfileItems>
+
+      </ProfileItems>
+    </BaseExportProfile>
+  </Profiles>
+</ExportProfilesCollection>

@@ -1,5 +1,6 @@
 import sys
 import os
+import importlib
 import urllib.request
 import urllib.error
 from PySide6.QtWidgets import (
@@ -21,6 +22,14 @@ LOGO_DARK_REL = os.path.join("icon", "Manager-scaled_white.png")
 TITLEBAR_ICON_REL = os.path.join("icon", "logo.ico")
 DEFAULT_API_BASE_URL = "http://localhost:5000"
 _ACTIVE_API_CHECK_THREADS = set()
+
+
+def _load_symbol_from_dir(module_dir: str, module_name: str, symbol_name: str):
+    mod_dir = os.path.join(BASE_DIR, module_dir)
+    if mod_dir not in sys.path:
+        sys.path.insert(0, mod_dir)
+    module = importlib.import_module(module_name)
+    return getattr(module, symbol_name)
 
 
 def _track_api_check_thread(thread: QThread) -> None:
@@ -293,6 +302,11 @@ class MainMenuWidget(QWidget):
         self._api_check_seq = 0
         self._api_check_silent = True
         self._api_check_thread = None
+        self._api_check_worker = None
+        self._api_check_busy = False
+        self._api_check_timeout = QTimer(self)
+        self._api_check_timeout.setSingleShot(True)
+        self._api_check_timeout.timeout.connect(self._on_api_check_timeout)
         self._cards = []
         self._setup_ui()
         QTimer.singleShot(0, self._connect_current_api_silent)
@@ -362,6 +376,11 @@ class MainMenuWidget(QWidget):
         main_layout.addLayout(row3_layout)
         main_layout.addStretch()
 
+        btn_templates = QPushButton("Скачать шаблон Excel")
+        btn_templates.setMinimumWidth(200)
+        btn_templates.clicked.connect(self._download_template)
+        main_layout.addWidget(btn_templates, 0, Qt.AlignCenter)
+
         api_row = QHBoxLayout()
         api_row.addStretch(1)
         api_row.addWidget(QLabel("Сервер API:"))
@@ -387,11 +406,6 @@ class MainMenuWidget(QWidget):
 
         api_row.addStretch(1)
         main_layout.addLayout(api_row)
-
-        btn_templates = QPushButton("Скачать шаблон")
-        btn_templates.setMinimumWidth(200)
-        btn_templates.clicked.connect(self._download_template)
-        main_layout.addWidget(btn_templates, 0, Qt.AlignCenter)
 
     def _on_api_base_edited(self):
         value = _normalize_api_base_url(self.api_base_edit.text())
@@ -448,6 +462,7 @@ class MainMenuWidget(QWidget):
 
     def _set_connect_ui_busy(self, busy: bool):
         try:
+            self._api_check_busy = bool(busy)
             self.btn_api_connect.setEnabled(not busy)
             self.btn_api_connect.setText("Проверка..." if busy else "Подключить")
             if not busy:
@@ -464,6 +479,7 @@ class MainMenuWidget(QWidget):
         seq = self._api_check_seq
         self._api_check_silent = bool(silent)
         self._set_connect_ui_busy(True)
+        self._api_check_timeout.start(9000)
 
         thread = QThread()
         worker = ApiCheckWorker(seq, value)
@@ -473,6 +489,8 @@ class MainMenuWidget(QWidget):
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._on_api_check_thread_finished)
+        self._api_check_worker = worker
         self._api_check_thread = thread
         _track_api_check_thread(thread)
         thread.start()
@@ -480,12 +498,37 @@ class MainMenuWidget(QWidget):
     def _on_api_check_finished(self, seq: int, value: str, ok: bool):
         if seq != self._api_check_seq:
             return
+        self._api_check_timeout.stop()
         self._set_connect_ui_busy(False)
         self._set_api_status_icon(ok)
+        self._api_check_worker = None
+        self._api_check_thread = None
         if ok:
             self.api_base_changed.emit(value)
         elif not self._api_check_silent:
             QMessageBox.warning(self, "Сервер API", f"Не удалось подключиться к {value}")
+
+    def _on_api_check_timeout(self):
+        if not self._api_check_busy:
+            return
+        self._set_connect_ui_busy(False)
+        self._set_api_status_icon(False)
+        t = self._api_check_thread
+        if t is not None:
+            try:
+                if t.isRunning():
+                    t.quit()
+                    t.wait(1000)
+            except Exception:
+                pass
+        self._api_check_worker = None
+        self._api_check_thread = None
+
+    def _on_api_check_thread_finished(self):
+        # Safety net: if worker ended without delivering result, do not keep UI in "Проверка...".
+        if self._api_check_busy:
+            self._api_check_timeout.stop()
+            self._set_connect_ui_busy(False)
 
     def _connect_current_api_silent(self):
         self._start_api_check(silent=True)
@@ -673,27 +716,22 @@ class MainWindow(QMainWindow):
     def _create_module_widget(self, mode_id: str):
         try:
             if mode_id == "adapters":
-                sys.path.insert(0, os.path.join(BASE_DIR, "Adapters"))
-                from Adapter import MainWin
+                MainWin = _load_symbol_from_dir("Adapters", "Adapter", "MainWin")
                 win = MainWin()
                 return win.centralWidget(), win
             elif mode_id == "larix_set":
-                sys.path.insert(0, os.path.join(BASE_DIR, "Larix_Set"))
-                from Larix_set import ContentWidget
+                ContentWidget = _load_symbol_from_dir("Larix_Set", "Larix_set", "ContentWidget")
                 return ContentWidget(), None
             elif mode_id == "matrix":
-                sys.path.insert(0, os.path.join(BASE_DIR, "Matrix"))
-                from matrix_ui import MainWindow
+                MainWindow = _load_symbol_from_dir("Matrix", "matrix_ui", "MainWindow")
                 win = MainWindow()
                 return win.centralWidget(), win
             elif mode_id == "parameters":
-                sys.path.insert(0, os.path.join(BASE_DIR, "Parameter"))
-                from Parameters import MainWindow
+                MainWindow = _load_symbol_from_dir("Parameter", "Parameters", "MainWindow")
                 win = MainWindow()
                 return win.centralWidget(), win
             elif mode_id == "viewer":
-                sys.path.insert(0, os.path.join(BASE_DIR, "Viewer"))
-                from Viewer import MainWindow
+                MainWindow = _load_symbol_from_dir("Viewer", "Viewer", "MainWindow")
                 win = MainWindow()
                 return win.centralWidget(), win
         except Exception as e:

@@ -15,7 +15,7 @@ from shared.theme_toggle import (
     ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu,
     resolve_icon_path, apply_dark_titlebar,
     load_saved_theme, enable_theme_sync,
-    RowHoverDelegate, install_viewport_row_highlighter, setup_hover_tracking,
+    RowHoverDelegate, install_viewport_row_highlighter, setup_hover_tracking, PALETTE,
 )
 
 # ----------------- Тема и логотип -----------------
@@ -25,6 +25,7 @@ ACCENT_ORANGE = "#F7921E"
 ACCENT_ORANGE_HOVER = "#FFA74B"
 BTN_GRAY = "#D9D9D9"
 BTN_GRAY_HOVER = "#C9C9C9"
+BIND_CHECKBOX_ICON_SIZE = 16
 
 def _plugins_dir() -> str:
     # ...\Plugins\Manager_Adapter\Adapters\Adapter.py -> ...\Plugins
@@ -167,6 +168,192 @@ def _icon_checkbox(checked: bool, size: int = 18, color: str = "#333333") -> QtG
     finally:
         p.end()
     return QtGui.QIcon(pm)
+
+
+def _icon_checkbox_indeterminate(size: int = 18, color: str = "#333333") -> QtGui.QIcon:
+    pm = _pm(size)
+    p = QtGui.QPainter(pm)
+    try:
+        p.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        pen = QtGui.QPen(QtGui.QColor(color), max(2, size // 10))
+        pen.setCapStyle(QtCore.Qt.RoundCap)
+        pen.setJoinStyle(QtCore.Qt.RoundJoin)
+        p.setPen(pen)
+        pad = max(2, size // 6)
+        rect = QtCore.QRectF(pad, pad, size - 2 * pad, size - 2 * pad)
+        p.setBrush(QtCore.Qt.NoBrush)
+        p.drawRoundedRect(rect, 3, 3)
+        y = size * 0.50
+        p.drawLine(QtCore.QPointF(size * 0.28, y), QtCore.QPointF(size * 0.72, y))
+    finally:
+        p.end()
+    return QtGui.QIcon(pm)
+
+
+class FullRowTreeSelectionDelegate(QtWidgets.QStyledItemDelegate):
+    @staticmethod
+    def _row_rect(view: QtWidgets.QTreeView, option: QtWidgets.QStyleOptionViewItem) -> QtCore.QRectF:
+        # Keep tree branch/expander area untouched so arrows stay visible on hover/selection.
+        branch_pad = max(12, int(view.indentation()) - 4)
+        x = max(2.0, float(branch_pad))
+        return QtCore.QRectF(
+            x,
+            float(option.rect.top()) + 1.0,
+            max(0.0, float(view.viewport().width()) - x - 2.0),
+            max(0.0, float(option.rect.height()) - 2.0),
+        )
+
+    def paint(self, painter, option, index):
+        opt = QtWidgets.QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        is_selected = bool(opt.state & QtWidgets.QStyle.State_Selected)
+        is_hovered = bool(opt.state & QtWidgets.QStyle.State_MouseOver)
+        view = option.widget if isinstance(option.widget, QtWidgets.QTreeView) else None
+
+        # Disable built-in per-cell states; we draw row backgrounds ourselves.
+        opt.state &= ~QtWidgets.QStyle.State_MouseOver
+        opt.state &= ~QtWidgets.QStyle.State_Selected
+        opt.state &= ~QtWidgets.QStyle.State_HasFocus
+
+        if is_hovered:
+            if view is not None and index.column() == 0 and not is_selected:
+                painter.save()
+                painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+                row_rect = self._row_rect(view, option)
+                painter.setPen(QtCore.Qt.NoPen)
+                painter.setBrush(QtGui.QColor(PALETTE.SOFT_HOVER))
+                painter.drawRoundedRect(row_rect, 8.0, 8.0)
+                painter.restore()
+
+        if is_selected:
+            if view is not None and index.column() == 0:
+                painter.save()
+                painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+                row_rect = self._row_rect(view, option)
+                painter.setPen(QtCore.Qt.NoPen)
+                painter.setBrush(QtGui.QColor(PALETTE.SELECTED))
+                painter.drawRoundedRect(row_rect, 8.0, 8.0)
+                painter.restore()
+
+        if is_selected or is_hovered:
+            # Orange hover/selection background needs dark readable text in dark theme.
+            pal = QtGui.QPalette(opt.palette)
+            dark_text = QtGui.QColor("#000000")
+            for role in (QtGui.QPalette.Text, QtGui.QPalette.WindowText, QtGui.QPalette.HighlightedText):
+                pal.setColor(QtGui.QPalette.Active, role, dark_text)
+                pal.setColor(QtGui.QPalette.Inactive, role, dark_text)
+            opt.palette = pal
+
+        style = opt.widget.style() if opt.widget is not None else QtWidgets.QApplication.style()
+        style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+
+
+class BindingsCheckDelegate(RowHoverDelegate):
+    def paint(self, painter, option, index):
+        opt = QtWidgets.QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.state &= ~QtWidgets.QStyle.State_HasFocus
+
+        view = option.widget if isinstance(option.widget, QtWidgets.QAbstractItemView) else None
+        hover_row = -1
+        if view is not None:
+            try:
+                hover_row = int(view.property("_hover_row") or -1)
+            except Exception:
+                hover_row = -1
+        is_selected = bool(opt.state & QtWidgets.QStyle.State_Selected)
+        is_hovered = bool(hover_row >= 0 and index.row() == hover_row)
+        # Prevent per-cell selection/hover painting and draw a single row background.
+        opt.state &= ~QtWidgets.QStyle.State_Selected
+        opt.state &= ~QtWidgets.QStyle.State_MouseOver
+        if index.column() == 0 and view is not None:
+            if is_selected:
+                painter.save()
+                vp = view.viewport()
+                row_rect = QtCore.QRect(0, option.rect.top(), vp.width(), option.rect.height())
+                painter.fillRect(row_rect, QtGui.QColor(PALETTE.SELECTED))
+                painter.restore()
+            elif is_hovered:
+                painter.save()
+                vp = view.viewport()
+                row_rect = QtCore.QRect(0, option.rect.top(), vp.width(), option.rect.height())
+                painter.fillRect(row_rect, QtGui.QColor(PALETTE.SOFT_HOVER))
+                painter.restore()
+
+        if is_selected or is_hovered:
+            pal = QtGui.QPalette(opt.palette)
+            dark_text = QtGui.QColor("#000000")
+            for role in (QtGui.QPalette.Text, QtGui.QPalette.WindowText, QtGui.QPalette.HighlightedText):
+                pal.setColor(QtGui.QPalette.Active, role, dark_text)
+                pal.setColor(QtGui.QPalette.Inactive, role, dark_text)
+            opt.palette = pal
+
+        style = opt.widget.style() if opt.widget is not None else QtWidgets.QApplication.style()
+
+        if index.column() != 0:
+            style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+            return
+
+        # Column 0: draw centered checkbox icon only.
+        icon = opt.icon
+        try:
+            model_icon = index.data(QtCore.Qt.DecorationRole)
+            if isinstance(model_icon, QtGui.QIcon) and not model_icon.isNull():
+                icon = model_icon
+        except Exception:
+            pass
+        if (icon is None or icon.isNull()) and bool(index.data(QtCore.Qt.UserRole + 1)):
+            icon = _icon_checkbox(True, size=BIND_CHECKBOX_ICON_SIZE, color="#222222")
+        elif icon is None or icon.isNull():
+            icon = _icon_checkbox(False, size=BIND_CHECKBOX_ICON_SIZE, color="#222222")
+        opt.icon = QtGui.QIcon()
+        opt.text = ""
+        style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+
+        s = QtCore.QSize(BIND_CHECKBOX_ICON_SIZE, BIND_CHECKBOX_ICON_SIZE)
+        cell_rect = option.rect
+        try:
+            if view is not None:
+                vr = view.visualRect(index)
+                if vr.isValid() and vr.width() > 0 and vr.height() > 0:
+                    cell_rect = vr
+        except Exception:
+            pass
+        target = QtCore.QRect(
+            cell_rect.x() + (cell_rect.width() - s.width()) // 2,
+            cell_rect.y() + (cell_rect.height() - s.height()) // 2,
+            s.width(),
+            s.height(),
+        )
+        pm = icon.pixmap(s)
+        if not pm.isNull():
+            painter.drawPixmap(target, pm)
+
+
+class BindingsHeaderView(QtWidgets.QHeaderView):
+    def __init__(self, orientation: QtCore.Qt.Orientation, parent=None):
+        super().__init__(orientation, parent)
+        self._checkbox_icon = QtGui.QIcon()
+
+    def set_checkbox_icon(self, icon: QtGui.QIcon) -> None:
+        self._checkbox_icon = icon if isinstance(icon, QtGui.QIcon) else QtGui.QIcon()
+        self.viewport().update()
+
+    def paintSection(self, painter: QtGui.QPainter, rect: QtCore.QRect, logicalIndex: int) -> None:
+        super().paintSection(painter, rect, logicalIndex)
+        if logicalIndex != 0 or self._checkbox_icon.isNull():
+            return
+        s = QtCore.QSize(BIND_CHECKBOX_ICON_SIZE, BIND_CHECKBOX_ICON_SIZE)
+        pm = self._checkbox_icon.pixmap(s)
+        if pm.isNull():
+            return
+        target = QtCore.QRect(
+            rect.x() + (rect.width() - s.width()) // 2,
+            rect.y() + (rect.height() - s.height()) // 2,
+            s.width(),
+            s.height(),
+        )
+        painter.drawPixmap(target, pm)
 
 # ----------------- HTTP helpers -------------------
 try:
@@ -724,6 +911,8 @@ class MainWin(QtWidgets.QMainWindow):
         self.tableBindings = RowDragTable(self.groupBindings)
         self.tableBindings.setObjectName("tableBindings")
         self.tableBindings.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self._bind_header = BindingsHeaderView(QtCore.Qt.Horizontal, self.tableBindings)
+        self.tableBindings.setHorizontalHeader(self._bind_header)
         layout_bind.addWidget(self.tableBindings)
 
         layout_bind_btns = QtWidgets.QHBoxLayout()
@@ -852,7 +1041,8 @@ class MainWin(QtWidgets.QMainWindow):
         self.treeAttributes.header().hide()
         try:
             self.treeAttributes.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-            self.treeAttributes.setAllColumnsShowFocus(True)
+            self.treeAttributes.setAllColumnsShowFocus(False)
+            self.treeAttributes.setItemDelegate(FullRowTreeSelectionDelegate(self.treeAttributes))
         except Exception:
             pass
         try:
@@ -890,13 +1080,13 @@ class MainWin(QtWidgets.QMainWindow):
         except Exception:
             pass
         # Размеры столбцов привязок
-        self.tableBindings.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        self.tableBindings.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.Fixed)
         self.tableBindings.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
         self.tableBindings.horizontalHeader().setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         self.tableBindings.horizontalHeader().setSectionResizeMode(3, QtWidgets.QHeaderView.Stretch)
         self.tableBindings.setColumnWidth(0, 40)
         try:
-            self.tableBindings.setIconSize(QtCore.QSize(18, 18))
+            self.tableBindings.setIconSize(QtCore.QSize(BIND_CHECKBOX_ICON_SIZE, BIND_CHECKBOX_ICON_SIZE))
         except Exception:
             pass
         try:
@@ -1081,6 +1271,19 @@ class MainWin(QtWidgets.QMainWindow):
             QTableWidget#tableParams {{
                 border: none;
             }}
+            QTableWidget#tableBindings QTableCornerButton::section,
+            QTableWidget#tableParams QTableCornerButton::section {{
+                background: transparent;
+                border: none;
+            }}
+            QTreeView#treeAttributes::item:hover,
+            QTreeView#treeAttributes::item:selected,
+            QTreeView#treeAttributes::item:selected:active,
+            QTreeView#treeAttributes::item:selected:!active {{
+                background: transparent;
+                border: none;
+                outline: none;
+            }}
             QFrame#splitSeparator {{
                 background: {sep_color};
                 border-radius: 1px;
@@ -1090,13 +1293,15 @@ class MainWin(QtWidgets.QMainWindow):
         """)
         
         # Установка делегата для скругленной подсветки строк
-        for table in [self.tableBindings, self.tableParams]:
-            delegate = RowHoverDelegate(table)
-            table.setItemDelegate(delegate)
-            # Установка row highlighter для скругленных фонов
-            install_viewport_row_highlighter(table)
-            # Включение отслеживания наведения мыши
-            setup_hover_tracking(table)
+        # tableBindings: отдельный делегат, чтобы центрировать чекбоксы в первом столбце.
+        self.tableBindings.setItemDelegate(BindingsCheckDelegate(self.tableBindings))
+        install_viewport_row_highlighter(self.tableBindings)
+        setup_hover_tracking(self.tableBindings)
+
+        # tableParams: обычный row-hover делегат.
+        self.tableParams.setItemDelegate(RowHoverDelegate(self.tableParams))
+        install_viewport_row_highlighter(self.tableParams)
+        setup_hover_tracking(self.tableParams)
         self._apply_theme_extras(dark)
 
     def _reload_bind_checkbox_icons(self, dark: bool):
@@ -1576,18 +1781,19 @@ class MainWin(QtWidgets.QMainWindow):
 
                 it0 = QtWidgets.QTableWidgetItem("")
                 it0.setData(QtCore.Qt.UserRole, b.uid)
+                it0.setData(QtCore.Qt.UserRole + 1, bool(b.is_enabled))
                 it0.setTextAlignment(QtCore.Qt.AlignCenter)
                 it0.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
                 if b.is_enabled:
                     if self._icon_bind_checked is not None:
                         it0.setIcon(self._icon_bind_checked)
                     else:
-                        it0.setIcon(_icon_checkbox(True))
+                        it0.setIcon(_icon_checkbox(True, size=BIND_CHECKBOX_ICON_SIZE))
                 else:
                     if self._icon_bind_unchecked is not None:
                         it0.setIcon(self._icon_bind_unchecked)
                     else:
-                        it0.setIcon(_icon_checkbox(False))
+                        it0.setIcon(_icon_checkbox(False, size=BIND_CHECKBOX_ICON_SIZE))
                 self.tableBindings.setItem(i, 0, it0)
 
                 self.tableBindings.setItem(i, 1, QtWidgets.QTableWidgetItem(b.parameter_code))
@@ -1609,16 +1815,18 @@ class MainWin(QtWidgets.QMainWindow):
                 self.tableBindings.setHorizontalHeaderItem(0, header_item)
             header_item.setText("")
             if not q.bindings:
-                icon = self._icon_bind_unchecked or _icon_checkbox(False)
+                icon = self._icon_bind_unchecked or _icon_checkbox(False, size=BIND_CHECKBOX_ICON_SIZE)
             else:
                 enabled = [bool(b.is_enabled) for b in q.bindings]
                 if all(enabled):
-                    icon = self._icon_bind_checked or _icon_checkbox(True)
+                    icon = self._icon_bind_checked or _icon_checkbox(True, size=BIND_CHECKBOX_ICON_SIZE)
                 elif any(enabled):
-                    icon = self._icon_bind_indeterminate or (self._icon_bind_unchecked or _icon_checkbox(False))
+                    icon = self._icon_bind_indeterminate or (self._icon_bind_unchecked or _icon_checkbox(False, size=BIND_CHECKBOX_ICON_SIZE))
                 else:
-                    icon = self._icon_bind_unchecked or _icon_checkbox(False)
+                    icon = self._icon_bind_unchecked or _icon_checkbox(False, size=BIND_CHECKBOX_ICON_SIZE)
             header_item.setIcon(icon)
+            if getattr(self, "_bind_header", None) is not None:
+                self._bind_header.set_checkbox_icon(icon)
         except Exception:
             pass
 

@@ -406,7 +406,7 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
     list_hover_on = _qss_url(list_hover_on)
     list_hover_mid = _qss_url(list_hover_mid)
 
-    hover_text = FG if dark else "#000000"
+    hover_text = "#000000"
 
     qss = f"""
     * {{

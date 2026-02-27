@@ -142,6 +142,26 @@ def _ensure_black_copy(src_path: str, icon_dir: str) -> str:
     return _ensure_color_copy(src_path, icon_dir, QtGui.QColor("#000000"), "black")
 
 
+def _ensure_scaled_copy(src_path: str, icon_dir: str, size_px: int, suffix: str) -> str:
+    try:
+        if not src_path or not os.path.exists(src_path):
+            return src_path
+        size_px = max(4, int(size_px))
+        cache = _cache_dir(icon_dir)
+        name, ext = os.path.splitext(os.path.basename(src_path))
+        dst = os.path.join(cache, f"{name}_{suffix}_{size_px}px{ext}")
+        if os.path.exists(dst):
+            return dst
+        pm = QtGui.QPixmap(src_path)
+        if pm.isNull():
+            return src_path
+        out = pm.scaled(size_px, size_px, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+        out.save(dst)
+        return dst
+    except Exception:
+        return src_path
+
+
 def is_dark_theme(app: QtWidgets.QApplication | None = None) -> bool:
     app = app or QtWidgets.QApplication.instance()
     if app is None:
@@ -246,7 +266,8 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
     tip_fg = "#e0e0e0" if dark else "#222222"
     menu_bg = bg if dark else "#FFFFFF"
     group_border = "rgba(255,255,255,0.16)" if dark else "rgba(0,0,0,0.12)"
-    hover_fg = "#FFFFFF" if dark else "#000000"
+    hover_fg = "#000000"
+    button_hover_fg = "#FFFFFF" if dark else "#000000"
 
     app = QtWidgets.QApplication.instance()
     down_arrow = resolve_icon_path("arrow_down", icon_dir, app=app, tint_in_dark=False)
@@ -280,6 +301,24 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
     check_off_url = _qss_url(check_off) if check_off else ""
     check_on_url = _qss_url(check_on) if check_on else ""
     check_mid_url = _qss_url(check_mid) if check_mid else ""
+    tree_branch_qss = ""
+    tree_right = _ensure_scaled_copy(right_arrow, icon_dir, 8, "tree") if right_arrow else ""
+    tree_down = _ensure_scaled_copy(down_arrow, icon_dir, 8, "tree") if down_arrow else ""
+    tree_right_url = _qss_url(tree_right) if tree_right else ""
+    tree_down_url = _qss_url(tree_down) if tree_down else ""
+    if tree_right_url and tree_down_url:
+        tree_branch_qss = f"""
+    QTreeView::branch, QTreeWidget::branch {{
+        width: 8px;
+        height: 8px;
+    }}
+    QTreeView::branch:closed:has-children, QTreeWidget::branch:closed:has-children {{
+        image: url("{tree_right_url}");
+    }}
+    QTreeView::branch:open:has-children, QTreeWidget::branch:open:has-children {{
+        image: url("{tree_down_url}");
+    }}
+    """
     return f"""
     * {{
         font-family: 'Segoe UI';
@@ -323,13 +362,13 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
     QToolButton#btn_primary:hover, QPushButton#btn_primary:hover,
     QToolButton[class="primary"]:hover, QPushButton[class="primary"]:hover {{
         background: {PALETTE.SOFT_HOVER};
-        color: {hover_fg};
+        color: {button_hover_fg};
         border-color: {PALETTE.ACCENT_HOVER};
     }}
     QToolButton#btn_primary:pressed, QPushButton#btn_primary:pressed,
     QToolButton[class="primary"]:pressed, QPushButton[class="primary"]:pressed {{
         background: {PALETTE.SELECTED};
-        color: {hover_fg};
+        color: {button_hover_fg};
         border-color: {PALETTE.ACCENT_PRESSED};
     }}
 
@@ -348,13 +387,14 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
         color: {fg};
         border: 1px solid {border};
     }}
-    QPushButton:hover, QToolButton:hover {{ background: {soft}; color: {hover_fg}; border-color: {PALETTE.ACCENT_HOVER}; }}
-    QPushButton:pressed, QToolButton:pressed {{ background: {pressed}; color: {hover_fg}; border-color: {PALETTE.ACCENT_PRESSED}; }}
+    QPushButton:hover, QToolButton:hover {{ background: {soft}; color: {button_hover_fg}; border-color: {PALETTE.ACCENT_HOVER}; }}
+    QPushButton:pressed, QToolButton:pressed {{ background: {pressed}; color: {button_hover_fg}; border-color: {PALETTE.ACCENT_PRESSED}; }}
 
     QTreeView::item:hover, QTableView::item:hover, QTreeWidget::item:hover, QTableWidget::item:hover,
     QListView::item:hover, QListWidget::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_fg}; border-radius: 8px; }}
     QTreeView::item:selected, QTableView::item:selected, QTreeWidget::item:selected, QTableWidget::item:selected,
     QListView::item:selected, QListWidget::item:selected {{ background: {PALETTE.SELECTED}; color: #000000; border-radius: 8px; }}
+    {tree_branch_qss}
 
     QMenu {{ background: {menu_bg}; border: 1px solid {border}; border-radius: 10px; padding: 4px 0; }}
     QMenu::item {{ padding: 6px 12px; border-radius: 8px; margin: 2px 6px; }}
@@ -786,6 +826,10 @@ class _HoverTracker(QtCore.QObject):
 
 class RowHoverDelegate(QtWidgets.QStyledItemDelegate):
     def paint(self, painter, option, index):
+        opt = QtWidgets.QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        # Hide dotted focus rectangle on selected/current items.
+        opt.state &= ~QtWidgets.QStyle.State_HasFocus
         hover_row = -1
         view = option.widget
         if isinstance(view, QtWidgets.QAbstractItemView):
@@ -793,11 +837,22 @@ class RowHoverDelegate(QtWidgets.QStyledItemDelegate):
                 hover_row = int(view.property("_hover_row") or -1)
             except Exception:
                 hover_row = -1
-        if hover_row >= 0 and index.row() == hover_row and not (option.state & QtWidgets.QStyle.State_Selected):
+        if hover_row >= 0 and index.row() == hover_row and not (opt.state & QtWidgets.QStyle.State_Selected):
+            # Disable built-in per-cell hover state to avoid double hover tint from QSS.
+            opt.state &= ~QtWidgets.QStyle.State_MouseOver
             painter.save()
-            painter.fillRect(option.rect, QtGui.QColor(PALETTE.SOFT_HOVER))
+            vp = view.viewport()
+            row_rect = QtCore.QRect(0, option.rect.top(), vp.width(), option.rect.height())
+            painter.fillRect(row_rect, QtGui.QColor(PALETTE.SOFT_HOVER))
             painter.restore()
-        super().paint(painter, option, index)
+            pal = QtGui.QPalette(opt.palette)
+            dark_text = QtGui.QColor("#000000")
+            for role in (QtGui.QPalette.Text, QtGui.QPalette.WindowText, QtGui.QPalette.HighlightedText):
+                pal.setColor(QtGui.QPalette.Active, role, dark_text)
+                pal.setColor(QtGui.QPalette.Inactive, role, dark_text)
+            opt.palette = pal
+        style = opt.widget.style() if opt.widget is not None else QtWidgets.QApplication.style()
+        style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
 
 
 def install_viewport_row_highlighter(view: QtWidgets.QAbstractItemView) -> None:

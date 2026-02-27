@@ -191,7 +191,7 @@ def resolve_icon_path(
     if not p:
         return ""
     if tint_in_dark and is_dark_theme(app):
-        no_tint = {"logo", "logo_white", "app_icon", "warning"}
+        no_tint = {"logo", "logo_white", "app_icon", "warning", "gear", "setting", "ok", "none"}
         if name not in no_tint:
             return _ensure_white_copy(p, icon_dir)
     return p
@@ -238,14 +238,15 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
     bg = PALETTE.BG_DARK if dark else PALETTE.BG_LIGHT
     fg = PALETTE.FG_DARK if dark else PALETTE.FG_LIGHT
     border = PALETTE.BORDER_DARK if dark else PALETTE.BORDER_LIGHT
-    panel = "#252525" if dark else "#FFFFFF"
+    panel = bg if dark else "#FFFFFF"
     soft = "rgba(247,146,30,0.10)" if not dark else "rgba(247,146,30,0.22)"
     pressed = "rgba(247,146,30,0.20)" if not dark else "rgba(247,146,30,0.34)"
-    input_bg = "#121212" if dark else "#FFFFFF"
+    input_bg = bg if dark else "#FFFFFF"
     tip_bg = "#2a2a2a" if dark else "#FFFFFF"
     tip_fg = "#e0e0e0" if dark else "#222222"
-    menu_bg = "#1e1e1e" if dark else "#FFFFFF"
+    menu_bg = bg if dark else "#FFFFFF"
     group_border = "rgba(255,255,255,0.16)" if dark else "rgba(0,0,0,0.12)"
+    hover_fg = "#FFFFFF" if dark else "#000000"
 
     app = QtWidgets.QApplication.instance()
     down_arrow = resolve_icon_path("arrow_down", icon_dir, app=app, tint_in_dark=False)
@@ -265,6 +266,12 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
             left_arrow = _ensure_white_copy(left_arrow, icon_dir)
         if right_arrow:
             right_arrow = _ensure_white_copy(right_arrow, icon_dir)
+        if check_off:
+            check_off = _ensure_white_copy(check_off, icon_dir)
+        if check_on:
+            check_on = _ensure_white_copy(check_on, icon_dir)
+        if check_mid:
+            check_mid = _ensure_white_copy(check_mid, icon_dir)
 
     down_arrow_url = _qss_url(down_arrow) if down_arrow else ""
     up_arrow_url = _qss_url(up_arrow) if up_arrow else ""
@@ -300,8 +307,8 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
         border: none;
         padding: 6px 10px;
     }}
-    QHeaderView::section:hover {{ background: {PALETTE.SOFT_HOVER}; color: #000000; border-radius: 8px; }}
-    QHeaderView::section:pressed {{ background: {PALETTE.SELECTED}; color: #000000; border-radius: 8px; }}
+    QHeaderView::section:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_fg}; border-radius: 8px; }}
+    QHeaderView::section:pressed {{ background: {PALETTE.SELECTED}; color: {hover_fg}; border-radius: 8px; }}
 
     QToolButton#btn_primary, QPushButton#btn_primary,
     QToolButton[class="primary"], QPushButton[class="primary"] {{
@@ -316,13 +323,13 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
     QToolButton#btn_primary:hover, QPushButton#btn_primary:hover,
     QToolButton[class="primary"]:hover, QPushButton[class="primary"]:hover {{
         background: {PALETTE.SOFT_HOVER};
-        color: #000000;
+        color: {hover_fg};
         border-color: {PALETTE.ACCENT_HOVER};
     }}
     QToolButton#btn_primary:pressed, QPushButton#btn_primary:pressed,
     QToolButton[class="primary"]:pressed, QPushButton[class="primary"]:pressed {{
         background: {PALETTE.SELECTED};
-        color: #000000;
+        color: {hover_fg};
         border-color: {PALETTE.ACCENT_PRESSED};
     }}
 
@@ -341,20 +348,29 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
         color: {fg};
         border: 1px solid {border};
     }}
-    QPushButton:hover, QToolButton:hover {{ background: {soft}; color: #000000; border-color: {PALETTE.ACCENT_HOVER}; }}
-    QPushButton:pressed, QToolButton:pressed {{ background: {pressed}; color: #000000; border-color: {PALETTE.ACCENT_PRESSED}; }}
+    QPushButton:hover, QToolButton:hover {{ background: {soft}; color: {hover_fg}; border-color: {PALETTE.ACCENT_HOVER}; }}
+    QPushButton:pressed, QToolButton:pressed {{ background: {pressed}; color: {hover_fg}; border-color: {PALETTE.ACCENT_PRESSED}; }}
 
     QTreeView::item:hover, QTableView::item:hover, QTreeWidget::item:hover, QTableWidget::item:hover,
-    QListView::item:hover, QListWidget::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: #000000; border-radius: 8px; }}
+    QListView::item:hover, QListWidget::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_fg}; border-radius: 8px; }}
     QTreeView::item:selected, QTableView::item:selected, QTreeWidget::item:selected, QTableWidget::item:selected,
     QListView::item:selected, QListWidget::item:selected {{ background: {PALETTE.SELECTED}; color: #000000; border-radius: 8px; }}
 
     QMenu {{ background: {menu_bg}; border: 1px solid {border}; border-radius: 10px; padding: 4px 0; }}
     QMenu::item {{ padding: 6px 12px; border-radius: 8px; margin: 2px 6px; }}
-    QMenu::item:selected {{ background: {PALETTE.SOFT_HOVER}; color: #000000; }}
+    QMenu::item:selected {{ background: {PALETTE.SOFT_HOVER}; color: {hover_fg}; }}
     QMenu::separator {{ height: 1px; background: {border}; margin: 4px 8px; }}
 
     QAbstractItemView::item {{ min-height: 22px; border-radius: 8px; margin: 1px 4px; padding: 2px 6px; }}
+    QAbstractItemView::item:focus {{ outline: none; border: none; }}
+
+    QComboBox QAbstractItemView {{ outline: none; }}
+    QComboBox QAbstractItemView::item {{ border: none; }}
+    QComboBox QAbstractItemView::item:hover {{ border: none; }}
+    QComboBox QAbstractItemView::item:selected {{ border: none; }}
+    QComboBox QAbstractItemView::item:selected:active {{ border: none; outline: none; }}
+    QComboBox QAbstractItemView::item:selected:!active {{ border: none; outline: none; }}
+    QComboBox QAbstractItemView::item:focus {{ outline: none; border: none; }}
 
     QGroupBox {{
         background: {bg};
@@ -719,13 +735,34 @@ def create_back_button(parent=None, size: int = 28, icon_dir: str = "") -> QtWid
     return b
 
 
-def apply_dark_titlebar(window, dark: bool = False) -> None:
+def apply_dark_titlebar(window, dark: bool | None = None) -> None:
     if sys.platform != "win32":
         return
     try:
+        if dark is None:
+            dark = is_dark_theme(QtWidgets.QApplication.instance())
+        dark = bool(dark)
         hwnd = int(window.winId())
         val = ctypes.c_int(1 if dark else 0)
+
         ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(val), ctypes.sizeof(val))
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 19, ctypes.byref(val), ctypes.sizeof(val))
+
+        def _to_colorref(hex_color: str) -> ctypes.c_uint:
+            s = (hex_color or "").lstrip("#")
+            if len(s) != 6:
+                s = "1E1E1E" if dark else "F5F5F5"
+            r = int(s[0:2], 16)
+            g = int(s[2:4], 16)
+            b = int(s[4:6], 16)
+            return ctypes.c_uint((r) | (g << 8) | (b << 16))
+
+        caption = _to_colorref("#1E1E1E" if dark else "#F5F5F5")
+        text = _to_colorref("#FFFFFF" if dark else "#222222")
+        border = _to_colorref("#1E1E1E" if dark else "#DCDCDC")
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 35, ctypes.byref(caption), ctypes.sizeof(caption))
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 36, ctypes.byref(text), ctypes.sizeof(text))
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 34, ctypes.byref(border), ctypes.sizeof(border))
     except Exception:
         pass
 

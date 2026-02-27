@@ -406,7 +406,7 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
     list_hover_on = _qss_url(list_hover_on)
     list_hover_mid = _qss_url(list_hover_mid)
 
-    hover_text = "#000000"
+    hover_text = FG if dark else "#000000"
 
     qss = f"""
     * {{
@@ -478,9 +478,10 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
     }}
 
     QComboBox QAbstractItemView {{ background: {BG}; border: 1px solid {BORDER}; outline: none; selection-background-color: {PALETTE.SELECTED}; }}
-    QComboBox QAbstractItemView::item {{ padding: 4px 8px; border-radius: 8px; margin: 1px 4px; }}
-    QComboBox QAbstractItemView::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; border-radius: 8px; }}
-    QComboBox QAbstractItemView::item:selected {{ background: {PALETTE.SELECTED}; color: {hover_text}; border-radius: 8px; }}
+    QComboBox QAbstractItemView::item {{ padding: 4px 8px; border-radius: 8px; margin: 1px 4px; border: none; }}
+    QComboBox QAbstractItemView::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; border-radius: 8px; border: none; }}
+    QComboBox QAbstractItemView::item:selected {{ background: {PALETTE.SELECTED}; color: {hover_text}; border-radius: 8px; border: none; }}
+    QComboBox QAbstractItemView::item:focus {{ outline: none; border: none; }}
 
     QListView, QListWidget {{
         background: {BG};
@@ -1582,7 +1583,11 @@ class MappingDialog(QtWidgets.QDialog):
             lbl = QtWidgets.QLabel(name, parent=wrap)
             cmb = QtWidgets.QComboBox(parent=wrap)
             cmb.setStyleSheet(
-                "QComboBox QAbstractItemView { background-color: #FFFFFF; selection-background-color: #F4B183; selection-color: #000000; border: 1px solid #F4B183; border-radius: 8px; }"
+                "QComboBox QAbstractItemView { background-color: #FFFFFF; selection-background-color: #F4B183; selection-color: #000000; border: 1px solid #F4B183; border-radius: 8px; outline: none; }"
+                "QComboBox QAbstractItemView::item { border: none; }"
+                "QComboBox QAbstractItemView::item:hover { border: none; }"
+                "QComboBox QAbstractItemView::item:selected { border: none; }"
+                "QComboBox QAbstractItemView::item:focus { outline: none; border: none; }"
             )
             cmb.setEditable(False); cmb.addItem("- не выбрано -"); cmb.addItems(self.api_codes)
             if not hasattr(self, "_wf"): self._wf = _NoWheelFilter(self)
@@ -1848,7 +1853,11 @@ class MappingDialogLarix(QtWidgets.QDialog):
             lbl = QtWidgets.QLabel(name, parent=wrap)
             cmb = QtWidgets.QComboBox(parent=wrap)
             cmb.setStyleSheet(
-                "QComboBox QAbstractItemView { background-color: #FFFFFF; selection-background-color: #F4B183; selection-color: #000000; border: 1px solid #F4B183; border-radius: 8px; }"
+                "QComboBox QAbstractItemView { background-color: #FFFFFF; selection-background-color: #F4B183; selection-color: #000000; border: 1px solid #F4B183; border-radius: 8px; outline: none; }"
+                "QComboBox QAbstractItemView::item { border: none; }"
+                "QComboBox QAbstractItemView::item:hover { border: none; }"
+                "QComboBox QAbstractItemView::item:selected { border: none; }"
+                "QComboBox QAbstractItemView::item:focus { outline: none; border: none; }"
             )
             cmb.setEditable(False); cmb.addItem("- не выбрано -"); cmb.addItems(self.api_codes)
             if not hasattr(self, "_wf"): self._wf = _NoWheelFilter(self)

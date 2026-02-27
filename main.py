@@ -10,7 +10,8 @@ from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap, QIcon
 
 from shared.theme_toggle import (
     ThemeToggle, is_dark_theme, theme, resolve_icon_path,
-    load_saved_theme, enable_theme_sync, set_back_to_menu_callback
+    load_saved_theme, enable_theme_sync, set_back_to_menu_callback,
+    apply_dark_titlebar,
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -401,7 +402,7 @@ class MainMenuWidget(QWidget):
         self._api_is_connected = bool(connected)
         app = QApplication.instance()
         key = "ok" if connected else "none"
-        path = resolve_icon_path(key, ICON_DIR, app=app, tint_in_dark=False)
+        path = resolve_icon_path(key, ICON_DIR, app=app)
         tip = (
             "Подключено к API"
             if connected
@@ -437,7 +438,7 @@ class MainMenuWidget(QWidget):
 
     def _set_connect_button_icon(self):
         app = QApplication.instance()
-        icon_path = resolve_icon_path("login", ICON_DIR, app=app, tint_in_dark=False)
+        icon_path = resolve_icon_path("login", ICON_DIR, app=app)
         if icon_path and os.path.exists(icon_path):
             self.btn_api_connect.setIcon(QIcon(icon_path))
             self.btn_api_connect.setIconSize(QSize(16, 16))
@@ -570,6 +571,7 @@ class MainWindow(QMainWindow):
             icon_path = get_window_icon_path()
             if icon_path:
                 self.setWindowIcon(QIcon(icon_path))
+            apply_dark_titlebar(self, self._is_dark)
         except Exception:
             pass
 
@@ -610,6 +612,10 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app:
             theme(app, dark, icon_dir=ICON_DIR)
+        try:
+            apply_dark_titlebar(self, dark)
+        except Exception:
+            pass
 
     def _on_api_base_changed(self, value: str):
         self._api_base_url = _normalize_api_base_url(value)

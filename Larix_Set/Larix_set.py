@@ -836,8 +836,7 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
     list_hover_on = _qss_url(list_hover_on)
     list_hover_mid = _qss_url(list_hover_mid)
 
-    # При hover текст всегда чёрный (и для светлой, и для тёмной темы)
-    hover_text = "#000000"
+    hover_text = FG if dark else "#000000"
 
     qss = f"""
     * {{
@@ -914,9 +913,10 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
 
     /* Popup выпадающего списка — подсветки как у кнопок */
     QComboBox QAbstractItemView {{ background: {BG}; border: 1px solid {BORDER}; outline: none; selection-background-color: {PALETTE.SELECTED}; }}
-    QComboBox QAbstractItemView::item {{ padding: 4px 8px; border-radius: 8px; margin: 1px 4px; }}
-    QComboBox QAbstractItemView::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; border-radius: 8px; }}
-    QComboBox QAbstractItemView::item:selected {{ background: {PALETTE.SELECTED}; color: {hover_text}; border-radius: 8px; }}
+    QComboBox QAbstractItemView::item {{ padding: 4px 8px; border-radius: 8px; margin: 1px 4px; border: none; }}
+    QComboBox QAbstractItemView::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; border-radius: 8px; border: none; }}
+    QComboBox QAbstractItemView::item:selected {{ background: {PALETTE.SELECTED}; color: {hover_text}; border-radius: 8px; border: none; }}
+    QComboBox QAbstractItemView::item:focus {{ outline: none; border: none; }}
 
     /* Списки (QListView, QListWidget) — подсветка элементов как в выпадающем списке */
     QListView, QListWidget {{
@@ -2874,7 +2874,7 @@ def run_gui():
     app.installEventFilter(_dtf)
     w = MainWindow()
     w.show()
-    apply_dark_titlebar(w)
+    apply_dark_titlebar(w, is_dark_theme(app))
     if hasattr(app, "exec"):
         sys.exit(app.exec())
     else:

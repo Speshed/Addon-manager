@@ -961,6 +961,8 @@ class MainWin(QtWidgets.QMainWindow):
         header = self.tableParams.horizontalHeader()
         header.setSectionsClickable(True)
         header.sectionClicked.connect(self.on_param_header_clicked)
+        header.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        header.customContextMenuRequested.connect(self._on_param_header_menu)
 
         # Внешний вид
         self.apply_style()
@@ -1051,6 +1053,7 @@ class MainWin(QtWidgets.QMainWindow):
     def _on_theme_toggled(self, dark: bool):
         app = QtWidgets.QApplication.instance()
         theme(app, dark, icon_dir=ICON_DIR)
+        apply_dark_titlebar(self, dark)
         self._apply_theme_extras(bool(dark))
 
  # ----------------- Внешний вид -----------------
@@ -1134,7 +1137,8 @@ class MainWin(QtWidgets.QMainWindow):
             icon = None
             icon_key = _norm(icon_name)
             app = QtWidgets.QApplication.instance()
-            icon_path = resolve_icon_path(icon_key, ICON_DIR, app=app) or _resolve_icon_path(icon_name)
+            tint = icon_key not in ("gear", "setting", "free-icon-setting-3288004.png")
+            icon_path = resolve_icon_path(icon_key, ICON_DIR, app=app, tint_in_dark=tint) or _resolve_icon_path(icon_name)
             if icon_path:
                 try:
                     icon = QtGui.QIcon(icon_path)
@@ -1326,7 +1330,17 @@ class MainWin(QtWidgets.QMainWindow):
             # по клику на "Модель" открываем окно выбора моделей
             self.open_model_filter_dialog()
 
-    def _show_type_filter_menu(self):
+    def _on_param_header_menu(self, pos: QtCore.QPoint):
+        header: QtWidgets.QHeaderView = self.tableParams.horizontalHeader()
+        section = int(header.logicalIndexAt(pos))
+        if section not in (1, 2):
+            return
+        if section == 1:
+            self._show_type_filter_menu(header.mapToGlobal(pos))
+        else:
+            self._show_model_filter_menu(header.mapToGlobal(pos))
+
+    def _show_type_filter_menu(self, global_pos: Optional[QtCore.QPoint] = None):
         menu = QtWidgets.QMenu(self)
         act_all = QtGui.QAction("Оба", menu)
         act_text = QtGui.QAction("Текст", menu)
@@ -1351,7 +1365,43 @@ class MainWin(QtWidgets.QMainWindow):
                 self.type_filter = True
             self.fill_param_table()
         ag.triggered.connect(apply_choice)
-        menu.exec(QtGui.QCursor.pos())
+        menu.exec(global_pos or QtGui.QCursor.pos())
+
+    def _show_model_filter_menu(self, global_pos: QtCore.QPoint):
+        models = self.current_models()
+        if not models:
+            QtWidgets.QMessageBox.information(self, "Фильтр по моделям", "Сначала загрузите параметры через «Окно моделей».")
+            return
+
+        menu = QtWidgets.QMenu(self)
+        act_all = QtGui.QAction("Все модели", menu)
+        menu.addAction(act_all)
+        menu.addSeparator()
+
+        current = set(models) if self.model_filter_set is None else set(self.model_filter_set)
+        action_to_model: Dict[QtGui.QAction, str] = {}
+        for model in models:
+            act = QtGui.QAction(model, menu)
+            act.setCheckable(True)
+            act.setChecked(model in current)
+            menu.addAction(act)
+            action_to_model[act] = model
+
+        chosen = menu.exec(global_pos)
+        if chosen is None:
+            return
+        if chosen is act_all:
+            self.model_filter_set = None
+            self.fill_param_table()
+            return
+        if chosen in action_to_model:
+            model = action_to_model[chosen]
+            if chosen.isChecked():
+                current.add(model)
+            else:
+                current.discard(model)
+            self.model_filter_set = None if len(current) == len(models) else set(current)
+            self.fill_param_table()
 
     def open_model_filter_dialog(self):
         models = self.current_models()
@@ -1809,7 +1859,7 @@ def main():
         pass
     win = MainWin()
     win.show()
-    apply_dark_titlebar(win)
+    apply_dark_titlebar(win, is_dark_theme(app))
     sys.exit(app.exec())
 # === HOTFIX: импорт параметров из Excel (вставить перед if __name__ == "__main__":) ===
 
@@ -1899,6 +1949,12 @@ def _deamon_import_excel(self):
             except Exception:
                 s = s.replace(';', ',')
                 return [t.strip() for t in s.split(',') if t.strip()]
+
+        def _is_valid_param_name(name: str) -> bool:
+            name = (name or "").strip()
+            if not name:
+                return False
+            return all(ch == "_" or ch.isalpha() for ch in name)
 # Подготовка документа
         if not hasattr(self, "attr_types"):
             self.attr_types = {}
@@ -1935,6 +1991,16 @@ def _deamon_import_excel(self):
             pairs = [(l, rights[i]) for i, l in enumerate(lefts) if i < len(rights)]
 
             params = _split_list(plist)
+            invalid_params = [code for code in params if not _is_valid_param_name(code)]
+            if invalid_params:
+                bad_values = ", ".join(f'"{x}"' for x in invalid_params[:5])
+                suffix = "" if len(invalid_params) <= 5 else ", ..."
+                raise RuntimeError(
+                    "Найдены недопустимые имена в столбце 'Список параметров' "
+                    f"(строка Excel {r}): {bad_values}{suffix}.\n\n"
+                    "Разрешены только буквы и символ подчеркивания '_'.\n"
+                    "Примеры корректных имен: Width, Ширина_проема, Param_Name."
+                )
             for code in params:
                 b = Binding(parameter_code=code, src_is_numeric=None, is_enabled=True, src_model_title="Excel")
                 if pairs:

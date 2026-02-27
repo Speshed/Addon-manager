@@ -49,15 +49,15 @@ ICON_DIR = rsrc_path("icon")
 LOGO_LIGHT_PATH = rsrc_path("icon", "Manager-scaled.png")
 LOGO_DARK_PATH = rsrc_path("icon", "Manager-scaled_white.png")
 TITLEBAR_ICON_PATH = rsrc_path("icon", "logo.ico")
-LOGO_PATH = LOGO_LIGHT_PATH if os.path.exists(LOGO_LIGHT_PATH) else (resolve_icon_path("logo", ICON_DIR, tint_in_dark=False) or "")
+LOGO_PATH = LOGO_LIGHT_PATH if os.path.exists(LOGO_LIGHT_PATH) else (resolve_icon_path("logo", ICON_DIR) or "")
 
 # icons and arrow resources
-ARROW_DOWN_PATH = resolve_icon_path("arrow_down", ICON_DIR, tint_in_dark=False) or ""
-ARROW_UP_PATH = resolve_icon_path("arrow_up", ICON_DIR, tint_in_dark=False) or ""
-ARROW_LEFT_PATH = resolve_icon_path("arrow_left", ICON_DIR, tint_in_dark=False) or ""
-ARROW_RIGHT_PATH = resolve_icon_path("arrow_right", ICON_DIR, tint_in_dark=False) or ""
-SUN_ICON_CANDIDATES = [resolve_icon_path("sun", ICON_DIR, tint_in_dark=False) or ""]
-MOON_ICON_CANDIDATES = [resolve_icon_path("moon", ICON_DIR, tint_in_dark=False) or ""]
+ARROW_DOWN_PATH = resolve_icon_path("arrow_down", ICON_DIR) or ""
+ARROW_UP_PATH = resolve_icon_path("arrow_up", ICON_DIR) or ""
+ARROW_LEFT_PATH = resolve_icon_path("arrow_left", ICON_DIR) or ""
+ARROW_RIGHT_PATH = resolve_icon_path("arrow_right", ICON_DIR) or ""
+SUN_ICON_CANDIDATES = [resolve_icon_path("sun", ICON_DIR) or ""]
+MOON_ICON_CANDIDATES = [resolve_icon_path("moon", ICON_DIR) or ""]
 
 # Native Windows dark title bar helper (best-effort; safe on non-Windows)
 def _apply_native_dark_titlebar(widget: QtWidgets.QWidget, dark: bool) -> None:
@@ -333,33 +333,36 @@ class GeneratorWorker(QtCore.QObject):
 
     def run(self):
         try:
-            self.log.emit("Чтение файла наборов...")
-            df_nabory = pd.read_excel(self.nabory_path, sheet_name=self.sheet_nabory)
-            if 'Имя набора' not in df_nabory.columns:
-                raise ValueError("В файле наборов не найден столбец 'Имя набора'")
-            if 'Описание' not in df_nabory.columns:
-                df_nabory['Описание'] = df_nabory['Имя набора']
-
-            df_nabory.dropna(subset=['Имя набора'], inplace=True)
             category_map = {}
             prefix_map = {}
 
-            for _, row in df_nabory.iterrows():
-                name_raw = row['Имя набора']
-                if pd.isna(name_raw):
-                    continue
-                name = normalize_name(name_raw)
-                if name.startswith('Раздел'):
-                    continue
-                desc = normalize_name(row.get('Описание', name))
-                prefix = name.split('_')[0] if '_' in name else 'OTHER'
-                category_map[name] = desc
-                prefix_map[name] = prefix
-
-            self.log.emit(f"Найдено наборов: {len(category_map)}")
-
             self.log.emit("Чтение матрицы...")
             df_matrix = pd.read_excel(self.matrix_path, sheet_name=self.sheet_matrix, header=None)
+
+            if self.nabory_path:
+                self.log.emit("Чтение файла наборов...")
+                df_nabory = pd.read_excel(self.nabory_path, sheet_name=self.sheet_nabory)
+                if 'Имя набора' not in df_nabory.columns:
+                    raise ValueError("В файле наборов не найден столбец 'Имя набора'")
+                if 'Описание' not in df_nabory.columns:
+                    df_nabory['Описание'] = df_nabory['Имя набора']
+
+                df_nabory.dropna(subset=['Имя набора'], inplace=True)
+                for _, row in df_nabory.iterrows():
+                    name_raw = row['Имя набора']
+                    if pd.isna(name_raw):
+                        continue
+                    name = normalize_name(name_raw)
+                    if name.startswith('Раздел'):
+                        continue
+                    desc = normalize_name(row.get('Описание', name))
+                    prefix = name.split('_')[0] if '_' in name else 'OTHER'
+                    category_map[name] = desc
+                    prefix_map[name] = prefix
+
+                self.log.emit(f"Найдено наборов: {len(category_map)}")
+            else:
+                self.log.emit("Файл наборов не выбран: использую названия из матрицы")
 
             # Helpers to format numeric codes like 1.01
             def fmt_code(v):
@@ -411,6 +414,15 @@ class GeneratorWorker(QtCore.QObject):
                         pairs.append((set1, set2, str(cell_value).strip()))
 
             self.log.emit(f"Всего коллизий в матрице: {len(pairs)}")
+
+            if not category_map:
+                all_sets = set()
+                all_sets.update([n for n in row_names if n])
+                all_sets.update([n for n in col_names if n])
+                for name in sorted(all_sets):
+                    prefix = name.split('_')[0] if '_' in name else 'OTHER'
+                    category_map[name] = name
+                    prefix_map[name] = prefix
 
             # Group by prefixes from 'Наборы' (без номеров)
             groups = defaultdict(list)
@@ -727,32 +739,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sec_files = Section("Файлы", self)
         l = self.sec_files.frame_l
 
-        # Наборы
-        self.ed_nabory = QtWidgets.QLineEdit()
-        self.btn_nabory = QtWidgets.QPushButton("Выбрать...")
-        self.btn_nabory.clicked.connect(self._pick_nabory)
-        l.addWidget(QtWidgets.QLabel("Наборы для коллизий.xlsx"), 1, 0)
-        l.addWidget(self.ed_nabory, 1, 1)
-        l.addWidget(self.btn_nabory, 1, 2)
-
-        self.cb_sheet_nabory = QtWidgets.QComboBox()
-        self.cb_sheet_nabory.setEditable(True)
-        self.cb_sheet_nabory.lineEdit().setPlaceholderText("не выбрано")
-        self.cb_sheet_nabory.setCurrentIndex(-1)
-        self.cb_sheet_nabory.setFixedWidth(160)
-        spn = self.cb_sheet_nabory.sizePolicy()
-        spn.setHorizontalPolicy(QtWidgets.QSizePolicy.Fixed)
-        self.cb_sheet_nabory.setSizePolicy(spn)
-        l.addWidget(QtWidgets.QLabel("Лист:"), 2, 0)
-        l.addWidget(self.cb_sheet_nabory, 2, 1)
-
         # Матрица
         self.ed_matrix = QtWidgets.QLineEdit()
         self.btn_matrix = QtWidgets.QPushButton("Выбрать...")
         self.btn_matrix.clicked.connect(self._pick_matrix)
-        l.addWidget(QtWidgets.QLabel("Матрица коллизий.xlsx"), 3, 0)
-        l.addWidget(self.ed_matrix, 3, 1)
-        l.addWidget(self.btn_matrix, 3, 2)
+        l.addWidget(QtWidgets.QLabel("Матрица коллизий.xlsx"), 1, 0)
+        l.addWidget(self.ed_matrix, 1, 1)
+        l.addWidget(self.btn_matrix, 1, 2)
 
         self.cb_sheet_matrix = QtWidgets.QComboBox()
         self.cb_sheet_matrix.setEditable(True)
@@ -762,8 +755,27 @@ class MainWindow(QtWidgets.QMainWindow):
         spm = self.cb_sheet_matrix.sizePolicy()
         spm.setHorizontalPolicy(QtWidgets.QSizePolicy.Fixed)
         self.cb_sheet_matrix.setSizePolicy(spm)
-        l.addWidget(QtWidgets.QLabel("Лист:"), 4, 0)
-        l.addWidget(self.cb_sheet_matrix, 4, 1)
+        l.addWidget(QtWidgets.QLabel("Лист:"), 2, 0)
+        l.addWidget(self.cb_sheet_matrix, 2, 1)
+
+        # Наборы (опционально)
+        self.ed_nabory = QtWidgets.QLineEdit()
+        self.btn_nabory = QtWidgets.QPushButton("Выбрать...")
+        self.btn_nabory.clicked.connect(self._pick_nabory)
+        l.addWidget(QtWidgets.QLabel("Наборы для коллизий.xlsx (опционально)"), 3, 0)
+        l.addWidget(self.ed_nabory, 3, 1)
+        l.addWidget(self.btn_nabory, 3, 2)
+
+        self.cb_sheet_nabory = QtWidgets.QComboBox()
+        self.cb_sheet_nabory.setEditable(True)
+        self.cb_sheet_nabory.lineEdit().setPlaceholderText("не выбрано")
+        self.cb_sheet_nabory.setCurrentIndex(-1)
+        self.cb_sheet_nabory.setFixedWidth(160)
+        spn = self.cb_sheet_nabory.sizePolicy()
+        spn.setHorizontalPolicy(QtWidgets.QSizePolicy.Fixed)
+        self.cb_sheet_nabory.setSizePolicy(spn)
+        l.addWidget(QtWidgets.QLabel("Лист (наборы):"), 4, 0)
+        l.addWidget(self.cb_sheet_nabory, 4, 1)
 
         # Выход
         self.ed_output = QtWidgets.QLineEdit()
@@ -976,17 +988,17 @@ class MainWindow(QtWidgets.QMainWindow):
         sheet_nabory = self.cb_sheet_nabory.currentText().strip()
         sheet_matrix = self.cb_sheet_matrix.currentText().strip()
 
-        if not os.path.exists(nabory):
-            QtWidgets.QMessageBox.warning(self, "Файл не найден", "Укажите корректный путь к файлу наборов.")
-            return
         if not os.path.exists(matrix):
             QtWidgets.QMessageBox.warning(self, "Файл не найден", "Укажите корректный путь к файлу матрицы.")
+            return
+        if nabory and not os.path.exists(nabory):
+            QtWidgets.QMessageBox.warning(self, "Файл не найден", "Укажите корректный путь к файлу наборов или оставьте поле пустым.")
             return
         if not out:
             QtWidgets.QMessageBox.warning(self, "Не задан выходной файл", "Укажите путь сохранения .cv/.xml")
             return
-        if not sheet_nabory:
-            QtWidgets.QMessageBox.warning(self, "Не выбран лист", "Выберите лист в файле наборов.")
+        if nabory and not sheet_nabory:
+            QtWidgets.QMessageBox.warning(self, "Не выбран лист", "Выберите лист в файле наборов или очистите путь к наборам.")
             return
         if not sheet_matrix:
             QtWidgets.QMessageBox.warning(self, "Не выбран лист", "Выберите лист в матрице.")

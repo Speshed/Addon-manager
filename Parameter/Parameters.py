@@ -45,7 +45,11 @@ except Exception:
     EXCEL_TEMPLATE_AVAILABLE = False
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
-ICON_DIR = os.path.join(APP_DIR, "icon")
+APP_ROOT_DIR = os.path.dirname(APP_DIR)
+ICON_DIR = os.path.join(APP_ROOT_DIR, "icon")
+LOGO_LIGHT_REL = os.path.join("icon", "Manager-scaled.png")
+LOGO_DARK_REL = os.path.join("icon", "Manager-scaled_white.png")
+TITLEBAR_ICON_REL = os.path.join("icon", "logo.ico")
 
 
 def _load_std_json_module() -> "types.ModuleType":
@@ -344,8 +348,11 @@ def nik_icon(name: str, icon_dir: str = ICON_DIR) -> QtGui.QIcon:
 def load_logo(icon_dir: str = ICON_DIR) -> QtGui.QPixmap:
     app = QtWidgets.QApplication.instance()
     dark = is_dark_theme(app)
-    name = "logo_white" if dark else "logo"
-    p = resolve_icon_path(name, icon_dir)
+    rel = LOGO_DARK_REL if dark else LOGO_LIGHT_REL
+    p = os.path.join(APP_ROOT_DIR, rel)
+    if not os.path.exists(p):
+        name = "logo_white" if dark else "logo"
+        p = resolve_icon_path(name, icon_dir)
     if not p:
         p = resolve_icon_path("logo", icon_dir)
     pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
@@ -406,6 +413,7 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
         font-family: '{_BASE_FONT_FAMILY}';
         font-size: {_BASE_FONT_SIZE_PT}pt;
         color: {FG};
+        selection-background-color: {PALETTE.SELECTED};
         selection-color: #000000;
     }}
     QWidget {{ background: {BG}; }}
@@ -470,9 +478,9 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
     }}
 
     QComboBox QAbstractItemView {{ background: {BG}; border: 1px solid {BORDER}; outline: none; selection-background-color: {PALETTE.SELECTED}; }}
-    QComboBox QAbstractItemView::item {{ padding: 4px 8px; }}
-    QComboBox QAbstractItemView::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; }}
-    QComboBox QAbstractItemView::item:selected {{ background: {PALETTE.SELECTED}; color: {hover_text}; }}
+    QComboBox QAbstractItemView::item {{ padding: 4px 8px; border-radius: 8px; margin: 1px 4px; }}
+    QComboBox QAbstractItemView::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; border-radius: 8px; }}
+    QComboBox QAbstractItemView::item:selected {{ background: {PALETTE.SELECTED}; color: {hover_text}; border-radius: 8px; }}
 
     QListView, QListWidget {{
         background: {BG};
@@ -483,15 +491,19 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
     }}
     QListView::item, QListWidget::item {{
         padding: 6px 8px;
+        border-radius: 8px;
+        margin: 1px 4px;
         border: none;
     }}
     QListView::item:hover, QListWidget::item:hover {{
         background: {PALETTE.SOFT_HOVER};
         color: {hover_text};
+        border-radius: 8px;
     }}
     QListView::item:selected, QListWidget::item:selected {{
         background: {PALETTE.SELECTED};
         color: {hover_text};
+        border-radius: 8px;
     }}
     QListView::item:selected:active, QListWidget::item:selected:active {{
         background: {PALETTE.SELECTED};
@@ -663,6 +675,12 @@ def apply_app_style(app: QtWidgets.QApplication, *, theme: str | None = None, ic
         app.setProperty("nik_theme", theme.lower())
     dark = is_dark_theme(app)
 
+    # Apply shared Larix Nexus-like base style first.
+    try:
+        _theme.theme(app, dark, icon_dir=icon_dir, persist=False)
+    except Exception:
+        pass
+
     ar_down = resolve_icon_path("arrow_down", icon_dir, app=app)
     if dark and ar_down:
         ar_down = _ensure_white_copy(ar_down, icon_dir)
@@ -709,14 +727,21 @@ def apply_app_style(app: QtWidgets.QApplication, *, theme: str | None = None, ic
     else:
         list_hover_off, list_hover_on, list_hover_mid = chk_off or "", chk_on or "", chk_mid or ""
 
-    app.setStyleSheet(_qss_common(
-        ar_down or "", ar_up or "", ar_left or "", ar_right or "",
-        cmb_down or "",
-        chk_off or "", chk_on or "", chk_mid or "",
-        rchk_off or "", rchk_on or "",
-        list_hover_off, list_hover_on, list_hover_mid,
-        dark=dark
-    ))
+    _ = (
+        ar_down,
+        ar_up,
+        ar_left,
+        ar_right,
+        cmb_down,
+        chk_off,
+        chk_on,
+        chk_mid,
+        rchk_off,
+        rchk_on,
+        list_hover_off,
+        list_hover_on,
+        list_hover_mid,
+    )
 
 
 class ThemeSwitch(QtWidgets.QAbstractButton):
@@ -895,13 +920,14 @@ API_BASE_URL = "http://localhost:5000"
 
 def get_api_base() -> str:
     """Получить базовый URL API."""
-    return API_BASE_URL
+    return (os.environ.get("LARIX_API_BASE_URL") or API_BASE_URL).rstrip("/")
 
 
 def set_api_base(url: str):
     """Установить базовый URL API."""
     global API_BASE_URL
     API_BASE_URL = url.rstrip("/")
+    os.environ["LARIX_API_BASE_URL"] = API_BASE_URL
 
 def _wb_id(path: str) -> str:
     try:
@@ -1489,9 +1515,9 @@ class Section(QtWidgets.QGroupBox):
     def __init__(self, title: str = "", parent=None):
         super().__init__(title, parent)
         lay = QtWidgets.QGridLayout(self)
-        lay.setContentsMargins(12, 12, 12, 12)
+        lay.setContentsMargins(10, 10, 10, 10)
         lay.setHorizontalSpacing(8)
-        lay.setVerticalSpacing(8)
+        lay.setVerticalSpacing(6)
         self.frame_l = lay
 
 
@@ -2460,7 +2486,7 @@ class MainWindow(QtWidgets.QMainWindow):
         except Exception:
             pass
         self.setWindowTitle("Larix.Manager - Создание профилей проверок")
-        self.resize(980, 700)
+        self.resize(920, 640)
 
         # state
         self.input_file = ""
@@ -2472,7 +2498,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
-        v = QtWidgets.QVBoxLayout(central); v.setContentsMargins(16,12,16,16); v.setSpacing(10)
+        v = QtWidgets.QVBoxLayout(central); v.setContentsMargins(12,10,12,12); v.setSpacing(8)
+        v.setAlignment(QtCore.Qt.AlignTop)
 
         # header with back button and theme toggle
         header = QtWidgets.QHBoxLayout(); v.addLayout(header)
@@ -2497,7 +2524,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # --- Источник данных (радио + выбор файлов Excel) ---
         grp_source = QtWidgets.QGroupBox("Источник данных"); v.addWidget(grp_source)
-        sbox = QtWidgets.QVBoxLayout(grp_source); sbox.setContentsMargins(12,8,12,8)
+        sbox = QtWidgets.QVBoxLayout(grp_source); sbox.setContentsMargins(10,6,10,8)
+        sbox.setSpacing(6)
         row_modes = QtWidgets.QHBoxLayout(); sbox.addLayout(row_modes)
         self.rb_cat = QtWidgets.QRadioButton("По категориям")
         self.rb_cls = QtWidgets.QRadioButton("По классификатору")
@@ -2568,7 +2596,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # --- Выбор моделей (как такая же полоса) ---
         grp_models = QtWidgets.QGroupBox("Выбор моделей"); v.addWidget(grp_models)
-        mbox = QtWidgets.QHBoxLayout(grp_models); mbox.setContentsMargins(12,8,12,8)
+        mbox = QtWidgets.QHBoxLayout(grp_models); mbox.setContentsMargins(10,6,10,8)
+        mbox.setSpacing(8)
         mbox.addWidget(QtWidgets.QLabel("Модели:"))
         self.ed_models_summary = QtWidgets.QLineEdit(self._models_summary_text()); self.ed_models_summary.setReadOnly(True)
         mbox.addWidget(self.ed_models_summary, 1)
@@ -2578,7 +2607,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # --- Сопоставление параметров ---
         grp_map = QtWidgets.QGroupBox("Сопоставление параметров"); v.addWidget(grp_map)
-        mapbox = QtWidgets.QHBoxLayout(grp_map); mapbox.setContentsMargins(12,8,12,8)
+        mapbox = QtWidgets.QHBoxLayout(grp_map); mapbox.setContentsMargins(10,6,10,8)
+        mapbox.setSpacing(8)
         mapbox.addWidget(QtWidgets.QLabel("Сопоставление:"))
         self.ed_map_summary = QtWidgets.QLineEdit("Не настроено"); self.ed_map_summary.setReadOnly(True)
         mapbox.addWidget(self.ed_map_summary, 1)
@@ -2591,6 +2621,9 @@ class MainWindow(QtWidgets.QMainWindow):
         f = self.btn_generate.font(); f.setPointSize(f.pointSize()+10); f.setBold(True); self.btn_generate.setFont(f)
         self.btn_generate.setMinimumHeight(48)
         v.addWidget(self.btn_generate, 0, QtCore.Qt.AlignHCenter)
+        for grp in (grp_source, grp_models, grp_map):
+            grp.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
+        v.addStretch(1)
         self.btn_generate.clicked.connect(self._on_generate_click)
 
         # --- Дополнительный стиль для оранжевой рамки при hover (как в Dekstop.py) ---
@@ -2611,32 +2644,29 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _hide_source_mode_indicators(self):
         try:
-            ss = "QRadioButton::indicator{width:0;height:0;margin:0;padding:0;} QRadioButton{padding-left:0;}"
-            for rb in (self.rb_cat, self.rb_cls, self.rb_both):
-                rb.setStyleSheet(ss)
-        except Exception:
-            pass
-
-    def _apply_source_mode_icon(self, rb: QtWidgets.QRadioButton, icon_name: str):
-        try:
             try:
                 fg = self.palette().color(QtGui.QPalette.Text)
                 text_color = fg.name()
             except Exception:
                 text_color = "#000000"
-            rb.setStyleSheet(
-                "QRadioButton::indicator{width:0;height:0;margin:0;padding:0;} "
-                f"QRadioButton{{padding-left:0;color:{text_color};}}"
+            ss = (
+                "QRadioButton::indicator{min-width:0px;max-width:0px;min-height:0px;max-height:0px;width:0px;height:0px;margin:0px;padding:0px;border:none;image:none;} "
+                "QRadioButton{spacing:6px;padding-left:0px;"
+                f"color:{text_color};" "}"
             )
-            if is_dark_theme(QtWidgets.QApplication.instance()):
-                path = resolve_icon_path(icon_name, ICON_DIR)
-                if path:
-                    path = _ensure_white_copy(path, ICON_DIR)
-                    rb.setIcon(QtGui.QIcon(path))
-                else:
-                    apply_themed_icon(rb, icon_name, ICON_DIR)
-            else:
-                apply_themed_icon(rb, icon_name, ICON_DIR)
+            for rb in (self.rb_cat, self.rb_cls, self.rb_both):
+                rb.setStyleSheet(ss)
+                rb.setIcon(QtGui.QIcon())
+        except Exception:
+            pass
+
+    def _apply_source_mode_icon(self, rb: QtWidgets.QRadioButton, icon_name: str):
+        try:
+            path = resolve_icon_path(icon_name, ICON_DIR)
+            if is_dark_theme(QtWidgets.QApplication.instance()) and path:
+                path = _ensure_white_copy(path, ICON_DIR)
+            rb.setIcon(QtGui.QIcon(path) if path else QtGui.QIcon())
+            rb.setIconSize(QtCore.QSize(18, 18))
             filt = getattr(rb, "_nik_hover_filter", None)
             if isinstance(filt, QtCore.QObject):
                 try:
@@ -2650,7 +2680,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 pass
             try:
                 rb.setProperty("noCheckHoverRecolor", True)
-                rb.setIconSize(QtCore.QSize(16, 16))
             except Exception:
                 pass
             try:
@@ -2911,7 +2940,9 @@ def _run_add_class_build(out_path: str) -> str:
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
-    p = _theme.resolve_icon_path("app_icon", ICON_DIR, app=app, tint_in_dark=False)
+    p = os.path.join(APP_ROOT_DIR, TITLEBAR_ICON_REL)
+    if not os.path.exists(p):
+        p = _theme.resolve_icon_path("app_icon", ICON_DIR, app=app, tint_in_dark=False)
     if p:
         app.setWindowIcon(QtGui.QIcon(p))
     try:

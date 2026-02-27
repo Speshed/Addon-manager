@@ -1,0 +1,32 @@
+*
+!.gitignore
+
+# keep top-level dirs traversable
+!*/
+
+# tracked source folders (real names)
+!Adapters/
+!Matrix/
+!Parameter/
+!Larix_Set/
+!Viewer/
+!shared/
+!icon/
+
+# tracked files
+!main.py
+!Excel_template.py
+!ARCHITECTURE.md
+
+# keep nested source files in tracked folders
+!Adapters/**
+!Matrix/**
+!Parameter/**
+!Larix_Set/**
+!Viewer/**
+!shared/**
+!icon/**
+
+# never track caches/artifacts
+**/__pycache__/
+*.pyc

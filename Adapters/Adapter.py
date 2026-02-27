@@ -31,14 +31,14 @@ def _plugins_dir() -> str:
     return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
+def _app_root_dir() -> str:
+    return os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
+
+
 def _resolve_logo_path() -> str:
     candidates = [
-        # legacy absolute path (might exist on some machines)
-        r"C:\Users\dviktorov\Desktop\Project\Manager\icon\Manager-scaled.png",
-        # from Nexus Desktop-manager (design reference mentioned by user)
-        os.path.join(_plugins_dir(), "Nexus", "Dekstop-manager", "icon", "Manager-scaled.png"),
-        # common local fallbacks (if icon gets copied into this plugin later)
-        os.path.join(os.path.dirname(__file__), "icon", "Manager-scaled.png"),
+        os.path.join(_app_root_dir(), "icon", "Manager-scaled.png"),
+        os.path.join(_app_root_dir(), "icon", "logo.png"),
         os.path.join(os.path.dirname(__file__), "assets", "Manager-scaled.png"),
     ]
     for p in candidates:
@@ -51,8 +51,13 @@ def _resolve_logo_path() -> str:
 
 
 LOGO_PATH = _resolve_logo_path()
-ICON_DIR = os.path.join(os.path.dirname(__file__), "icon")
+ICON_DIR = os.path.join(_app_root_dir(), "icon")
+TITLEBAR_ICON_PATH = os.path.join(_app_root_dir(), "icon", "logo.ico")
 DEFAULT_BASE_URL = "http://localhost:5000"
+
+
+def _runtime_base_url() -> str:
+    return (os.environ.get("LARIX_API_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
 
 _ICON_FALLBACK_FILES = {
     "ok": "ok.png",
@@ -67,9 +72,7 @@ def _resolve_icon_path(filename: str) -> str:
     if not filename:
         return ""
     candidates = [
-        os.path.join(_plugins_dir(), "Nexus", "Dekstop-manager", "icon", filename),
-        os.path.join(_plugins_dir(), "Nexus", "Dekstop-manager", "icon", "white", filename),
-        os.path.join(os.path.dirname(__file__), "icon", filename),
+        os.path.join(_app_root_dir(), "icon", filename),
         os.path.join(os.path.dirname(__file__), "assets", filename),
     ]
     for p in candidates:
@@ -617,12 +620,6 @@ class MainWin(QtWidgets.QMainWindow):
         # Top bar
         layout_top = QtWidgets.QHBoxLayout()
         layout_top.setObjectName("layoutTopBar")
-        self.labelBase = QtWidgets.QLabel("Base URL:", self.ui)
-        self.labelBase.setObjectName("labelBase")
-        self.editBaseUrl = QtWidgets.QLineEdit(self.ui)
-        self.editBaseUrl.setObjectName("editBaseUrl")
-        self.editBaseUrl.setMinimumWidth(360)
-        self.editBaseUrl.setPlaceholderText("http://localhost:5000")
         self.btnLoadProjects = QtWidgets.QPushButton("Загрузить проекты", self.ui)
         self.btnLoadProjects.setObjectName("btnLoadProjects")
         self.btnImportXml = QtWidgets.QPushButton("Импорт Adapter.xml", self.ui)
@@ -633,8 +630,6 @@ class MainWin(QtWidgets.QMainWindow):
         self.btnLoadGlobal = QtWidgets.QPushButton("Загрузить общие атрибуты", self.ui)
         self.btnLoadGlobal.setObjectName("btnLoadGlobal")
 
-        layout_top.addWidget(self.labelBase)
-        layout_top.addWidget(self.editBaseUrl)
         layout_top.addWidget(self.btnLoadProjects)
         layout_top.addWidget(self.btnImportXml)
         layout_top.addWidget(self.btnImportExcel)
@@ -662,6 +657,22 @@ class MainWin(QtWidgets.QMainWindow):
         # Main split
         self.layoutMainSplit = QtWidgets.QHBoxLayout()
         self.layoutMainSplit.setObjectName("layoutMainSplit")
+        self.layoutMainSplit.setSpacing(8)
+
+        def _make_split_separator() -> QtWidgets.QFrame:
+            sep = QtWidgets.QFrame(self.ui)
+            sep.setObjectName("splitSeparator")
+            sep.setFixedWidth(2)
+            sep.setFrameShape(QtWidgets.QFrame.NoFrame)
+            try:
+                fx = QtWidgets.QGraphicsDropShadowEffect(sep)
+                fx.setBlurRadius(10)
+                fx.setOffset(0, 0)
+                fx.setColor(QtGui.QColor(0, 0, 0, 40))
+                sep.setGraphicsEffect(fx)
+            except Exception:
+                pass
+            return sep
 
         # Attributes
         self.groupAttributes = QtWidgets.QGroupBox("Атрибуты", self.ui)
@@ -681,6 +692,7 @@ class MainWin(QtWidgets.QMainWindow):
 
         self.treeAttributes = QtWidgets.QTreeView(self.groupAttributes)
         self.treeAttributes.setObjectName("treeAttributes")
+        self.treeAttributes.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.treeAttributes.setHeaderHidden(True)
         self.treeAttributes.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         try:
@@ -711,6 +723,7 @@ class MainWin(QtWidgets.QMainWindow):
 
         self.tableBindings = RowDragTable(self.groupBindings)
         self.tableBindings.setObjectName("tableBindings")
+        self.tableBindings.setFrameShape(QtWidgets.QFrame.NoFrame)
         layout_bind.addWidget(self.tableBindings)
 
         layout_bind_btns = QtWidgets.QHBoxLayout()
@@ -755,14 +768,19 @@ class MainWin(QtWidgets.QMainWindow):
 
         self.tableParams = QtWidgets.QTableWidget(self.groupParams)
         self.tableParams.setObjectName("tableParams")
+        self.tableParams.setFrameShape(QtWidgets.QFrame.NoFrame)
         layout_params.addWidget(self.tableParams)
 
         self.btnAddSelected = QtWidgets.QPushButton("Добавить выделенные → привязки", self.groupParams)
         self.btnAddSelected.setObjectName("btnAddSelected")
         layout_params.addWidget(self.btnAddSelected)
 
+        self.sepMain1 = _make_split_separator()
+        self.sepMain2 = _make_split_separator()
         self.layoutMainSplit.addWidget(self.groupAttributes, 1)
+        self.layoutMainSplit.addWidget(self.sepMain1, 0)
         self.layoutMainSplit.addWidget(self.groupBindings, 2)
+        self.layoutMainSplit.addWidget(self.sepMain2, 0)
         self.layoutMainSplit.addWidget(self.groupParams, 3)
         self.verticalLayout_central.addLayout(self.layoutMainSplit)
 
@@ -791,8 +809,8 @@ class MainWin(QtWidgets.QMainWindow):
         self._build_ui()
 
         self.setWindowTitle("Редактор адаптера")
-        self.resize(1420, 760)
-        self.setMinimumSize(1000, 680)
+        self.resize(1500, 860)
+        self.setMinimumSize(1160, 720)
 
         self.doc = AdapterDoc()
         self.projects: List[Dict[str, Any]] = []
@@ -814,11 +832,15 @@ class MainWin(QtWidgets.QMainWindow):
         # (виджет удалён из интерфейса, но логика поддерживает значение по умолчанию)
         self.chkAutoEnable = None
 
-        # Пропорции колонок: Атрибуты, Привязки, Параметры (равные)
+        # Пропорции колонок: средняя часть (Привязки) шире по умолчанию.
+        # Индексы в layoutMainSplit: 0=Атрибуты, 1=разделитель, 2=Привязки,
+        # 3=разделитель, 4=Параметры.
         try:
-            self.layoutMainSplit.setStretch(0, 1)
-            self.layoutMainSplit.setStretch(1, 1)
-            self.layoutMainSplit.setStretch(2, 1)
+            self.layoutMainSplit.setStretch(0, 3)
+            self.layoutMainSplit.setStretch(1, 0)
+            self.layoutMainSplit.setStretch(2, 4)
+            self.layoutMainSplit.setStretch(3, 0)
+            self.layoutMainSplit.setStretch(4, 3)
         except Exception:
             pass
 
@@ -945,7 +967,6 @@ class MainWin(QtWidgets.QMainWindow):
         self.setup_icon_buttons()
 
         # События
-        self.editBaseUrl.setText(DEFAULT_BASE_URL)
         self.btnLoadProjects.clicked.connect(self.load_projects)
         self.btnImportXml.clicked.connect(self.import_xml)
         self.btnLoadGlobal.clicked.connect(self.load_global_attrs)
@@ -1035,7 +1056,35 @@ class MainWin(QtWidgets.QMainWindow):
  # ----------------- Внешний вид -----------------
     def apply_style(self):
         app = QtWidgets.QApplication.instance()
-        theme(app, is_dark_theme(app), icon_dir=ICON_DIR)
+        dark = is_dark_theme(app)
+        theme(app, dark, icon_dir=ICON_DIR)
+        sep_color = "rgba(255, 255, 255, 0.22)" if dark else "rgba(0, 0, 0, 0.14)"
+        self.ui.setStyleSheet(f"""
+            QGroupBox#groupAttributes,
+            QGroupBox#groupBindings,
+            QGroupBox#groupParams {{
+                border: none;
+                margin-top: 10px;
+                padding-top: 6px;
+            }}
+            QGroupBox#groupAttributes::title,
+            QGroupBox#groupBindings::title,
+            QGroupBox#groupParams::title {{
+                left: 8px;
+                padding: 0 6px;
+            }}
+            QTreeView#treeAttributes,
+            QTableWidget#tableBindings,
+            QTableWidget#tableParams {{
+                border: none;
+            }}
+            QFrame#splitSeparator {{
+                background: {sep_color};
+                border-radius: 1px;
+                margin-top: 16px;
+                margin-bottom: 10px;
+            }}
+        """)
         
         # Установка делегата для скругленной подсветки строк
         for table in [self.tableBindings, self.tableParams]:
@@ -1045,7 +1094,7 @@ class MainWin(QtWidgets.QMainWindow):
             install_viewport_row_highlighter(table)
             # Включение отслеживания наведения мыши
             setup_hover_tracking(table)
-        self._apply_theme_extras(is_dark_theme(app))
+        self._apply_theme_extras(dark)
 
     def _reload_bind_checkbox_icons(self, dark: bool):
         try:
@@ -1122,8 +1171,7 @@ class MainWin(QtWidgets.QMainWindow):
 
     # ---------- API helpers ----------
     def base(self) -> str:
-        s = self.editBaseUrl.text().strip() or DEFAULT_BASE_URL
-        return s.rstrip("/")
+        return _runtime_base_url()
 
     # ---------- Проекты/модели/параметры ----------
     def on_project_changed(self, idx: int):
@@ -1749,6 +1797,11 @@ class MainWin(QtWidgets.QMainWindow):
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
+    try:
+        if os.path.exists(TITLEBAR_ICON_PATH):
+            app.setWindowIcon(QtGui.QIcon(TITLEBAR_ICON_PATH))
+    except Exception:
+        pass
     try:
         theme(app, load_saved_theme(False), icon_dir=ICON_DIR, persist=False)
         enable_theme_sync(app, ICON_DIR)

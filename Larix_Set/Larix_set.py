@@ -69,7 +69,7 @@ _BASE_FONT_FAMILY = "Segoe UI"
 _BASE_FONT_SIZE_PT = 10
 
 def _resource_path(*parts: str) -> str:
-    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
     return str(base.joinpath(*parts))
 
 DEFAULT_ICON_DIR = _resource_path("icon")
@@ -524,8 +524,10 @@ def apply_tree_branch_style(tree: QtWidgets.QAbstractItemView) -> None:
 def load_logo(icon_dir: str = DEFAULT_ICON_DIR) -> QtGui.QPixmap:
     app = QtWidgets.QApplication.instance()
     dark = is_dark_theme(app)
-    name = "logo"  # resolve_icon_path сам подставит белый вариант при дарке
-    p = resolve_icon_path(name, icon_dir, app=app)
+    p = LOGO_PATH_WHITE if dark else LOGO_PATH
+    if not (p and os.path.exists(p)):
+        name = "logo"
+        p = resolve_icon_path(name, icon_dir, app=app)
     pm = QtGui.QPixmap(p)
     return pm if not pm.isNull() else QtGui.QPixmap()
 
@@ -842,6 +844,7 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
         font-family: '{_BASE_FONT_FAMILY}';
         font-size: {_BASE_FONT_SIZE_PT}pt;
         color: {FG};
+        selection-background-color: {PALETTE.SELECTED};
         selection-color: #000000;
     }}
     QWidget {{ background: {BG}; }}  /* фон везде единый под тему */
@@ -911,9 +914,9 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
 
     /* Popup выпадающего списка — подсветки как у кнопок */
     QComboBox QAbstractItemView {{ background: {BG}; border: 1px solid {BORDER}; outline: none; selection-background-color: {PALETTE.SELECTED}; }}
-    QComboBox QAbstractItemView::item {{ padding: 4px 8px; }}
-    QComboBox QAbstractItemView::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; }}
-    QComboBox QAbstractItemView::item:selected {{ background: {PALETTE.SELECTED}; color: {hover_text}; }}
+    QComboBox QAbstractItemView::item {{ padding: 4px 8px; border-radius: 8px; margin: 1px 4px; }}
+    QComboBox QAbstractItemView::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; border-radius: 8px; }}
+    QComboBox QAbstractItemView::item:selected {{ background: {PALETTE.SELECTED}; color: {hover_text}; border-radius: 8px; }}
 
     /* Списки (QListView, QListWidget) — подсветка элементов как в выпадающем списке */
     QListView, QListWidget {{
@@ -925,15 +928,19 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
     }}
     QListView::item, QListWidget::item {{
         padding: 6px 8px;
+        border-radius: 8px;
+        margin: 1px 4px;
         border: none;
     }}
     QListView::item:hover, QListWidget::item:hover {{
         background: {PALETTE.SOFT_HOVER};
         color: {hover_text};
+        border-radius: 8px;
     }}
     QListView::item:selected, QListWidget::item:selected {{
         background: {PALETTE.SELECTED};
         color: {hover_text};
+        border-radius: 8px;
     }}
     /* Убираем дополнительный focus рамку */
     QListView::item:selected:active, QListWidget::item:selected:active {{
@@ -1227,6 +1234,14 @@ def style(app: QtWidgets.QApplication, *, theme: str | None = None, icon_dir: st
         app.setProperty("nik_theme", theme.lower())
     dark = is_dark_theme(app)
 
+    # Apply shared Larix Nexus-like base style first.
+    try:
+        theme_fn = globals().get("theme")
+        if callable(theme_fn):
+            theme_fn(app, dark, icon_dir=icon_dir, persist=False)
+    except Exception:
+        pass
+
     ar_down = resolve_icon_path("arrow_down", icon_dir, app=app)
     ar_up = resolve_icon_path("arrow_up", icon_dir, app=app)
     ar_right = resolve_icon_path("arrow_right", icon_dir, app=app)
@@ -1263,14 +1278,21 @@ def style(app: QtWidgets.QApplication, *, theme: str | None = None, icon_dir: st
     else:
         list_hover_off, list_hover_on, list_hover_mid = chk_off or "", chk_on or "", chk_mid or ""
 
-    app.setStyleSheet(_qss_common(
-        ar_down or "", ar_up or "", ar_left or "", ar_right or "",
-        cmb_down or "",
-        chk_off or "", chk_on or "", chk_mid or "",
-        rchk_off or "", rchk_on or "",
-        list_hover_off, list_hover_on, list_hover_mid,
-        dark=dark
-    ))
+    _ = (
+        ar_down,
+        ar_up,
+        ar_left,
+        ar_right,
+        cmb_down,
+        chk_off,
+        chk_on,
+        chk_mid,
+        rchk_off,
+        rchk_on,
+        list_hover_off,
+        list_hover_on,
+        list_hover_mid,
+    )
 
     # Темним нативный заголовок/рамку на Windows
     _win_apply_titlebar_all(app, dark)
@@ -1515,10 +1537,19 @@ CLASSIF_CODE_COL_DEFAULT = "Код по классификатору"
 FIELD_NAME_DEFAULT_CATEGORY = "Категория:\\"
 FIELD_NAME_DEFAULT_CLASSIF  = "Тип:\\Код по классификатору"
 FIELD_NAME_DEFAULT_IFC      = "IfcClass"
+FIELD_NAME_SUGGESTIONS = [
+    FIELD_NAME_DEFAULT_CATEGORY,
+    FIELD_NAME_DEFAULT_CLASSIF,
+    FIELD_NAME_DEFAULT_IFC,
+]
 
 
 
 API_BASE_URL_DEFAULT = "http://localhost:5000"
+
+
+def _runtime_api_base_url() -> str:
+    return (os.environ.get("LARIX_API_BASE_URL") or API_BASE_URL_DEFAULT).rstrip("/")
 
 ICON_DIR = DEFAULT_ICON_DIR  # папка с PNG
 
@@ -1591,9 +1622,9 @@ class Section(QtWidgets.QGroupBox):
     def __init__(self, title: str = "", parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(title, parent)
         lay = QtWidgets.QGridLayout(self)
-        lay.setContentsMargins(12, 12, 12, 12)
+        lay.setContentsMargins(10, 10, 10, 10)
         lay.setHorizontalSpacing(8)
-        lay.setVerticalSpacing(8)
+        lay.setVerticalSpacing(6)
         self.frame_l = lay
 
 # ----------------- API helpers -----------------
@@ -1683,7 +1714,7 @@ class ApiSelectDialog(QtWidgets.QDialog):
         super().__init__(master)
         self.setWindowTitle("Выбор из API")
         self.setModal(True)
-        self.resize(1080, 720)
+        self.resize(960, 660)
 
         self._load_projects = load_projects
         self._load_containers = load_containers
@@ -1732,11 +1763,8 @@ class ApiSelectDialog(QtWidgets.QDialog):
     def _build_ui(self):
         root = QtWidgets.QVBoxLayout(self); root.setContentsMargins(10,10,10,10); root.setSpacing(10)
         row0 = QtWidgets.QHBoxLayout(); root.addLayout(row0)
-        row0.addWidget(QtWidgets.QLabel("Base URL:"))
-        self.ed_base = QtWidgets.QLineEdit(self._state.get("last_base_url", "http://localhost:5000"))
-        row0.addWidget(self.ed_base, 1)
-        row0.addStretch(1)
         self.btn_proj = QtWidgets.QPushButton("Обновить проекты"); row0.addWidget(self.btn_proj)
+        row0.addStretch(1)
 
         row1 = QtWidgets.QHBoxLayout(); root.addLayout(row1)
         row1.addWidget(QtWidgets.QLabel("Проект:"))
@@ -1840,7 +1868,7 @@ class ApiSelectDialog(QtWidgets.QDialog):
         return super().eventFilter(obj, event)
 
     def _get_base_url(self) -> str:
-        return (self.ed_base.text() or "http://localhost:5000").rstrip("/")
+        return _runtime_api_base_url()
 
     def _apply_filter(self):
         text = (self.ed_filter.text() or "").lower()
@@ -1952,7 +1980,7 @@ class ApiSelectDialog(QtWidgets.QDialog):
         self._state["project_title"] = self.cmb_projects.currentText().strip()
         self._state["container_titles"] = [self._containers[i.row()]["title"] for i in sels]
         self._state["param_filter"] = self.ed_filter.text()
-        self._state["last_base_url"] = self._get_base_url()
+        self._state["last_base_url"] = _runtime_api_base_url()
 
     def _on_param_double_clicked(self, item: QtWidgets.QTableWidgetItem):
         try:
@@ -2029,13 +2057,19 @@ def build_single_condition_block(value: str, field_name: str):
     ET.SubElement(b, "ConditionsBlocks")
     return b
 
-def build_mixed_item_condition_block_3(cat_values, cat_field, cls_values, cls_field, ifc_values, ifc_field):
-    vals = []
-    vals += [("cat", v) for v in (cat_values or [])]
-    vals += [("cls", v) for v in (cls_values or [])]
-    vals += [("ifc", v) for v in (ifc_values or [])]
+def build_multi_condition_block(field_values_pairs: List[Tuple[str, List[str]]]):
+    vals: List[Tuple[str, str]] = []
+    for field_name, values in (field_values_pairs or []):
+        field = sanitize_str(field_name)
+        if not field:
+            continue
+        for value in (values or []):
+            v = sanitize_str(value)
+            if v:
+                vals.append((field, v))
     if not vals:
         return build_empty_item_block()
+
     cb = ET.Element("ConditionBlock", {"Type": "Block", "LogicalOperator": "Or", "IsNegative": "false", "IsEnabled": "true"})
     sig = ET.SubElement(cb, "Signal"); ET.SubElement(sig, "Messages")
     ET.SubElement(cb, "Condition", {
@@ -2043,11 +2077,17 @@ def build_mixed_item_condition_block_3(cat_values, cat_field, cls_values, cls_fi
         "TextCaseSensitive": "false", "TextSpaceSensitive": "true", "IsUndefinedFieldName": "false",
     })
     blocks = ET.SubElement(cb, "ConditionsBlocks")
-    for tag, val in vals:
-        if tag == "cat": blocks.append(build_single_condition_block(val, cat_field))
-        elif tag == "cls": blocks.append(build_single_condition_block(val, cls_field))
-        else: blocks.append(build_single_condition_block(val, ifc_field))
+    for field_name, value in vals:
+        blocks.append(build_single_condition_block(value, field_name))
     return cb
+
+
+def build_mixed_item_condition_block_3(cat_values, cat_field, cls_values, cls_field, ifc_values, ifc_field):
+    return build_multi_condition_block([
+        (cat_field, cat_values or []),
+        (cls_field, cls_values or []),
+        (ifc_field, ifc_values or []),
+    ])
 
 def _build_classif_map_from_df(df_cls):
     if pd is None:
@@ -2070,7 +2110,9 @@ def _build_classif_map_from_df(df_cls):
 
 def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_column, category_column, ifc_column,
                     auto_number, build_filters, field_name_category, field_name_ifc, filter_mode,
-                    classif_map, field_name_classif, group_idx_start=0):
+                    classif_map, classif_column, field_name_classif, group_idx_start=0,
+                    param_field_map: Optional[Dict[str, str]] = None,
+                    active_param_columns: Optional[List[str]] = None):
     if pd is None:
         raise RuntimeError("Нужен pandas: pip install pandas")
     next_id = id_start
@@ -2106,9 +2148,27 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
     for col in df.columns:
         df[col] = df[col].map(sanitize_str)
 
-    df = df[(df.get(group_column, "") != "")
-            | (df.get(category_column or "", "") != "")
-            | (df.get(ifc_column or "", "") != "")]
+    effective_param_map: Dict[str, str] = {}
+    if param_field_map:
+        for col, field in param_field_map.items():
+            c = str(col or "").strip()
+            f = sanitize_str(field)
+            if c and f:
+                effective_param_map[c] = f
+
+    if not effective_param_map:
+        if filter_mode in ("category", "both"):
+            if sanitize_str(category_column) and sanitize_str(field_name_category):
+                effective_param_map[category_column] = field_name_category
+            if sanitize_str(ifc_column) and sanitize_str(field_name_ifc):
+                effective_param_map[ifc_column] = field_name_ifc
+        if filter_mode in ("classifier", "both") and sanitize_str(classif_column) and sanitize_str(field_name_classif):
+            effective_param_map[classif_column] = field_name_classif
+
+    if active_param_columns:
+        active_cols = [c for c in active_param_columns if c in effective_param_map]
+    else:
+        active_cols = list(effective_param_map.keys())
 
     def _split_values(s: str):
         if not s: return []
@@ -2119,43 +2179,49 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
             if t not in seen: seen.add(t); out.append(t)
         return out
 
+    def _cell_values(row_obj, col_name: str, item_name: str) -> List[str]:
+        if not col_name or col_name not in df.columns:
+            return []
+        if classif_map and col_name == classif_column and item_name in classif_map:
+            vals = classif_map[item_name][:]
+            return [sanitize_str(v) for v in vals if sanitize_str(v)]
+        raw = sanitize_str(row_obj.get(col_name, ""))
+        return _split_values(raw)
+
+    def _row_has_params(row_obj, item_name: str) -> bool:
+        for col_name in active_cols:
+            if _cell_values(row_obj, col_name, item_name):
+                return True
+        return False
+
+    df = df[df.apply(lambda row_obj: sanitize_str(row_obj.get(group_column, "")) != "" or _row_has_params(row_obj, sanitize_str(row_obj.get(group_column, ""))), axis=1)]
+
     rows_data = []
     for _, row in df.iterrows():
         name_1st = sanitize_str(row.get(group_column, ""))
-        val_cat  = sanitize_str(row.get(category_column or "", ""))
-        val_ifc  = sanitize_str(row.get(ifc_column or "", "")) if ifc_column and ifc_column in df.columns else ""
-        classif_inline = sanitize_str(row.get(CLASSIF_CODE_COL_DEFAULT, "")) if CLASSIF_CODE_COL_DEFAULT in df.columns else ""
+        condition_pairs: List[Tuple[str, List[str]]] = []
+        has_any_values = False
+        for col_name in active_cols:
+            field_name = effective_param_map.get(col_name, "")
+            values = _cell_values(row, col_name, name_1st)
+            if values:
+                has_any_values = True
+            condition_pairs.append((field_name, values))
 
-        if name_1st == profile_title and not val_cat and not val_ifc:
+        if name_1st == profile_title and not has_any_values:
             continue
 
-        is_root = (name_1st and not val_cat and not val_ifc) if filter_mode != "classifier" else (name_1st and not classif_inline)
+        is_root = bool(name_1st and not has_any_values)
 
         prefix = extract_prefix(name_1st)
         level = get_level(prefix)
-
-        use_cat = filter_mode in ("category", "both")
-        use_cls = filter_mode in ("classifier", "both")
-        cat_vals = _split_values(val_cat) if use_cat else []
-        ifc_vals_raw = _split_values(val_ifc) if use_cat else []
-        ifc_vals = [v for v in ifc_vals_raw if "ifc" in v.lower()]
-        cls_vals = []
-        if use_cls:
-            if classif_map and name_1st in classif_map:
-                cls_vals = classif_map[name_1st][:]
-            if not cls_vals:
-                cls_vals = _split_values(classif_inline)
 
         rows_data.append({
             "name": name_1st,
             "prefix": prefix,
             "level": level,
             "is_root": is_root,
-            "cat_vals": cat_vals,
-            "ifc_vals": ifc_vals,
-            "cls_vals": cls_vals,
-            "use_cat": use_cat,
-            "use_cls": use_cls,
+            "condition_pairs": condition_pairs,
         })
 
     rows_data.sort(key=lambda r: (r["prefix"] or "zzz", r["name"]))
@@ -2168,11 +2234,7 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
         name_1st = rd["name"]
         prefix = rd["prefix"]
         level = rd["level"]
-        cat_vals = rd["cat_vals"]
-        ifc_vals = rd["ifc_vals"]
-        cls_vals = rd["cls_vals"]
-        use_cat = rd["use_cat"]
-        use_cls = rd["use_cls"]
+        condition_pairs = rd["condition_pairs"]
 
         item = ET.Element("BaseExportProfileItem", {"xsi:type": "SetExportProfileItem"})
         item_id = new_id()
@@ -2212,22 +2274,8 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
             if prefix:
                 prefix_to_id[prefix] = item_id
 
-        if use_cat and use_cls:
-            item.append(build_mixed_item_condition_block_3(cat_vals, field_name_category, cls_vals, field_name_classif, ifc_vals, field_name_ifc))
-        elif use_cat:
-            item.append(build_mixed_item_condition_block_3(cat_vals, field_name_category, [], "", ifc_vals, field_name_ifc))
-        elif use_cls:
-            if cls_vals:
-                cb = ET.Element("ConditionBlock", {"Type": "Block", "LogicalOperator": "Or", "IsNegative": "false", "IsEnabled": "true"})
-                sig = ET.SubElement(cb, "Signal"); ET.SubElement(sig, "Messages")
-                ET.SubElement(cb, "Condition", {"FieldName": "", "FieldIsNumeric": "false", "Operator": "Equal", "Value": "",
-                                                "TextCaseSensitive": "false", "TextSpaceSensitive": "true", "IsUndefinedFieldName": "false"})
-                blocks = ET.SubElement(cb, "ConditionsBlocks")
-                for v in cls_vals:
-                    blocks.append(build_single_condition_block(v, field_name_classif))
-                item.append(cb)
-            else:
-                item.append(build_empty_item_block())
+        if build_filters:
+            item.append(build_multi_condition_block(condition_pairs))
         else:
             item.append(build_empty_item_block())
 
@@ -2348,6 +2396,56 @@ class SheetPickerDialog(QtWidgets.QDialog):
 
 
 
+class _ParamMappingRow(QtWidgets.QWidget):
+    def __init__(self, column_name: str, default_value: str, pick_api_callback: Callable[["_ParamMappingRow"], None], parent=None):
+        super().__init__(parent)
+        self.column_name = str(column_name or "")
+        self._pick_api_callback = pick_api_callback
+
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        self.chk_active = QtWidgets.QCheckBox()
+        self.chk_active.setChecked(True)
+        layout.addWidget(self.chk_active)
+
+        self.lbl_column = QtWidgets.QLabel(self.column_name)
+        self.lbl_column.setMinimumWidth(260)
+        layout.addWidget(self.lbl_column)
+
+        self.cmb_field = QtWidgets.QComboBox()
+        self.cmb_field.setEditable(True)
+        self.cmb_field.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
+        for value in FIELD_NAME_SUGGESTIONS:
+            self.cmb_field.addItem(value)
+        self.cmb_field.setCurrentText(default_value or "")
+        line_edit = self.cmb_field.lineEdit()
+        if line_edit is not None:
+            line_edit.setPlaceholderText("Ожидание excel")
+        layout.addWidget(self.cmb_field, 1)
+
+        self.btn_pick_api = QtWidgets.QPushButton("Выбрать из API...")
+        self.btn_pick_api.setFixedWidth(110)
+        layout.addWidget(self.btn_pick_api)
+
+        self.chk_active.toggled.connect(self._refresh_active_style)
+        self.btn_pick_api.clicked.connect(lambda: self._pick_api_callback(self))
+        self._refresh_active_style(self.chk_active.isChecked())
+
+    def _refresh_active_style(self, active: bool):
+        color = "" if active else "color: #8a8a8a;"
+        self.lbl_column.setStyleSheet(color)
+        self.cmb_field.setEnabled(active)
+        self.btn_pick_api.setEnabled(active)
+
+    def mapping_value(self) -> str:
+        return sanitize_str(self.cmb_field.currentText())
+
+    def is_active(self) -> bool:
+        return bool(self.chk_active.isChecked())
+
+
 class ContentWidget(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
@@ -2359,14 +2457,18 @@ class ContentWidget(QtWidgets.QWidget):
         
         self._excel_path: str = ""
         self._selected_sheets: List[str] = []
-        self._column_params: Dict[str, bool] = {}
+        self._excel_param_columns: List[str] = []
+        self._excel_column_roles: Dict[str, str] = {}
+        self._header_rows_by_sheet: Dict[str, int] = {}
+        self._param_rows: List[_ParamMappingRow] = []
         
         self._build_ui()
         
     def _build_ui(self):
         root = QtWidgets.QVBoxLayout(self)
-        root.setContentsMargins(16, 12, 16, 12)
-        root.setSpacing(10)
+        root.setContentsMargins(12, 10, 12, 12)
+        root.setSpacing(8)
+        root.setAlignment(QtCore.Qt.AlignTop)
         
         brand_box = QtWidgets.QHBoxLayout()
         root.addLayout(brand_box)
@@ -2401,17 +2503,22 @@ class ContentWidget(QtWidgets.QWidget):
         sec_params = Section("Параметры из Excel", self)
         self._params_layout = sec_params.frame_l
         root.addWidget(sec_params)
+        self._sec_params = sec_params
 
         self._params_widget = QtWidgets.QWidget()
         self._params_inner = QtWidgets.QVBoxLayout(self._params_widget)
         self._params_inner.setContentsMargins(0, 0, 0, 0)
         self._params_inner.setSpacing(4)
+        self._params_inner.setAlignment(QtCore.Qt.AlignTop)
         self._params_layout.addWidget(self._params_widget, 0, 0)
-        self._param_checkboxes: Dict[str, QtWidgets.QCheckBox] = {}
-
-        self._lbl_no_params = QtWidgets.QLabel("Выберите Excel файл для загрузки параметров")
+        self._lbl_no_params = QtWidgets.QLabel("Ожидание excel")
         self._lbl_no_params.setStyleSheet("color: gray; font-style: italic;")
         self._params_inner.addWidget(self._lbl_no_params)
+
+        self._params_help = QtWidgets.QLabel("Параметр для (FieldName):")
+        self._params_help.setStyleSheet("color: gray;")
+        self._params_help.hide()
+        self._params_inner.addWidget(self._params_help)
 
         sec_settings = Section("Настройки", self)
         g = sec_settings.frame_l
@@ -2424,44 +2531,130 @@ class ContentWidget(QtWidgets.QWidget):
         self.cb_filter.setChecked(True)
         g.addWidget(self.cb_filter, 0, 1)
 
-        row = 1
-        self.ed_field_cat = QtWidgets.QLineEdit(FIELD_NAME_DEFAULT_CATEGORY)
-        self.btn_field_cat = QtWidgets.QPushButton("Выбрать из API...")
-        g.addWidget(QtWidgets.QLabel("Параметр для категорий (FieldName):"), row, 0)
-        h = QtWidgets.QHBoxLayout()
-        h.addWidget(self.ed_field_cat)
-        h.addWidget(self.btn_field_cat)
-        g.addLayout(h, row, 1, 1, 2)
-        row += 1
-
-        self.ed_field_cls = QtWidgets.QLineEdit(FIELD_NAME_DEFAULT_CLASSIF)
-        self.btn_field_cls = QtWidgets.QPushButton("Выбрать из API...")
-        g.addWidget(QtWidgets.QLabel("Параметр для классификатора (FieldName):"), row, 0)
-        h = QtWidgets.QHBoxLayout()
-        h.addWidget(self.ed_field_cls)
-        h.addWidget(self.btn_field_cls)
-        g.addLayout(h, row, 1, 1, 2)
-        row += 1
-
-        self.ed_field_ifc = QtWidgets.QLineEdit(FIELD_NAME_DEFAULT_IFC)
-        self.btn_field_ifc = QtWidgets.QPushButton("Выбрать из API...")
-        g.addWidget(QtWidgets.QLabel("Параметр для IFC (FieldName):"), row, 0)
-        h = QtWidgets.QHBoxLayout()
-        h.addWidget(self.ed_field_ifc)
-        h.addWidget(self.btn_field_ifc)
-        g.addLayout(h, row, 1, 1, 2)
-
         btns = QtWidgets.QVBoxLayout()
         self.btn_generate = QtWidgets.QPushButton("Сгенерировать профиль")
         self.btn_generate.setMinimumSize(300, 48)
         btns.addWidget(self.btn_generate, alignment=QtCore.Qt.AlignHCenter)
         root.addLayout(btns)
+        root.addStretch(1)
 
         self.btn_pick.clicked.connect(self._open_sheet_dialog)
         self.btn_generate.clicked.connect(self.generate_clicked)
-        self.btn_field_cat.clicked.connect(self.open_mapping_for_category)
-        self.btn_field_cls.clicked.connect(self.open_mapping_for_classif)
-        self.btn_field_ifc.clicked.connect(self.open_mapping_for_ifc)
+
+    @staticmethod
+    def _normalize_col_name(name: str) -> str:
+        s = (name or "").strip().lower()
+        return s.replace("ё", "е")
+
+    def _columns_for_params(self, raw_columns: List[str]) -> List[str]:
+        if not raw_columns:
+            return []
+        cols = [c for c in raw_columns if c]
+        if len(cols) < 2:
+            return []
+
+        result: List[str] = []
+        for col in cols[1:]:
+            if self._normalize_col_name(col).startswith("loi"):
+                break
+            result.append(col)
+        return result
+
+    def _detect_excel_column_roles(self, columns: List[str]) -> Dict[str, str]:
+        norm_map = {c: self._normalize_col_name(c) for c in columns}
+
+        def pick(*needles: str) -> str:
+            for col, norm in norm_map.items():
+                if all(n in norm for n in needles):
+                    return col
+            return ""
+
+        role_map: Dict[str, str] = {}
+        role_map["group"] = pick("элемент", "модел") or pick("раздел")
+        role_map["category"] = pick("категор", "revit") or pick("категор")
+        role_map["ifc"] = pick("ifc")
+        role_map["classif"] = pick("код", "классифик") or pick("классифик")
+        return {k: v for k, v in role_map.items() if v}
+
+    def _detect_header_row_index(self, path: str, sheet: str) -> int:
+        import pandas as pd
+
+        preview = pd.read_excel(path, sheet_name=sheet, header=None, nrows=20, dtype=object)
+        best_row = 0
+        best_score = -1
+        probes = (
+            "элементы модели",
+            "раздел",
+            "категория",
+            "revit",
+            "ifc",
+            "классифик",
+            "код",
+            "loi",
+        )
+
+        for r_idx in range(len(preview.index)):
+            row_vals = [self._normalize_col_name(str(v)) for v in preview.iloc[r_idx].tolist() if str(v).strip()]
+            if not row_vals:
+                continue
+            score = 0
+            for cell in row_vals:
+                if any(p in cell for p in probes):
+                    score += 1
+            if score > best_score:
+                best_score = score
+                best_row = r_idx
+
+        return best_row if best_score >= 2 else 0
+
+    def _default_field_for_column(self, column_name: str) -> str:
+        role_to_default = {
+            "category": FIELD_NAME_DEFAULT_CATEGORY,
+            "classif": FIELD_NAME_DEFAULT_CLASSIF,
+            "ifc": FIELD_NAME_DEFAULT_IFC,
+        }
+        for role, value in role_to_default.items():
+            if self._excel_column_roles.get(role) == column_name:
+                return value
+        return ""
+
+    def _clear_param_rows(self):
+        for row in self._param_rows:
+            try:
+                row.setParent(None)
+                row.deleteLater()
+            except Exception:
+                pass
+        self._param_rows = []
+
+    def _rebuild_param_rows(self):
+        self._clear_param_rows()
+        has_columns = bool(self._excel_param_columns)
+        self._lbl_no_params.setVisible(not has_columns)
+        self._params_help.setVisible(has_columns)
+
+        if not has_columns:
+            return
+
+        for col in self._excel_param_columns:
+            row = _ParamMappingRow(
+                col,
+                self._default_field_for_column(col),
+                self._open_api_select_for_row,
+                self._params_widget,
+            )
+            self._param_rows.append(row)
+            self._params_inner.addWidget(row)
+
+    def _param_field_map(self) -> Dict[str, str]:
+        result: Dict[str, str] = {}
+        for row in self._param_rows:
+            if not row.is_active():
+                continue
+            value = row.mapping_value()
+            if value:
+                result[row.column_name] = value
+        return result
 
     def _refresh_for_theme(self):
         pass
@@ -2483,36 +2676,53 @@ class ContentWidget(QtWidgets.QWidget):
             self._load_column_params()
 
     def _load_column_params(self):
-        for cb in self._param_checkboxes.values():
-            cb.deleteLater()
-        self._param_checkboxes.clear()
-        self._lbl_no_params.hide()
+        self._excel_param_columns = []
+        self._excel_column_roles = {}
+        self._header_rows_by_sheet = {}
+        self._lbl_no_params.setText("Ожидание excel")
+        self._rebuild_param_rows()
 
         if not self._excel_path or not self._selected_sheets:
-            self._lbl_no_params.show()
+            self._rebuild_param_rows()
             return
 
         try:
             import pandas as pd
-            sheet = self._selected_sheets[0]
-            df = pd.read_excel(self._excel_path, sheet_name=sheet, nrows=1, dtype=object)
-            columns = [str(c).strip() for c in df.columns if str(c).strip()]
-            
-            for col in columns:
-                cb = QtWidgets.QCheckBox(col)
-                cb.setChecked(col in self._column_params.get(col, True) if self._column_params else True)
-                cb.stateChanged.connect(lambda state, c=col: self._on_param_changed(c, state))
-                self._params_inner.addWidget(cb)
-                self._param_checkboxes[col] = cb
+
+            common_columns: Optional[List[str]] = None
+            role_candidates: Dict[str, str] = {}
+            for sheet in self._selected_sheets:
+                header_row = self._detect_header_row_index(self._excel_path, sheet)
+                self._header_rows_by_sheet[sheet] = header_row
+                df = pd.read_excel(self._excel_path, sheet_name=sheet, header=header_row, nrows=0, dtype=object)
+                all_columns = [str(c).strip() for c in df.columns if str(c).strip()]
+                params_columns = self._columns_for_params(all_columns)
+                roles = self._detect_excel_column_roles(params_columns)
+                for role_name, role_col in roles.items():
+                    if role_name not in role_candidates and role_col:
+                        role_candidates[role_name] = role_col
+
+                if common_columns is None:
+                    common_columns = params_columns[:]
+                else:
+                    common_set = set(params_columns)
+                    common_columns = [c for c in common_columns if c in common_set]
+
+            columns = common_columns or []
+            self._excel_param_columns = columns
+            self._excel_column_roles = {
+                role: col for role, col in role_candidates.items() if col in columns
+            }
+
+            if not columns:
+                self._lbl_no_params.setText('Не найдены параметры (используются столбцы со 2-го до "LOI", не включая "LOI")')
+            self._rebuild_param_rows()
         except Exception as e:
             self._lbl_no_params.setText(f"Ошибка загрузки: {e}")
-            self._lbl_no_params.show()
-
-    def _on_param_changed(self, col: str, state: int):
-        self._column_params[col] = (state == QtCore.Qt.Checked)
+            self._rebuild_param_rows()
 
     def get_selected_columns(self) -> List[str]:
-        return [col for col, cb in self._param_checkboxes.items() if cb.isChecked()]
+        return self._excel_param_columns[:]
 
     def _pick_out_file(self, default_name: str) -> Optional[Path]:
         base_dir = Path.cwd()
@@ -2538,7 +2748,7 @@ class ContentWidget(QtWidgets.QWidget):
 
     def _open_api_select(self, apply_fn):
         dlg = ApiSelectDialog(
-            self, API_BASE_URL_DEFAULT,
+            self, _runtime_api_base_url(),
             api_get_projects, api_get_containers, api_get_parameters,
             on_import=lambda rows: apply_fn(rows[0].get("code", "")) if rows else None,
             state={}
@@ -2548,14 +2758,10 @@ class ContentWidget(QtWidgets.QWidget):
         else:
             dlg.exec_()
 
-    def open_mapping_for_category(self):
-        self._open_api_select(lambda code: self.ed_field_cat.setText(code))
-
-    def open_mapping_for_classif(self):
-        self._open_api_select(lambda code: self.ed_field_cls.setText(code))
-
-    def open_mapping_for_ifc(self):
-        self._open_api_select(lambda code: self.ed_field_ifc.setText(code))
+    def _open_api_select_for_row(self, row: _ParamMappingRow):
+        if row is None:
+            return
+        self._open_api_select(lambda code: row.cmb_field.setCurrentText(code))
 
     def generate_clicked(self):
         try:
@@ -2568,9 +2774,9 @@ class ContentWidget(QtWidgets.QWidget):
                 QtWidgets.QMessageBox.warning(self, "Внимание", "Выберите Excel файл и лист.")
                 return
 
-            selected_cols = self.get_selected_columns()
-            if not selected_cols:
-                QtWidgets.QMessageBox.warning(self, "Внимание", "Выберите хотя бы один параметр.")
+            auto_cols = self.get_selected_columns()
+            if not auto_cols:
+                QtWidgets.QMessageBox.warning(self, "Внимание", "Не найдены параметры в Excel (со 2-го столбца до LOI).")
                 return
 
             out_path = self._pick_out_file(title)
@@ -2581,14 +2787,12 @@ class ContentWidget(QtWidgets.QWidget):
             next_id = 10000
             auto_number = self.cb_auto.isChecked()
             build_filters = self.cb_filter.isChecked()
-            field_name_category = self.ed_field_cat.text().strip() or FIELD_NAME_DEFAULT_CATEGORY
-            field_name_classif = self.ed_field_cls.text().strip() or FIELD_NAME_DEFAULT_CLASSIF
-            field_name_ifc = self.ed_field_ifc.text().strip() or FIELD_NAME_DEFAULT_IFC
+            param_field_map = self._param_field_map()
 
-            group_col = selected_cols[0] if len(selected_cols) > 0 else GROUP_COL_DEFAULT
-            cat_col = selected_cols[1] if len(selected_cols) > 1 else CAT_COL_DEFAULT
-            ifc_col = selected_cols[2] if len(selected_cols) > 2 else IFC_COL_DEFAULT
-            classif_col = selected_cols[3] if len(selected_cols) > 3 else CLASSIF_CODE_COL_DEFAULT
+            group_col = self._excel_column_roles.get("group") or GROUP_COL_DEFAULT
+            cat_col = self._excel_column_roles.get("category") or (auto_cols[1] if len(auto_cols) > 1 else CAT_COL_DEFAULT)
+            ifc_col = self._excel_column_roles.get("ifc") or (auto_cols[2] if len(auto_cols) > 2 else IFC_COL_DEFAULT)
+            classif_col = self._excel_column_roles.get("classif") or (auto_cols[3] if len(auto_cols) > 3 else CLASSIF_CODE_COL_DEFAULT)
 
             root = ET.Element("ExportProfilesCollection", {
                 "xmlns:xsd": "http://www.w3.org/2001/XMLSchema",
@@ -2602,7 +2806,10 @@ class ContentWidget(QtWidgets.QWidget):
 
             group_idx = 0
             for sheet in self._selected_sheets:
-                df = pd.read_excel(self._excel_path, sheet_name=sheet, dtype=object)
+                header_row = self._header_rows_by_sheet.get(sheet)
+                if header_row is None:
+                    header_row = self._detect_header_row_index(self._excel_path, sheet)
+                df = pd.read_excel(self._excel_path, sheet_name=sheet, header=header_row, dtype=object)
                 next_id, group_idx = df_to_items_gui(
                     df, profile_items,
                     id_start=next_id,
@@ -2612,12 +2819,15 @@ class ContentWidget(QtWidgets.QWidget):
                     ifc_column=ifc_col,
                     auto_number=auto_number,
                     build_filters=build_filters,
-                    field_name_category=field_name_category,
-                    field_name_ifc=field_name_ifc,
+                    field_name_category=FIELD_NAME_DEFAULT_CATEGORY,
+                    field_name_ifc=FIELD_NAME_DEFAULT_IFC,
                     filter_mode="both",
                     classif_map=None,
-                    field_name_classif=field_name_classif,
+                    classif_column=classif_col,
+                    field_name_classif=FIELD_NAME_DEFAULT_CLASSIF,
                     group_idx_start=group_idx,
+                    param_field_map=param_field_map,
+                    active_param_columns=list(param_field_map.keys()),
                 )
 
             indent_xml(root)

@@ -36,7 +36,7 @@ HEADER_BG = "#f5f5f5"
 
 # ---- resource helpers (as in AddUser) ----
 def rsrc_path(*segments: str) -> str:
-    base = os.path.dirname(os.path.abspath(__file__))
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, *segments)
 
 def first_existing(paths):
@@ -46,7 +46,10 @@ def first_existing(paths):
     return None
 
 ICON_DIR = rsrc_path("icon")
-LOGO_PATH = resolve_icon_path("logo", ICON_DIR, tint_in_dark=False) or ""
+LOGO_LIGHT_PATH = rsrc_path("icon", "Manager-scaled.png")
+LOGO_DARK_PATH = rsrc_path("icon", "Manager-scaled_white.png")
+TITLEBAR_ICON_PATH = rsrc_path("icon", "logo.ico")
+LOGO_PATH = LOGO_LIGHT_PATH if os.path.exists(LOGO_LIGHT_PATH) else (resolve_icon_path("logo", ICON_DIR, tint_in_dark=False) or "")
 
 # icons and arrow resources
 ARROW_DOWN_PATH = resolve_icon_path("arrow_down", ICON_DIR, tint_in_dark=False) or ""
@@ -575,7 +578,7 @@ class Section(QtWidgets.QWidget):
         super().__init__(parent)
         outer = QtWidgets.QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(6)
+        outer.setSpacing(4)
 
         self.lbl = QtWidgets.QLabel(title, self)
         self.lbl.setObjectName("sectionTitle")
@@ -588,7 +591,7 @@ class Section(QtWidgets.QWidget):
         self.frame_l = QtWidgets.QGridLayout(self.frame)
         self.frame_l.setHorizontalSpacing(8)
         self.frame_l.setVerticalSpacing(6)
-        self.frame_l.setContentsMargins(10, 10, 10, 10)
+        self.frame_l.setContentsMargins(8, 8, 8, 8)
 
         outer.addWidget(self.lbl)
         outer.addWidget(self.frame)
@@ -644,7 +647,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Матрица коллизий - Генератор профилей")
-        self.resize(960, 628)
+        self.resize(900, 600)
         self._pending_theme_apply = False
         # theme state (aligned with AddUser)
         self._BG = BG
@@ -702,8 +705,9 @@ class MainWindow(QtWidgets.QMainWindow):
         cw = QtWidgets.QWidget()
         self.setCentralWidget(cw)
         root = QtWidgets.QVBoxLayout(cw)
-        root.setContentsMargins(16, 16, 16, 16)
-        root.setSpacing(12)
+        root.setContentsMargins(12, 12, 12, 12)
+        root.setSpacing(8)
+        root.setAlignment(QtCore.Qt.AlignTop)
 
         # Header с кнопкой назад и переключателем темы (без рамки/капсулы)
         header = QtWidgets.QHBoxLayout()
@@ -718,26 +722,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self._theme_toggle.toggled.connect(self._on_theme_toggled)
         header.addWidget(self._theme_toggle)
         root.addLayout(header)
-
-        # Server/Host section (for future API usage)
-        self.sec_server = Section("Сервер", self)
-        sl = self.sec_server.frame_l
-        self.ed_host = QtWidgets.QLineEdit("http://127.0.0.1")
-        self.spin_port = QtWidgets.QSpinBox()
-        self.spin_port.setRange(1, 65535)
-        self.spin_port.setValue(5000)
-        self.spin_port.setFixedWidth(100)
-        # Keep arrows visible but visually match Host input
-        try:
-            self.spin_port.setButtonSymbols(QtWidgets.QAbstractSpinBox.UpDownArrows)
-            self.spin_port.setAlignment(QtCore.Qt.AlignLeft)
-        except Exception:
-            pass
-        sl.addWidget(QtWidgets.QLabel("Host:"), 0, 0)
-        sl.addWidget(self.ed_host, 0, 1)
-        sl.addWidget(QtWidgets.QLabel("Порт:"), 0, 2)
-        sl.addWidget(self.spin_port, 0, 3)
-        root.addWidget(self.sec_server)
 
         # ------ Секция Файлы ------
         self.sec_files = Section("Файлы", self)
@@ -871,6 +855,7 @@ class MainWindow(QtWidgets.QMainWindow):
         actions.addWidget(self.btn_generate)
         actions.addStretch(1)
         root.addLayout(actions)
+        root.addStretch(1)
         # ������ ���������� ������ �� �������
 
         # Статус бар
@@ -881,11 +866,7 @@ class MainWindow(QtWidgets.QMainWindow):
     # Helpers
     # ---------------------------------
     def _load_logo_pixmap(self) -> QtGui.QPixmap | None:
-        candidates = [
-            LOGO_PATH,
-            os.path.join(os.path.dirname(sys.argv[0]), "Manager-scaled.png"),
-            os.path.join(os.path.dirname(__file__), "Manager-scaled.png"),
-        ]
+        candidates = [LOGO_PATH, LOGO_LIGHT_PATH]
         for p in candidates:
             if p and os.path.exists(p):
                 return QtGui.QPixmap(p)
@@ -897,17 +878,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 return
             base_dir = os.path.dirname(os.path.abspath(__file__))
             if dark:
-                cands = [
-                    rsrc_path("icon", "Manager-scaled_white.png"),
-                    os.path.join(base_dir, "icon", "Manager-scaled_white.png"),
-                    os.path.join(base_dir, "Manager-scaled_white.png"),
-                ]
+                cands = [LOGO_DARK_PATH]
             else:
-                cands = [
-                    rsrc_path("icon", "Manager-scaled.png"),
-                    os.path.join(base_dir, "icon", "Manager-scaled.png"),
-                    os.path.join(base_dir, "Manager-scaled.png"),
-                ]
+                cands = [LOGO_LIGHT_PATH]
             p = first_existing(cands)
             if not p:
                 # fallback to previously defined loader
@@ -946,74 +919,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self._apply_stylesheet()
 
     def _apply_stylesheet2(self):
-        bcol = getattr(self, "_BG", BG)
-        fcol = getattr(self, "_FG", FG)
-        dark = str(bcol).lower() in ("#1e1e1e", "#171717", "#202020", "#121212")
-
-        arrow_path = _resolve_arrow_path(__file__)
-        arrow_url = _white_variant_for_qss(arrow_path) if dark else (arrow_path or "arrow-down.png")
-        arrow_url = (arrow_url or "arrow-down.png").replace("\\", "/")
-        spin_up = ARROW_UP_PATH or ""
-        spin_down = ARROW_DOWN_PATH or ""
-        if dark:
-            if spin_up:
-                spin_up = _white_variant_for_qss(spin_up)
-            if spin_down:
-                spin_down = _white_variant_for_qss(spin_down)
-        spin_up = (spin_up or "arrow-up.png").replace("\\", "/")
-        spin_down = (spin_down or "arrow-down.png").replace("\\", "/")
-
-        css = []
-        css.append("QPushButton#btn_login, QPushButton#btn_generate { font-size: 16px; }")
-        css.append(f"QWidget {{ color: {fcol}; background: {bcol}; font-family: 'Segoe UI'; font-size: 10pt; }}")
-
-        # Header bar and sections
-        # no framed header bar
-        css.append(f"QLabel#sectionTitle {{ font-size: 10pt; font-weight: 600; background: {bcol}; padding: 0 8px; border-radius: 6px; color: {fcol}; }}")
-        css.append(f"QFrame#sectionFrame {{ margin-top: 8px; border: none; border-radius: 10px; background: {bcol}; }}")
-        css.append("QStatusBar::item { border: none; }")
-
-        # Tables: remove default grid lines / frames
-        css.append("QTableView, QTableWidget { border: none; gridline-color: transparent; }")
-
-        # Buttons: rounded with hover/pressed highlight (slightly orange on hover)
-        hover_bg = "#FFE3C2"
-        pressed_bg = "#E07E12"
-        css.append(f"QPushButton {{ border: 1px solid {self._BORDER}; border-radius: 10px; padding: 8px 12px; background: {bcol}; }}")
-        css.append(f"QPushButton:hover {{ background: {hover_bg}; border-color: {ACCENT_HOVER}; }}")
-        css.append(f"QPushButton:pressed {{ background: {pressed_bg}; border-color: {ACCENT}; color: #ffffff; }}")
-        css.append(f"QToolButton {{ border: 1px solid {self._BORDER}; border-radius: 10px; padding: 6px 8px; background: {bcol}; }}")
-        css.append(f"QToolButton:hover {{ background: {hover_bg}; border-color: {ACCENT_HOVER}; }}")
-        css.append(f"QToolButton:pressed {{ background: {pressed_bg}; border-color: {ACCENT}; color: #ffffff; }}")
-        # In dark theme, ensure hover text is black on buttons
-        if dark:
-            css.append("QPushButton:hover { color: #000000; }")
-            css.append("QToolButton:hover { color: #000000; }")
-            css.append("QPushButton#btn_generate:hover:!disabled { color: #000000; }")
-
-        # Text selection color (not blue; light orange)
-        sel_bg = "#FFC37A"; sel_fg = "#222222"
-        css.append(f"QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox {{ selection-background-color: {sel_bg}; selection-color: {sel_fg}; }}")
-
-        # Inputs: rounded, same look (Host/Port/Tolerance)
-        css.append(f"QLineEdit, QComboBox, QAbstractSpinBox {{ border: 1px solid {self._BORDER}; border-radius: 8px; padding: 6px 8px; background: {bcol}; }}")
-
-        # ComboBox down arrow
-        css.append("QComboBox { padding-right: 26px; }")
-        css.append("QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 22px; border: none; background: transparent; margin-right: 4px; }")
-        css.append(f'QComboBox::down-arrow {{ image: url("{arrow_url}"); width: 12px; height: 12px; }}')
-
-        # SpinBox arrows (incl. Port)
-        css.append("QAbstractSpinBox { padding-right: 28px; }")
-        css.append("QAbstractSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 20px; border: none; background: transparent; margin-right: 2px; }")
-        css.append("QAbstractSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 20px; border: none; background: transparent; margin-right: 2px; }")
-        css.append(f'QAbstractSpinBox::up-arrow {{ image: url("{spin_up}"); width: 10px; height: 10px; }}')
-        css.append(f'QAbstractSpinBox::down-arrow {{ image: url("{spin_down}"); width: 10px; height: 10px; }}')
-
-        # Apply
-        self.setStyleSheet("".join(css))
-
-        # Native Windows title bar in dark mode
+        app = QtWidgets.QApplication.instance()
+        if app is None:
+            return
+        dark = is_dark_theme(app)
+        theme(app, dark, icon_dir=ICON_DIR, persist=False)
         try:
             _apply_native_dark_titlebar(self, dark)
         except Exception:
@@ -1021,90 +931,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def _apply_stylesheet(self):
-        bcol = getattr(self, "_BG", BG)
-        fcol = getattr(self, "_FG", FG)
-        arrow_path = _resolve_arrow_path(__file__)
-        dark = str(bcol).lower() in ("#1e1e1e", "#171717", "#202020", "#121212")
-        arrow_url = _white_variant_for_qss(arrow_path) if dark else (arrow_path or "arrow-down.png")
-        arrow_url = (arrow_url or "arrow-down.png").replace("\\", "/")
-
-        css = []
-        css.append("QPushButton#btn_login, QPushButton#btn_generate { font-size: 16px; }")
-        css.append(f"QWidget {{ color: {fcol}; background: {bcol}; font-family: 'Segoe UI'; font-size: 10pt; }}")
-        # no framed header bar
-        css.append(f"QLabel#sectionTitle {{ font-size: 10pt; font-weight: 600; background: {bcol}; padding: 0 8px; border-radius: 6px; color: {fcol}; }}")
-        css.append(f"QFrame#sectionFrame {{ margin-top: 8px; border: none; border-radius: 8px; background: {bcol}; }}")
-        css.append("QStatusBar::item { border: none; }")
-        css.append(f"QLineEdit, QComboBox {{ border: 1px solid {self._BORDER}; border-radius: 6px; padding: 6px 8px; background: {bcol}; }}")
-        css.append("QComboBox { padding-right: 26px; }")
-        css.append("QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 22px; border: none; background: transparent; margin-right: 4px; }")
-        css.append(f'QComboBox::down-arrow {{ image: url("{arrow_url}"); width: 12px; height: 12px; }}')
-        css.append(f"QPushButton {{ background: {bcol}; color: {fcol}; border: 1px solid {self._BORDER}; border-radius: 12px; padding: 8px 16px; }}")
-        css.append("QPushButton:hover { background: #FFE3C2; border-color: #FFA74B; color: #000000; }")
-        css.append("QPushButton:pressed { background: #FFC37A; border-color: #E07E12; }")
-        css.append("QPushButton:disabled { background: #f0f0f0; color: #9b9b9b; border-color: #e6e6e6; }")
-        css.append("QPushButton#btn_generate { background: #F7921E; color: #FFFFFF; border: 1px solid #F7921E; border-radius: 12px; padding: 10px 18px; }")
-        css.append("QPushButton#btn_generate:hover:!disabled { background: #FFA74B; border-color: #FFA74B; color: #000000; }")
-        css.append("QTableView, QTableWidget { border: none; gridline-color: transparent; }")
-        css.append("QToolButton#inlineToolAdd, QToolButton#inlineToolDel { background: transparent; border: 1px solid " + self._BORDER + "; border-radius: 10px; padding: 2px; }")
-        css.append("QToolButton#inlineToolAdd:hover, QToolButton#inlineToolDel:hover { background: #FFE3C2; border-color: #FFA74B; }")
-        css.append("QTableCornerButton::section { background: " + self._HEADER_BG + "; border: 1px solid " + self._BORDER + "; }")
-        css.append("QTableView::item:selected, QTableWidget::item:selected { background: #FFC37A; color: #222222; }")
-        css.append(f"QHeaderView::section {{ background: {self._HEADER_BG}; color: {fcol}; border: 1px solid {self._BORDER}; padding: 6px; font-weight: 600; }}")
-        corner_bg = self._HEADER_BG
-        corner_border = self._BORDER
-        css.append(f"QTableCornerButton::section {{ background: {corner_bg}; border: 1px solid {corner_border}; }}")
-        # Generate button: pale by default, bright orange on hover
-        css.append("QPushButton#btn_generate { background: #FFE3C2; color: #000000; border: 1px solid #FFA74B; border-radius: 12px; padding: 10px 18px; }")
-        css.append("QPushButton#btn_generate:hover:!disabled { background: #F7921E; border-color: #F7921E; color: #FFFFFF; }")
-        scrollbar_bg = "#252525" if dark else "#FFFFFF"
-        scrollbar_handle = "#F7921E" if dark else "#FFC37A"
-        scrollbar_handle_hover = "#FFA74B"
-        scrollbar_handle_pressed = "#E07E12"
-        arrow_up = ARROW_UP_PATH.replace("\\", "/") if ARROW_UP_PATH else ""
-        arrow_down = ARROW_DOWN_PATH.replace("\\", "/") if ARROW_DOWN_PATH else ""
-        arrow_left = ARROW_LEFT_PATH.replace("\\", "/") if ARROW_LEFT_PATH else ""
-        arrow_right = ARROW_RIGHT_PATH.replace("\\", "/") if ARROW_RIGHT_PATH else ""
-        if dark:
-            if ARROW_UP_PATH:
-                arrow_up = _white_variant_for_qss(ARROW_UP_PATH).replace("\\", "/")
-            if ARROW_DOWN_PATH:
-                arrow_down = _white_variant_for_qss(ARROW_DOWN_PATH).replace("\\", "/")
-            if ARROW_LEFT_PATH:
-                arrow_left = _white_variant_for_qss(ARROW_LEFT_PATH).replace("\\", "/")
-            if ARROW_RIGHT_PATH:
-                arrow_right = _white_variant_for_qss(ARROW_RIGHT_PATH).replace("\\", "/")
-        css.append(f"QScrollBar:horizontal, QScrollBar:vertical {{ background: {scrollbar_bg}; border-radius: 8px; }}")
-        css.append("QScrollBar:horizontal { height: 16px; margin: 0px 14px; }")
-        css.append("QScrollBar:vertical { width: 16px; margin: 14px 0px; }")
-        css.append(f"QScrollBar::handle:horizontal {{ background: {scrollbar_handle}; border-radius: 10px; min-width: 24px; max-width: 24px; margin: 2px 3px; }}")
-        css.append(f"QScrollBar::handle:horizontal:hover {{ background: {scrollbar_handle_hover}; }}")
-        css.append(f"QScrollBar::handle:horizontal:pressed {{ background: {scrollbar_handle_pressed}; }}")
-        css.append(f"QScrollBar::handle:vertical {{ background: {scrollbar_handle}; border-radius: 10px; min-height: 24px; max-height: 24px; margin: 3px 2px; }}")
-        css.append(f"QScrollBar::handle:vertical:hover {{ background: {scrollbar_handle_hover}; }}")
-        css.append(f"QScrollBar::handle:vertical:pressed {{ background: {scrollbar_handle_pressed}; }}")
-        css.append("QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 12px; height: 12px; border-radius: 6px; background: transparent; subcontrol-origin: margin; margin: 0; image: none; }")
-        css.append("QScrollBar::sub-line:horizontal { subcontrol-position: left center; }")
-        css.append("QScrollBar::add-line:horizontal { subcontrol-position: right center; }")
-        css.append("QScrollBar::add-line:horizontal:hover, QScrollBar::sub-line:horizontal:hover { background: rgba(0, 0, 0, 0.08); }")
-        css.append("QScrollBar::add-line:horizontal:pressed, QScrollBar::sub-line:horizontal:pressed { background: #F7921E; }")
-        css.append("QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { width: 12px; height: 12px; border-radius: 6px; background: transparent; subcontrol-origin: margin; margin: 0; image: none; }")
-        css.append("QScrollBar::sub-line:vertical { subcontrol-position: top center; }")
-        css.append("QScrollBar::add-line:vertical { subcontrol-position: bottom center; }")
-        css.append("QScrollBar::add-line:vertical:hover, QScrollBar::sub-line:vertical:hover { background: rgba(0, 0, 0, 0.08); }")
-        css.append("QScrollBar::add-line:vertical:pressed, QScrollBar::sub-line:vertical:pressed { background: #F7921E; }")
-        css.append("QScrollBar::left-arrow:horizontal, QScrollBar::right-arrow:horizontal, QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical { background: transparent; border: none; width: 16px; height: 16px; margin: 0; }")
-        if arrow_left:
-            css.append(f'QScrollBar::left-arrow:horizontal {{ image: url("{arrow_left}"); }}')
-        if arrow_right:
-            css.append(f'QScrollBar::right-arrow:horizontal {{ image: url("{arrow_right}"); }}')
-        if arrow_up:
-            css.append(f'QScrollBar::up-arrow:vertical {{ image: url("{arrow_up}"); }}')
-        if arrow_down:
-            css.append(f'QScrollBar::down-arrow:vertical {{ image: url("{arrow_down}"); }}')
-        css.append("QScrollBar::groove:horizontal, QScrollBar::groove:vertical { subcontrol-origin: margin; }")
-        css.append("QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal, QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { border: none; }")
-        self.setStyleSheet("".join(css))
+        self._apply_stylesheet2()
     # -------------------------
     # File pickers
     # -------------------------
@@ -1146,9 +973,6 @@ class MainWindow(QtWidgets.QMainWindow):
         profile_title = (self.ed_title.text() or "").strip() or "Матрица"
         param_field = (self.cb_param.currentText() or "").strip() or "Категория:\\"
 
-        # Host/port selection (informational for now)
-        host = (getattr(self, 'ed_host', QtWidgets.QLineEdit('http://127.0.0.1')).text() or '').strip()
-        port = int(getattr(self, 'spin_port', QtWidgets.QSpinBox()).value() or 5000)
         sheet_nabory = self.cb_sheet_nabory.currentText().strip()
         sheet_matrix = self.cb_sheet_matrix.currentText().strip()
 
@@ -1213,9 +1037,7 @@ def main():
 
     # Иконка окна
     icon = QtGui.QIcon()
-    for p in (LOGO_PATH,
-              os.path.join(os.path.dirname(sys.argv[0]), "Manager-scaled.png"),
-              os.path.join(os.path.dirname(__file__), "Manager-scaled.png")):
+    for p in (TITLEBAR_ICON_PATH, LOGO_PATH):
         if os.path.exists(p):
             icon.addFile(p)
             break

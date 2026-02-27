@@ -20,9 +20,13 @@ from PySide6.QtCore import Qt
 PYSIDE = True
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
-ICON_DIR = os.path.join(APP_DIR, "icon")
+APP_ROOT_DIR = os.path.dirname(APP_DIR)
+ICON_DIR = os.path.join(APP_ROOT_DIR, "icon")
 WINDOW_ICON_NAME = "app_icon"
 LOGO_NAME = "logo"
+LOGO_LIGHT_REL = os.path.join("icon", "Manager-scaled.png")
+LOGO_DARK_REL = os.path.join("icon", "Manager-scaled_white.png")
+TITLEBAR_ICON_REL = os.path.join("icon", "logo.ico")
 
 # --- Import from theme_toggle ---
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -48,9 +52,13 @@ _VIEWER_ICON_FILES = {
 register_icon_files(_VIEWER_ICON_FILES)
 
 def apply_window_icon(widget_or_app, *, icon_dir: str = ICON_DIR) -> None:
-    app = QtWidgets.QApplication.instance()
-    ic = nik_icon(WINDOW_ICON_NAME, app=app, icon_dir=icon_dir)
+    icon_path = os.path.join(APP_ROOT_DIR, TITLEBAR_ICON_REL)
+    ic = QtGui.QIcon(icon_path) if os.path.exists(icon_path) else QtGui.QIcon()
     if ic.isNull():
+        app = QtWidgets.QApplication.instance()
+        ic = nik_icon(WINDOW_ICON_NAME, app=app, icon_dir=icon_dir)
+    if ic.isNull():
+        app = QtWidgets.QApplication.instance()
         ic = nik_icon(LOGO_NAME, app=app, icon_dir=icon_dir)
     try:
         widget_or_app.setWindowIcon(ic)
@@ -120,8 +128,11 @@ def apply_themed_icon_with_arrow(widget, name: str = "arrow_right", icon_dir: st
 def load_logo(icon_dir: str = ICON_DIR) -> QtGui.QPixmap:
     app = QtWidgets.QApplication.instance()
     dark = is_dark_theme(app)
-    name = "logo_white" if dark else "logo"
-    p = resolve_icon_path(name, icon_dir)
+    rel = LOGO_DARK_REL if dark else LOGO_LIGHT_REL
+    p = os.path.join(APP_ROOT_DIR, rel)
+    if not os.path.exists(p):
+        name = "logo_white" if dark else "logo"
+        p = resolve_icon_path(name, icon_dir)
     if not p:
         p = resolve_icon_path("logo", icon_dir)
     pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
@@ -182,6 +193,7 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
         font-family: '{_BASE_FONT_FAMILY}';
         font-size: {_BASE_FONT_SIZE_PT}pt;
         color: {FG};
+        selection-background-color: {PALETTE.SELECTED};
         selection-color: #000000;
     }}
     QWidget {{ background: {BG}; }}
@@ -242,9 +254,9 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
     }}
 
     QComboBox QAbstractItemView {{ background: {BG}; border: 1px solid {BORDER}; outline: none; selection-background-color: {PALETTE.SELECTED}; }}
-    QComboBox QAbstractItemView::item {{ padding: 4px 8px; }}
-    QComboBox QAbstractItemView::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; }}
-    QComboBox QAbstractItemView::item:selected {{ background: {PALETTE.SELECTED}; color: {hover_text}; }}
+    QComboBox QAbstractItemView::item {{ padding: 4px 8px; border-radius: 8px; margin: 1px 4px; }}
+    QComboBox QAbstractItemView::item:hover {{ background: {PALETTE.SOFT_HOVER}; color: {hover_text}; border-radius: 8px; }}
+    QComboBox QAbstractItemView::item:selected {{ background: {PALETTE.SELECTED}; color: {hover_text}; border-radius: 8px; }}
 
     QListView, QListWidget {{
         background: {BG};
@@ -255,15 +267,19 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
     }}
     QListView::item, QListWidget::item {{
         padding: 6px 8px;
+        border-radius: 8px;
+        margin: 1px 4px;
         border: none;
     }}
     QListView::item:hover, QListWidget::item:hover {{
         background: {PALETTE.SOFT_HOVER};
         color: {hover_text};
+        border-radius: 8px;
     }}
     QListView::item:selected, QListWidget::item:selected {{
         background: {PALETTE.SELECTED};
         color: {hover_text};
+        border-radius: 8px;
     }}
     QListView::item:selected:active, QListWidget::item:selected:active {{
         background: {PALETTE.SELECTED};
@@ -601,10 +617,14 @@ def _popup_error(parent, text: str, title: str = "Ошибка"):
 
 # --- Constants / Config ---
 EXTERNAL_BASE_URL = "https://bwv.testing.bim-info.ru"
-INTERNAL_BASE_URL = "http://localhost:5000/api"
 ACCESS_TOKEN = ""
 EXTERNAL_HEADERS = {}
 INTERNAL_HEADERS = {"accept": "*/*", "Content-Type": "application/json"}
+
+
+def _internal_base_url() -> str:
+    base = (os.environ.get("LARIX_API_BASE_URL") or "http://localhost:5000").rstrip("/")
+    return f"{base}/api"
 
 
 # --- Utils ---
@@ -632,7 +652,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Создание статусов")
-        self.resize(800, 900)
+        self.resize(980, 720)
         apply_window_icon(self, icon_dir=ICON_DIR)
 
         self.schema_data = {}
@@ -643,8 +663,8 @@ class MainWindow(QMainWindow):
 
         central = QWidget()
         grid = QGridLayout(central)
-        grid.setContentsMargins(12, 12, 12, 12)
-        grid.setSpacing(12)
+        grid.setContentsMargins(10, 10, 10, 10)
+        grid.setSpacing(8)
 
         # --- Header with logo + theme switch (Nik Style) ---
         header = QWidget(); header.setObjectName("header")
@@ -1021,7 +1041,7 @@ class MainWindow(QMainWindow):
 
     # --- Local projects/containers ---
     def load_local_projects(self):
-        data = api_get(f"{INTERNAL_BASE_URL}/project/projects", {"accept": "application/json"})
+        data = api_get(f"{_internal_base_url()}/project/projects", {"accept": "application/json"})
         if not data:
             QMessageBox.critical(self, "Ошибка", "Не удалось загрузить локальные проекты")
             return
@@ -1044,7 +1064,7 @@ class MainWindow(QMainWindow):
         if proj_id is None:
             return
 
-        data = api_get(f"{INTERNAL_BASE_URL}/imcContainer/getProjectImcContainers/{proj_id}",
+        data = api_get(f"{_internal_base_url()}/imcContainer/getProjectImcContainers/{proj_id}",
                        {"accept": "application/json"}) or []
 
         containers = data if isinstance(data, list) else [data]
@@ -1145,7 +1165,7 @@ class MainWindow(QMainWindow):
             matched_model_names = norm_to_models.get(normalize_name(container_title), [])
             pretty_model = ", ".join(matched_model_names) if matched_model_names else None
 
-            elements = api_get(f"{INTERNAL_BASE_URL}/imcElement/imcElements/{container_id}",
+            elements = api_get(f"{_internal_base_url()}/imcElement/imcElements/{container_id}",
                                {"accept": "application/json"}) or []
             if not isinstance(elements, list):
                 continue
@@ -1166,7 +1186,7 @@ class MainWindow(QMainWindow):
                 continue
 
             # Создание параметра, если нет
-            params = api_get(f"{INTERNAL_BASE_URL}/imcParameterDefinition/imcParameterDefinitions",
+            params = api_get(f"{_internal_base_url()}/imcParameterDefinition/imcParameterDefinitions",
                              {"accept": "application/json"}, {"containerIds": container_id}) or []
             exists = any(p.get("code") == code for p in params)
             if not exists:
@@ -1177,7 +1197,7 @@ class MainWindow(QMainWindow):
                     "stringValue": value
                 }
                 create_resp = requests.post(
-                    f"{INTERNAL_BASE_URL}/imcParameterDefinition/imcParameterDefinition",
+                    f"{_internal_base_url()}/imcParameterDefinition/imcParameterDefinition",
                     headers={"Content-Type": "application/json"},
                     data=json.dumps(create_data, ensure_ascii=False)
                 )
@@ -1196,7 +1216,7 @@ class MainWindow(QMainWindow):
                 "stringValue": value
             }
             update_resp = requests.post(
-                f"{INTERNAL_BASE_URL}/imcParameterValue/setAlternateValueByElements",
+                f"{_internal_base_url()}/imcParameterValue/setAlternateValueByElements",
                 headers=INTERNAL_HEADERS,
                 data=json.dumps(update_data, ensure_ascii=False)
             )

@@ -1,25 +1,111 @@
 import sys
 import os
+import urllib.request
+import urllib.error
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGraphicsDropShadowEffect, QPushButton, QFileDialog, QMessageBox
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGraphicsDropShadowEffect, QPushButton, QFileDialog, QMessageBox, QLineEdit, QStyle
 )
-from PySide6.QtCore import Qt, Signal, Property, QPropertyAnimation, QEasingCurve, QPoint, QTimer
-from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap
+from PySide6.QtCore import Qt, Signal, Property, QPropertyAnimation, QEasingCurve, QPoint, QTimer, QSize, QObject, QThread, Slot, QEvent
+from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap, QIcon
 
 from shared.theme_toggle import (
-    ThemeToggle, is_dark_theme, theme, resolve_icon_path, nik_icon, 
+    ThemeToggle, is_dark_theme, theme, resolve_icon_path,
     load_saved_theme, enable_theme_sync, set_back_to_menu_callback
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ICON_DIR = os.path.join(BASE_DIR, "icon")
+LOGO_LIGHT_REL = os.path.join("icon", "Manager-scaled.png")
+LOGO_DARK_REL = os.path.join("icon", "Manager-scaled_white.png")
+TITLEBAR_ICON_REL = os.path.join("icon", "logo.ico")
+DEFAULT_API_BASE_URL = "http://localhost:5000"
+_ACTIVE_API_CHECK_THREADS = set()
+
+
+def _track_api_check_thread(thread: QThread) -> None:
+    if thread is None:
+        return
+    _ACTIVE_API_CHECK_THREADS.add(thread)
+
+    def _drop_ref() -> None:
+        try:
+            _ACTIVE_API_CHECK_THREADS.discard(thread)
+        except Exception:
+            pass
+
+    try:
+        thread.finished.connect(_drop_ref)
+    except Exception:
+        pass
+
+
+def _shutdown_api_check_threads() -> None:
+    for t in list(_ACTIVE_API_CHECK_THREADS):
+        try:
+            if t is not None and t.isRunning():
+                t.quit()
+                t.wait(3000)
+        except Exception:
+            pass
+        try:
+            _ACTIVE_API_CHECK_THREADS.discard(t)
+        except Exception:
+            pass
+
+
+def _normalize_api_base_url(url: str) -> str:
+    s = (url or "").strip()
+    if not s:
+        return DEFAULT_API_BASE_URL
+    if "://" not in s:
+        s = "http://" + s
+    return s.rstrip("/")
+
+
+def _check_api_connection(base_url: str, timeout_sec: float = 2.0) -> bool:
+    test_urls = [
+        f"{base_url}/api/project/projects",
+        f"{base_url}/health",
+        f"{base_url}/api/health",
+    ]
+    for u in test_urls:
+        try:
+            req = urllib.request.Request(u, method="GET")
+            with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+                code = int(getattr(resp, "status", 0) or 0)
+                if 200 <= code < 400:
+                    return True
+        except Exception:
+            pass
+    return False
+
+
+class ApiCheckWorker(QObject):
+    finished = Signal(int, str, bool)
+
+    def __init__(self, seq: int, base_url: str):
+        super().__init__()
+        self._seq = int(seq)
+        self._base_url = str(base_url or "")
+
+    @Slot()
+    def run(self):
+        ok = _check_api_connection(self._base_url)
+        self.finished.emit(self._seq, self._base_url, ok)
 
 def get_logo_path(is_dark=False):
+    rel = LOGO_DARK_REL if is_dark else LOGO_LIGHT_REL
+    direct = os.path.join(BASE_DIR, rel)
+    if os.path.exists(direct):
+        return direct
     app = QApplication.instance()
-    name = "logo_white" if is_dark else "logo"
-    return resolve_icon_path(name, ICON_DIR, app=app, tint_in_dark=False) or ""
+    fallback_name = "logo_white" if is_dark else "logo"
+    return resolve_icon_path(fallback_name, ICON_DIR, app=app, tint_in_dark=False) or ""
 
 def get_window_icon_path():
+    direct = os.path.join(BASE_DIR, TITLEBAR_ICON_REL)
+    if os.path.exists(direct):
+        return direct
     app = QApplication.instance()
     return resolve_icon_path("app_icon", ICON_DIR, app=app, tint_in_dark=False) or ""
 
@@ -107,15 +193,15 @@ class ModeCard(QFrame):
     def _update_style(self):
         if self._is_dark:
             if self._selected:
-                bg = "#28241f"
-                border = "#b86a15"
+                bg = "#3a2b1a"
+                border = "#E07E12"
                 title_color = "#e0e0e0"
-                desc_color = "#b86a15"
+                desc_color = "#FFC37A"
             elif self._hovered:
-                bg = "#252220"
-                border = "#8a5520"
-                title_color = "#e0e0e0"
-                desc_color = "#888888"
+                bg = "#FFE3C2"
+                border = "#FFA74B"
+                title_color = "#000000"
+                desc_color = "#000000"
             else:
                 bg = "#1e1e1e"
                 border = "#404040"
@@ -123,15 +209,15 @@ class ModeCard(QFrame):
                 desc_color = "#888888"
         else:
             if self._selected:
-                bg = "#faf5ef"
-                border = "#c97a1c"
-                title_color = "#222222"
-                desc_color = "#b86a15"
+                bg = "#FFC37A"
+                border = "#E07E12"
+                title_color = "#000000"
+                desc_color = "#000000"
             elif self._hovered:
-                bg = "#fdf8f3"
-                border = "#d99030"
-                title_color = "#222222"
-                desc_color = "#888888"
+                bg = "#FFE3C2"
+                border = "#FFA74B"
+                title_color = "#000000"
+                desc_color = "#000000"
             else:
                 bg = "#ffffff"
                 border = "#e0e0e0"
@@ -196,12 +282,19 @@ class ModeCard(QFrame):
 
 class MainMenuWidget(QWidget):
     mode_selected = Signal(str)
+    api_base_changed = Signal(str)
 
-    def __init__(self, is_dark=False, parent=None):
+    def __init__(self, is_dark=False, api_base_url=DEFAULT_API_BASE_URL, parent=None):
         super().__init__(parent)
         self._is_dark = is_dark
+        self._api_base_url = _normalize_api_base_url(api_base_url)
+        self._api_is_connected = False
+        self._api_check_seq = 0
+        self._api_check_silent = True
+        self._api_check_thread = None
         self._cards = []
         self._setup_ui()
+        QTimer.singleShot(0, self._connect_current_api_silent)
 
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -268,10 +361,136 @@ class MainMenuWidget(QWidget):
         main_layout.addLayout(row3_layout)
         main_layout.addStretch()
 
+        api_row = QHBoxLayout()
+        api_row.addStretch(1)
+        api_row.addWidget(QLabel("Сервер API:"))
+        self.api_base_edit = QLineEdit(self._api_base_url)
+        self.api_base_edit.setFixedWidth(260)
+        self.api_base_edit.setClearButtonEnabled(False)
+        self.api_base_edit.setPlaceholderText(DEFAULT_API_BASE_URL)
+        self.api_base_edit.textChanged.connect(self._on_api_base_text_changed)
+        self.api_base_edit.editingFinished.connect(self._on_api_base_edited)
+        self._api_status_icon = QLabel(self.api_base_edit)
+        self._api_status_icon.setFixedSize(16, 16)
+        self._api_status_icon.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+        self.api_base_edit.installEventFilter(self)
+        api_row.addWidget(self.api_base_edit)
+
+        self.btn_api_connect = QPushButton("Подключить")
+        self.btn_api_connect.clicked.connect(self._on_api_connect_clicked)
+        self.btn_api_connect.setProperty("secondary", True)
+        api_row.addWidget(self.btn_api_connect)
+        self._set_connect_button_icon()
+
+        self._set_api_status_icon(False)
+
+        api_row.addStretch(1)
+        main_layout.addLayout(api_row)
+
         btn_templates = QPushButton("Скачать шаблон")
         btn_templates.setMinimumWidth(200)
         btn_templates.clicked.connect(self._download_template)
         main_layout.addWidget(btn_templates, 0, Qt.AlignCenter)
+
+    def _on_api_base_edited(self):
+        value = _normalize_api_base_url(self.api_base_edit.text())
+        self._api_base_url = value
+        self.api_base_edit.setText(value)
+
+    def _set_api_status_icon(self, connected: bool):
+        self._api_is_connected = bool(connected)
+        app = QApplication.instance()
+        key = "ok" if connected else "none"
+        path = resolve_icon_path(key, ICON_DIR, app=app, tint_in_dark=False)
+        tip = (
+            "Подключено к API"
+            if connected
+            else "Нет подключения к API. Измените адрес и нажмите 'Подключить'."
+        )
+        if path and os.path.exists(path):
+            icon = QIcon(path)
+        else:
+            std = QStyle.SP_DialogApplyButton if connected else QStyle.SP_DialogCancelButton
+            icon = self.style().standardIcon(std)
+        pm = icon.pixmap(16, 16)
+        self._api_status_icon.setPixmap(pm)
+        self._api_status_icon.setToolTip(tip)
+        self._api_status_icon.setStatusTip(tip)
+        self._position_api_status_icon()
+
+    def _position_api_status_icon(self):
+        e = self.api_base_edit
+        x = max(0, e.width() - 16 - 8)
+        y = max(0, (e.height() - 16) // 2)
+        self._api_status_icon.move(x, y)
+        self._api_status_icon.raise_()
+
+    def eventFilter(self, obj, event):
+        try:
+            if obj is getattr(self, "api_base_edit", None) and event is not None:
+                t = event.type()
+                if t in (QEvent.Resize, QEvent.Move, QEvent.Show):
+                    self._position_api_status_icon()
+        except Exception:
+            pass
+        return super().eventFilter(obj, event)
+
+    def _set_connect_button_icon(self):
+        app = QApplication.instance()
+        icon_path = resolve_icon_path("login", ICON_DIR, app=app, tint_in_dark=False)
+        if icon_path and os.path.exists(icon_path):
+            self.btn_api_connect.setIcon(QIcon(icon_path))
+            self.btn_api_connect.setIconSize(QSize(16, 16))
+
+    def _on_api_base_text_changed(self, _text: str):
+        self._set_api_status_icon(False)
+
+    def _set_connect_ui_busy(self, busy: bool):
+        try:
+            self.btn_api_connect.setEnabled(not busy)
+            self.btn_api_connect.setText("Проверка..." if busy else "Подключить")
+            if not busy:
+                self._set_connect_button_icon()
+        except Exception:
+            pass
+
+    def _start_api_check(self, silent: bool):
+        value = _normalize_api_base_url(self.api_base_edit.text())
+        self._api_base_url = value
+        self.api_base_edit.setText(value)
+
+        self._api_check_seq += 1
+        seq = self._api_check_seq
+        self._api_check_silent = bool(silent)
+        self._set_connect_ui_busy(True)
+
+        thread = QThread()
+        worker = ApiCheckWorker(seq, value)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_api_check_finished)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        self._api_check_thread = thread
+        _track_api_check_thread(thread)
+        thread.start()
+
+    def _on_api_check_finished(self, seq: int, value: str, ok: bool):
+        if seq != self._api_check_seq:
+            return
+        self._set_connect_ui_busy(False)
+        self._set_api_status_icon(ok)
+        if ok:
+            self.api_base_changed.emit(value)
+        elif not self._api_check_silent:
+            QMessageBox.warning(self, "Сервер API", f"Не удалось подключиться к {value}")
+
+    def _connect_current_api_silent(self):
+        self._start_api_check(silent=True)
+
+    def _on_api_connect_clicked(self):
+        self._start_api_check(silent=False)
 
     def _on_theme_toggled(self, checked: bool) -> None:
         self._is_dark = bool(checked)
@@ -291,6 +510,11 @@ class MainMenuWidget(QWidget):
             except Exception:
                 pass
         self._update_logo()
+        try:
+            self._set_connect_button_icon()
+            self._set_api_status_icon(self._api_is_connected)
+        except Exception:
+            pass
 
     def _update_logo(self):
         logo_path = get_logo_path(self._is_dark)
@@ -332,35 +556,54 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Larix Manager")
-        self.setMinimumSize(800, 600)
-        self.resize(800, 600)
+        self.setMinimumSize(860, 700)
+        self.resize(920, 740)
         self._is_dark = load_saved_theme(False)
+        self._api_base_url = _normalize_api_base_url(os.environ.get("LARIX_API_BASE_URL", DEFAULT_API_BASE_URL))
+        os.environ["LARIX_API_BASE_URL"] = self._api_base_url
         self._current_module_window = None
         self._current_module_widget = None
         
         try:
             app = QApplication.instance()
             theme(app, self._is_dark, icon_dir=ICON_DIR)
-            self.setWindowIcon(nik_icon("app_icon", app=app, icon_dir=ICON_DIR))
+            icon_path = get_window_icon_path()
+            if icon_path:
+                self.setWindowIcon(QIcon(icon_path))
         except Exception:
             pass
 
         set_back_to_menu_callback(self._show_main_menu)
         self._show_main_menu()
 
+    def _center_on_screen(self):
+        try:
+            screen = self.windowHandle().screen() if self.windowHandle() else QApplication.primaryScreen()
+            if screen is None:
+                return
+            geo = screen.availableGeometry()
+            frm = self.frameGeometry()
+            frm.moveCenter(geo.center())
+            self.move(frm.topLeft())
+        except Exception:
+            pass
+
     def _show_main_menu(self):
         if self._current_module_widget is not None:
             self._current_module_widget = None
         self._current_module_window = None
+        self.setWindowTitle("Larix Manager")
 
-        menu = MainMenuWidget(self._is_dark, self)
+        menu = MainMenuWidget(self._is_dark, self._api_base_url, self)
         menu.mode_selected.connect(self._on_mode_selected)
+        menu.api_base_changed.connect(self._on_api_base_changed)
         if hasattr(menu, 'theme_toggle'):
             menu.theme_toggle.toggled.connect(self._on_theme_toggled)
         self.setCentralWidget(menu)
         self._menu_widget = menu
-        self.setMinimumSize(800, 600)
-        self.resize(800, 600)
+        self.setMinimumSize(860, 700)
+        self.resize(920, 740)
+        self._center_on_screen()
 
     def _on_theme_toggled(self, dark: bool):
         self._is_dark = dark
@@ -368,14 +611,58 @@ class MainWindow(QMainWindow):
         if app:
             theme(app, dark, icon_dir=ICON_DIR)
 
+    def _on_api_base_changed(self, value: str):
+        self._api_base_url = _normalize_api_base_url(value)
+        os.environ["LARIX_API_BASE_URL"] = self._api_base_url
+
     def _on_mode_selected(self, mode_id: str):
         widget, window = self._create_module_widget(mode_id)
         if widget:
             self._current_module_widget = widget
             self._current_module_window = window
             self.setCentralWidget(widget)
-            self.setMinimumSize(1200, 800)
-            self.resize(1400, 900)
+            module_titles = {
+                "adapters": "Larix Manager - Редактор адаптера",
+                "larix_set": "Larix Manager - Создание наборов",
+                "matrix": "Larix Manager - Матрица коллизий",
+                "parameters": "Larix Manager - Профиль проверок параметров",
+                "viewer": "Larix Manager - Создание статусов",
+            }
+            title = module_titles.get(mode_id, "Larix Manager")
+            try:
+                if window is not None:
+                    wt = (window.windowTitle() or "").strip()
+                    if wt:
+                        title = wt
+                elif widget is not None:
+                    wt = (widget.windowTitle() or "").strip()
+                    if wt:
+                        title = wt
+            except Exception:
+                pass
+            self.setWindowTitle(title)
+            target_w, target_h = 1120, 760
+            min_w, min_h = 900, 620
+            try:
+                if window is not None:
+                    ws = window.size()
+                    if ws.width() > 0 and ws.height() > 0:
+                        target_w = ws.width()
+                        target_h = ws.height()
+                    ms = window.minimumSize()
+                    if ms.width() > 0 and ms.height() > 0:
+                        min_w = ms.width()
+                        min_h = ms.height()
+                elif widget is not None:
+                    hs = widget.sizeHint()
+                    if hs.width() > 0 and hs.height() > 0:
+                        target_w = hs.width()
+                        target_h = hs.height()
+            except Exception:
+                pass
+            self.setMinimumSize(max(760, min_w), max(560, min_h))
+            self.resize(max(900, target_w), max(620, target_h))
+            self._center_on_screen()
 
     def _create_module_widget(self, mode_id: str):
         try:
@@ -410,6 +697,10 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    try:
+        app.aboutToQuit.connect(_shutdown_api_check_threads)
+    except Exception:
+        pass
     try:
         enable_theme_sync(app, ICON_DIR)
     except Exception:

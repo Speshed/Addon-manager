@@ -326,7 +326,9 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
         color: {fg};
         selection-background-color: {PALETTE.SELECTED};
         selection-color: #000000;
+        outline: none;
     }}
+    *:focus {{ outline: none; }}
     QWidget, QMainWindow, QDialog {{ background: {bg}; }}
 
     QLineEdit, QPlainTextEdit, QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit,

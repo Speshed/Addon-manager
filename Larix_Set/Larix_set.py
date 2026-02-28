@@ -845,7 +845,9 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
         color: {FG};
         selection-background-color: {PALETTE.SELECTED};
         selection-color: #000000;
+        outline: none;
     }}
+    *:focus {{ outline: none; }}
     QWidget {{ background: {BG}; }}  /* фон везде единый под тему */
 
     /* Хедер/статус/меню тоже на общем фоне */

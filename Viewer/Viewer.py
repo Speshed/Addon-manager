@@ -195,7 +195,9 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
         color: {FG};
         selection-background-color: {PALETTE.SELECTED};
         selection-color: #000000;
+        outline: none;
     }}
+    *:focus {{ outline: none; }}
     QWidget {{ background: {BG}; }}
     QStatusBar, QMenuBar, QToolBar, QMenu, QDockWidget::title {{ background: {BG}; border: 1px solid {BORDER}; }}
     QTabBar::pane {{ background: {BG}; border: none; }}

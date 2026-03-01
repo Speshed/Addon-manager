@@ -16,6 +16,7 @@ from shared.theme_toggle import (
     resolve_icon_path, apply_dark_titlebar,
     load_saved_theme, enable_theme_sync,
     RowHoverDelegate, install_viewport_row_highlighter, setup_hover_tracking, PALETTE,
+    _tint_pixmap,
 )
 
 # ----------------- Тема и логотип -----------------
@@ -96,7 +97,8 @@ class ErrorDialog(QtWidgets.QDialog):
         vlayout.setContentsMargins(20, 20, 20, 20)
         hlayout = QtWidgets.QHBoxLayout()
         icon_label = QtWidgets.QLabel()
-        icon_path = os.path.join(_app_root_dir(), "icon", "error.png")
+        app = QtWidgets.QApplication.instance()
+        icon_path = resolve_icon_path("error", ICON_DIR, app=app, tint_in_dark=True)
         if os.path.exists(icon_path):
             pm = QtGui.QPixmap(icon_path)
             if not pm.isNull():
@@ -284,37 +286,79 @@ class FullRowTreeSelectionDelegate(QtWidgets.QStyledItemDelegate):
         style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
 
 
-class BindingsCheckDelegate(RowHoverDelegate):
+class BindingsCheckDelegate(QtWidgets.QStyledItemDelegate):
+    def __init__(self, parent=None, icon_checked=None, icon_unchecked=None, icon_indeterminate=None):
+        super().__init__(parent)
+        self._icon_checked = icon_checked
+        self._icon_unchecked = icon_unchecked
+        self._icon_indeterminate = icon_indeterminate
+        self._tint_cache: dict[tuple, QtGui.QPixmap] = {}
+
+    def set_icons(self, icon_checked=None, icon_unchecked=None, icon_indeterminate=None):
+        self._icon_checked = icon_checked
+        self._icon_unchecked = icon_unchecked
+        self._icon_indeterminate = icon_indeterminate
+        self._tint_cache.clear()
+
+    def _get_tinted_pixmap(self, icon: QtGui.QIcon, size: int, color: QtGui.QColor) -> QtGui.QPixmap:
+        if icon is None or icon.isNull():
+            return QtGui.QPixmap()
+        cache_key = (id(icon), size, color.name())
+        if cache_key in self._tint_cache:
+            return self._tint_cache[cache_key]
+        pm = icon.pixmap(size, size)
+        if pm.isNull():
+            return QtGui.QPixmap()
+        tinted = _tint_pixmap(pm, color)
+        self._tint_cache[cache_key] = tinted
+        return tinted
+
+    @staticmethod
+    def _row_rect(view: QtWidgets.QTableView, option: QtWidgets.QStyleOptionViewItem) -> QtCore.QRectF:
+        margin_h = 4.0
+        margin_v = 1.0
+        return QtCore.QRectF(
+            margin_h,
+            float(option.rect.top()) + margin_v,
+            float(view.viewport().width()) - margin_h * 2.0,
+            float(option.rect.height()) - margin_v * 2.0,
+        )
+
     def paint(self, painter, option, index):
         opt = QtWidgets.QStyleOptionViewItem(option)
         self.initStyleOption(opt, index)
-        opt.state &= ~QtWidgets.QStyle.State_HasFocus
-
+        
         view = option.widget if isinstance(option.widget, QtWidgets.QAbstractItemView) else None
         hover_row = -1
         if view is not None:
             try:
-                hover_row = int(view.property("_hover_row") or -1)
+                val = view.property("_hover_row")
+                hover_row = int(val) if val is not None else -1
             except Exception:
                 hover_row = -1
+        
         is_selected = bool(opt.state & QtWidgets.QStyle.State_Selected)
         is_hovered = bool(hover_row >= 0 and index.row() == hover_row)
-        # Prevent per-cell selection/hover painting and draw a single row background.
+        
         opt.state &= ~QtWidgets.QStyle.State_Selected
         opt.state &= ~QtWidgets.QStyle.State_MouseOver
-        if index.column() == 0 and view is not None:
+        opt.state &= ~QtWidgets.QStyle.State_HasFocus
+        opt.backgroundBrush = QtCore.Qt.NoBrush
+
+        if view is not None and index.column() == 0:
+            painter.save()
+            painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+            row_rect = self._row_rect(view, option)
+            painter.setPen(QtCore.Qt.NoPen)
+            
             if is_selected:
-                painter.save()
-                vp = view.viewport()
-                row_rect = QtCore.QRect(0, option.rect.top(), vp.width(), option.rect.height())
-                painter.fillRect(row_rect, QtGui.QColor(PALETTE.SELECTED))
-                painter.restore()
+                painter.setBrush(QtGui.QColor(PALETTE.SELECTED))
+                painter.drawRoundedRect(row_rect, 8.0, 8.0)
             elif is_hovered:
-                painter.save()
-                vp = view.viewport()
-                row_rect = QtCore.QRect(0, option.rect.top(), vp.width(), option.rect.height())
-                painter.fillRect(row_rect, QtGui.QColor(PALETTE.SOFT_HOVER))
-                painter.restore()
+                painter.setBrush(QtGui.QColor(PALETTE.SOFT_HOVER))
+                painter.drawRoundedRect(row_rect, 8.0, 8.0)
+            
+            painter.restore()
 
         if is_selected or is_hovered:
             pal = QtGui.QPalette(opt.palette)
@@ -330,40 +374,35 @@ class BindingsCheckDelegate(RowHoverDelegate):
             style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
             return
 
-        # Column 0: draw centered checkbox icon only.
-        icon = opt.icon
-        try:
-            model_icon = index.data(QtCore.Qt.DecorationRole)
-            if isinstance(model_icon, QtGui.QIcon) and not model_icon.isNull():
-                icon = model_icon
-        except Exception:
-            pass
-        if (icon is None or icon.isNull()) and bool(index.data(QtCore.Qt.UserRole + 1)):
-            icon = _icon_checkbox(True, size=BIND_CHECKBOX_ICON_SIZE, color="#222222")
-        elif icon is None or icon.isNull():
-            icon = _icon_checkbox(False, size=BIND_CHECKBOX_ICON_SIZE, color="#222222")
+        is_checked = bool(index.data(QtCore.Qt.UserRole + 1))
+        icon = self._icon_checked if is_checked else self._icon_unchecked
+        
         opt.icon = QtGui.QIcon()
         opt.text = ""
         style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
 
-        s = QtCore.QSize(BIND_CHECKBOX_ICON_SIZE, BIND_CHECKBOX_ICON_SIZE)
+        s = BIND_CHECKBOX_ICON_SIZE
         cell_rect = option.rect
-        try:
-            if view is not None:
-                vr = view.visualRect(index)
-                if vr.isValid() and vr.width() > 0 and vr.height() > 0:
-                    cell_rect = vr
-        except Exception:
-            pass
         target = QtCore.QRect(
-            cell_rect.x() + (cell_rect.width() - s.width()) // 2,
-            cell_rect.y() + (cell_rect.height() - s.height()) // 2,
-            s.width(),
-            s.height(),
+            cell_rect.x() + (cell_rect.width() - s) // 2,
+            cell_rect.y() + (cell_rect.height() - s) // 2,
+            s,
+            s,
         )
-        pm = icon.pixmap(s)
-        if not pm.isNull():
-            painter.drawPixmap(target, pm)
+        
+        if icon is not None and not icon.isNull():
+            if is_selected or is_hovered:
+                pm = self._get_tinted_pixmap(icon, s, QtGui.QColor("#222222"))
+            else:
+                pm = icon.pixmap(s, s)
+            if not pm.isNull():
+                painter.drawPixmap(target, pm)
+        else:
+            fallback_color = "#222222" if (is_selected or is_hovered) else "#333333"
+            fallback_icon = _icon_checkbox(is_checked, size=s, color=fallback_color)
+            pm = fallback_icon.pixmap(s, s)
+            if not pm.isNull():
+                painter.drawPixmap(target, pm)
 
 
 class BindingsHeaderView(QtWidgets.QHeaderView):
@@ -900,34 +939,20 @@ class MainWin(QtWidgets.QMainWindow):
         self.comboProject.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContentsOnFirstShow)
         self.comboProject.hide()
 
+        layout_top.addWidget(self.btnModelsWindow)
         layout_top.addWidget(self.btnImportXml)
         layout_top.addWidget(self.btnImportExcel)
         layout_top.addWidget(self.btnLoadGlobal)
-        layout_top.addWidget(self.btnModelsWindow)
         layout_top.addStretch(1)
         self.verticalLayout_central.addLayout(layout_top)
         
         self._update_top_bar_icons()
 
-        # Main split
-        self.layoutMainSplit = QtWidgets.QHBoxLayout()
-        self.layoutMainSplit.setObjectName("layoutMainSplit")
-        self.layoutMainSplit.setSpacing(8)
-
-        def _make_split_separator() -> QtWidgets.QFrame:
-            sep = QtWidgets.QFrame(self.ui)
-            sep.setObjectName("splitSeparator")
-            sep.setFixedWidth(2)
-            sep.setFrameShape(QtWidgets.QFrame.NoFrame)
-            try:
-                fx = QtWidgets.QGraphicsDropShadowEffect(sep)
-                fx.setBlurRadius(10)
-                fx.setOffset(0, 0)
-                fx.setColor(QtGui.QColor(0, 0, 0, 40))
-                sep.setGraphicsEffect(fx)
-            except Exception:
-                pass
-            return sep
+        # Main split with resizable sections
+        self.splitterMain = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self.ui)
+        self.splitterMain.setObjectName("splitterMain")
+        self.splitterMain.setHandleWidth(6)
+        self.splitterMain.setChildrenCollapsible(False)
 
         # Attributes
         self.groupAttributes = QtWidgets.QGroupBox("Атрибуты", self.ui)
@@ -1016,14 +1041,11 @@ class MainWin(QtWidgets.QMainWindow):
         self.tableParams.setFrameShape(QtWidgets.QFrame.NoFrame)
         layout_params.addWidget(self.tableParams)
 
-        self.sepMain1 = _make_split_separator()
-        self.sepMain2 = _make_split_separator()
-        self.layoutMainSplit.addWidget(self.groupAttributes, 1)
-        self.layoutMainSplit.addWidget(self.sepMain1, 0)
-        self.layoutMainSplit.addWidget(self.groupBindings, 2)
-        self.layoutMainSplit.addWidget(self.sepMain2, 0)
-        self.layoutMainSplit.addWidget(self.groupParams, 3)
-        self.verticalLayout_central.addLayout(self.layoutMainSplit)
+        self.splitterMain.addWidget(self.groupAttributes)
+        self.splitterMain.addWidget(self.groupBindings)
+        self.splitterMain.addWidget(self.groupParams)
+        self.splitterMain.setSizes([300, 400, 300])
+        self.verticalLayout_central.addWidget(self.splitterMain, 1)
 
         # Bottom
         layout_bottom = QtWidgets.QHBoxLayout()
@@ -1073,19 +1095,6 @@ class MainWin(QtWidgets.QMainWindow):
         # (виджет удалён из интерфейса, но логика поддерживает значение по умолчанию)
         self.chkAutoEnable = None
 
-        # Пропорции колонок: средняя часть (Привязки) шире по умолчанию.
-        # Индексы в layoutMainSplit: 0=Атрибуты, 1=разделитель, 2=Привязки,
-        # 3=разделитель, 4=Параметры.
-        try:
-            self.layoutMainSplit.setStretch(0, 3)
-            self.layoutMainSplit.setStretch(1, 0)
-            self.layoutMainSplit.setStretch(2, 4)
-            self.layoutMainSplit.setStretch(3, 0)
-            self.layoutMainSplit.setStretch(4, 3)
-        except Exception:
-            pass
-
-
         # Модель для дерева атрибутов
         self.attrModel: QtGui.QStandardItemModel = QtGui.QStandardItemModel(0, 2, self.treeAttributes)
         self.treeAttributes.setModel(self.attrModel)
@@ -1122,8 +1131,12 @@ class MainWin(QtWidgets.QMainWindow):
 
         # Таблицы
         self.tableBindings.setColumnCount(4)
-        self.tableBindings.setHorizontalHeaderLabels(["", "Имя параметра", "Преобразование", "Источник"])
-        self.tableBindings.horizontalHeader().setStretchLastSection(True)
+        self.tableBindings.setHorizontalHeaderLabels(["", "Имя параметра", "Преобразование", "Модель"])
+        for col in (1, 2, 3):
+            h_item = self.tableBindings.horizontalHeaderItem(col)
+            if h_item:
+                h_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter)
+        self.tableBindings.horizontalHeader().setStretchLastSection(False)
         self.tableBindings.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.tableBindings.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.tableBindings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
@@ -1131,12 +1144,13 @@ class MainWin(QtWidgets.QMainWindow):
             self.tableBindings.setShowGrid(False)
         except Exception:
             pass
-        # Размеры столбцов привязок
+        # Размеры столбцов привязок: чекбокс фиксирован, Имя параметра растягивается, остальные по содержимому
         self.tableBindings.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.Fixed)
         self.tableBindings.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
         self.tableBindings.horizontalHeader().setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
-        self.tableBindings.horizontalHeader().setSectionResizeMode(3, QtWidgets.QHeaderView.Stretch)
+        self.tableBindings.horizontalHeader().setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
         self.tableBindings.setColumnWidth(0, 40)
+        self.tableBindings.horizontalHeader().setMinimumSectionSize(40)
         try:
             self.tableBindings.setIconSize(QtCore.QSize(BIND_CHECKBOX_ICON_SIZE, BIND_CHECKBOX_ICON_SIZE))
         except Exception:
@@ -1147,6 +1161,7 @@ class MainWin(QtWidgets.QMainWindow):
             h.sectionClicked.connect(self._on_bind_header_clicked)
         except Exception:
             pass
+        self.tableBindings.verticalHeader().setVisible(False)
 
         # callback на перестановку строк для обновления порядка в данных
         def _rows_moved(src_rows: list[int], dest_row: int):
@@ -1192,12 +1207,12 @@ class MainWin(QtWidgets.QMainWindow):
             self.tableParams.setShowGrid(False)
         except Exception:
             pass
-        # размеры колонок: шифр тянется, тип и модель по содержимому
-        self.tableParams.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)  # Шифр
-        self.tableParams.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)  # Тип
-        self.tableParams.horizontalHeader().setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)  # Модель
-        # сделаем минимальную ширину для колонки "Шифр" покрупнее
-        self.tableParams.horizontalHeader().setMinimumSectionSize(40)
+        header = self.tableParams.horizontalHeader()
+        header.setMinimumSectionSize(40)
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.Interactive)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Interactive)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.Interactive)
+        self.tableParams.verticalHeader().setVisible(False)
 
         # контекстное меню заголовка для фильтров (только ПКМ)
         header = self.tableParams.horizontalHeader()
@@ -1264,6 +1279,13 @@ class MainWin(QtWidgets.QMainWindow):
     def _apply_theme_extras(self, dark: bool) -> None:
         self._reload_bind_checkbox_icons(bool(dark))
         self._reload_attr_status_icons()
+        delegate = self.tableBindings.itemDelegate()
+        if isinstance(delegate, BindingsCheckDelegate):
+            delegate.set_icons(
+                icon_checked=self._icon_bind_checked,
+                icon_unchecked=self._icon_bind_unchecked,
+                icon_indeterminate=self._icon_bind_indeterminate
+            )
         try:
             self._update_top_bar_icons()
         except Exception:
@@ -1339,6 +1361,10 @@ class MainWin(QtWidgets.QMainWindow):
             QTableWidget#tableParams {{
                 border: none;
             }}
+            QTableWidget#tableBindings {{
+                selection-background-color: transparent;
+                selection-color: #000000;
+            }}
             QTableWidget#tableBindings QTableCornerButton::section,
             QTableWidget#tableParams QTableCornerButton::section {{
                 background: transparent;
@@ -1352,17 +1378,143 @@ class MainWin(QtWidgets.QMainWindow):
                 border: none;
                 outline: none;
             }}
-            QFrame#splitSeparator {{
+            QTableWidget#tableBindings::item:hover,
+            QTableWidget#tableBindings::item:selected,
+            QTableWidget#tableBindings::item:selected:active,
+            QTableWidget#tableBindings::item:selected:!active,
+            QTableWidget#tableParams::item:hover,
+            QTableWidget#tableParams::item:selected,
+            QTableWidget#tableParams::item:selected:active,
+            QTableWidget#tableParams::item:selected:!active {{
+                background: transparent;
+                border: none;
+                outline: none;
+            }}
+            QSplitter#splitterMain::handle {{
                 background: {sep_color};
+                width: 2px;
+                margin: 16px 2px 10px 2px;
                 border-radius: 1px;
-                margin-top: 16px;
-                margin-bottom: 10px;
+            }}
+            QSplitter#splitterMain::handle:hover {{
+                background: {PALETTE.ACCENT_HOVER};
+            }}
+            QTableWidget#tableBindings QScrollBar:vertical,
+            QTableWidget#tableParams QScrollBar:vertical {{
+                background: transparent;
+                width: 12px;
+                margin: 16px 2px 16px 2px;
+                border: none;
+            }}
+            QTableWidget#tableBindings QScrollBar::handle:vertical,
+            QTableWidget#tableParams QScrollBar::handle:vertical {{
+                background: rgba(247,146,30,0.12);
+                min-height: 24px;
+                border-radius: 6px;
+                border: 1px solid {PALETTE.ACCENT_HOVER};
+            }}
+            QTableWidget#tableBindings QScrollBar::handle:vertical:hover,
+            QTableWidget#tableParams QScrollBar::handle:vertical:hover {{
+                background: rgba(247,146,30,0.15);
+                border: 1px solid {PALETTE.ACCENT_HOVER};
+            }}
+            QTableWidget#tableBindings QScrollBar::handle:vertical:pressed,
+            QTableWidget#tableParams QScrollBar::handle:vertical:pressed {{
+                background: rgba(247,146,30,0.25);
+                border: 1px solid {PALETTE.ACCENT_PRESSED};
+            }}
+            QTableWidget#tableBindings QScrollBar::add-line:vertical,
+            QTableWidget#tableBindings QScrollBar::sub-line:vertical,
+            QTableWidget#tableParams QScrollBar::add-line:vertical,
+            QTableWidget#tableParams QScrollBar::sub-line:vertical {{
+                background: transparent;
+                height: 16px;
+                subcontrol-origin: margin;
+                border: none;
+                border-radius: 0;
+                image: none;
+            }}
+            QTableWidget#tableBindings QScrollBar::add-line:vertical:hover,
+            QTableWidget#tableBindings QScrollBar::sub-line:vertical:hover,
+            QTableWidget#tableParams QScrollBar::add-line:vertical:hover,
+            QTableWidget#tableParams QScrollBar::sub-line:vertical:hover {{
+                background: rgba(247,146,30,0.15);
+            }}
+            QTableWidget#tableBindings QScrollBar::add-line:vertical:pressed,
+            QTableWidget#tableBindings QScrollBar::sub-line:vertical:pressed,
+            QTableWidget#tableParams QScrollBar::add-line:vertical:pressed,
+            QTableWidget#tableParams QScrollBar::sub-line:vertical:pressed {{
+                background: rgba(247,146,30,0.25);
+            }}
+            QTableWidget#tableBindings QScrollBar::add-page:vertical,
+            QTableWidget#tableBindings QScrollBar::sub-page:vertical,
+            QTableWidget#tableParams QScrollBar::add-page:vertical,
+            QTableWidget#tableParams QScrollBar::sub-page:vertical {{
+                background: transparent;
+            }}
+            QTableWidget#tableBindings QScrollBar:horizontal,
+            QTableWidget#tableParams QScrollBar:horizontal {{
+                background: transparent;
+                height: 12px;
+                margin: 2px 16px 2px 16px;
+                border: none;
+            }}
+            QTableWidget#tableBindings QScrollBar::handle:horizontal,
+            QTableWidget#tableParams QScrollBar::handle:horizontal {{
+                background: rgba(247,146,30,0.12);
+                min-width: 24px;
+                border-radius: 6px;
+                border: 1px solid {PALETTE.ACCENT_HOVER};
+            }}
+            QTableWidget#tableBindings QScrollBar::handle:horizontal:hover,
+            QTableWidget#tableParams QScrollBar::handle:horizontal:hover {{
+                background: rgba(247,146,30,0.15);
+                border: 1px solid {PALETTE.ACCENT_HOVER};
+            }}
+            QTableWidget#tableBindings QScrollBar::handle:horizontal:pressed,
+            QTableWidget#tableParams QScrollBar::handle:horizontal:pressed {{
+                background: rgba(247,146,30,0.25);
+                border: 1px solid {PALETTE.ACCENT_PRESSED};
+            }}
+            QTableWidget#tableBindings QScrollBar::add-line:horizontal,
+            QTableWidget#tableBindings QScrollBar::sub-line:horizontal,
+            QTableWidget#tableParams QScrollBar::add-line:horizontal,
+            QTableWidget#tableParams QScrollBar::sub-line:horizontal {{
+                background: transparent;
+                width: 16px;
+                subcontrol-origin: margin;
+                border: none;
+                border-radius: 0;
+                image: none;
+            }}
+            QTableWidget#tableBindings QScrollBar::add-line:horizontal:hover,
+            QTableWidget#tableBindings QScrollBar::sub-line:horizontal:hover,
+            QTableWidget#tableParams QScrollBar::add-line:horizontal:hover,
+            QTableWidget#tableParams QScrollBar::sub-line:horizontal:hover {{
+                background: rgba(247,146,30,0.15);
+            }}
+            QTableWidget#tableBindings QScrollBar::add-line:horizontal:pressed,
+            QTableWidget#tableBindings QScrollBar::sub-line:horizontal:pressed,
+            QTableWidget#tableParams QScrollBar::add-line:horizontal:pressed,
+            QTableWidget#tableParams QScrollBar::sub-line:horizontal:pressed {{
+                background: rgba(247,146,30,0.25);
+            }}
+            QTableWidget#tableBindings QScrollBar::add-page:horizontal,
+            QTableWidget#tableBindings QScrollBar::sub-page:horizontal,
+            QTableWidget#tableParams QScrollBar::add-page:horizontal,
+            QTableWidget#tableParams QScrollBar::sub-page:horizontal {{
+                background: transparent;
             }}
         """)
         
         # Установка делегата для скругленной подсветки строк
         # tableBindings: отдельный делегат, чтобы центрировать чекбоксы в первом столбце.
-        self.tableBindings.setItemDelegate(BindingsCheckDelegate(self.tableBindings))
+        self.tableBindings.setItemDelegate(BindingsCheckDelegate(
+            self.tableBindings,
+            icon_checked=self._icon_bind_checked,
+            icon_unchecked=self._icon_bind_unchecked,
+            icon_indeterminate=self._icon_bind_indeterminate
+        ))
         install_viewport_row_highlighter(self.tableBindings)
         setup_hover_tracking(self.tableBindings)
 
@@ -1628,12 +1780,17 @@ class MainWin(QtWidgets.QMainWindow):
             self.tableParams.insertRow(i)
             self.tableParams.setItem(i, 0, QtWidgets.QTableWidgetItem(code))
             self.tableParams.setItem(i, 1, QtWidgets.QTableWidgetItem(isnum))
-            it2 = QtWidgets.QTableWidgetItem(", ".join(models))
+            if len(models) > 1:
+                display_text = f"{models[0]}..."
+            else:
+                display_text = models[0] if models else ""
+            it2 = QtWidgets.QTableWidgetItem(display_text)
             it2.setToolTip("\n".join(models))
             self.tableParams.setItem(i, 2, it2)
             self.param_models_map[i] = models
-        # Ужимаем колонку 'Тип' под содержимое
+        self.tableParams.resizeColumnToContents(0)
         self.tableParams.resizeColumnToContents(1)
+        self.tableParams.resizeColumnToContents(2)
 
     # ---------- Фильтры заголовков ----------
     
@@ -1687,35 +1844,70 @@ class MainWin(QtWidgets.QMainWindow):
             show_error_dialog(self, "Фильтр по моделям", "Сначала загрузите параметры через «Выбор моделей».")
             return
 
-        menu = QtWidgets.QMenu(self)
-        act_all = QtGui.QAction("Все модели", menu)
-        menu.addAction(act_all)
-        menu.addSeparator()
-
         current = set(models) if self.model_filter_set is None else set(self.model_filter_set)
-        action_to_model: Dict[QtGui.QAction, str] = {}
-        for model in models:
-            act = QtGui.QAction(model, menu)
-            act.setCheckable(True)
-            act.setChecked(model in current)
-            menu.addAction(act)
-            action_to_model[act] = model
 
-        chosen = menu.exec(global_pos)
-        if chosen is None:
-            return
-        if chosen is act_all:
-            self.model_filter_set = None
-            self.fill_param_table()
-            return
-        if chosen in action_to_model:
-            model = action_to_model[chosen]
-            if chosen.isChecked():
-                current.add(model)
+        popup = QtWidgets.QFrame(self, QtCore.Qt.Popup)
+        popup.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
+        popup.setStyleSheet("QFrame { background: palette(window); border: 1px solid palette(mid); border-radius: 6px; }")
+        layout = QtWidgets.QVBoxLayout(popup)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(4)
+
+        list_widget = QtWidgets.QListWidget(popup)
+        list_widget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
+        list_widget.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        list_widget.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        item_all = QtWidgets.QListWidgetItem("Все модели")
+        item_all.setFlags(item_all.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
+        item_all.setCheckState(QtCore.Qt.CheckState.Checked if self.model_filter_set is None else QtCore.Qt.CheckState.Unchecked)
+        list_widget.addItem(item_all)
+
+        for model in models:
+            item = QtWidgets.QListWidgetItem(model)
+            item.setFlags(item.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(QtCore.Qt.CheckState.Checked if model in current else QtCore.Qt.CheckState.Unchecked)
+            list_widget.addItem(item)
+
+        list_widget.itemClicked.connect(lambda it: None)
+        layout.addWidget(list_widget)
+
+        def apply_filter():
+            all_checked = item_all.checkState() == QtCore.Qt.CheckState.Checked
+            if all_checked:
+                self.model_filter_set = None
             else:
-                current.discard(model)
-            self.model_filter_set = None if len(current) == len(models) else set(current)
+                selected = set()
+                for i in range(1, list_widget.count()):
+                    it = list_widget.item(i)
+                    if it.checkState() == QtCore.Qt.CheckState.Checked:
+                        selected.add(it.text())
+                self.model_filter_set = None if len(selected) == len(models) else selected
             self.fill_param_table()
+
+        def on_item_changed(it: QtWidgets.QListWidgetItem):
+            if it is item_all:
+                state = it.checkState()
+                for i in range(1, list_widget.count()):
+                    list_widget.item(i).setCheckState(state)
+            else:
+                all_items_checked = all(
+                    list_widget.item(i).checkState() == QtCore.Qt.CheckState.Checked
+                    for i in range(1, list_widget.count())
+                )
+                item_all.setCheckState(QtCore.Qt.CheckState.Checked if all_items_checked else QtCore.Qt.CheckState.Unchecked)
+            apply_filter()
+
+        list_widget.itemChanged.connect(on_item_changed)
+
+        btn_close = QtWidgets.QPushButton("Закрыть", popup)
+        btn_close.clicked.connect(popup.close)
+        layout.addWidget(btn_close)
+
+        popup.setLayout(layout)
+        popup.move(global_pos)
+        popup.show()
+        popup.setFocus()
 
     def open_model_filter_dialog(self):
         models = self.current_models()
@@ -1905,13 +2097,24 @@ class MainWin(QtWidgets.QMainWindow):
                         it0.setIcon(_icon_checkbox(False, size=BIND_CHECKBOX_ICON_SIZE))
                 self.tableBindings.setItem(i, 0, it0)
 
-                self.tableBindings.setItem(i, 1, QtWidgets.QTableWidgetItem(b.parameter_code))
-                self.tableBindings.setItem(i, 2, QtWidgets.QTableWidgetItem(conv))
-                it3 = QtWidgets.QTableWidgetItem(b.src_model_title or "")
-                if b.src_model_title:
-                    it3.setToolTip("\n".join([m.strip() for m in b.src_model_title.split(",") if m.strip()]))
+                it1 = QtWidgets.QTableWidgetItem(b.parameter_code)
+                it1.setToolTip(b.parameter_code)
+                it1.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter)
+                self.tableBindings.setItem(i, 1, it1)
+                it2 = QtWidgets.QTableWidgetItem(conv)
+                it2.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter)
+                self.tableBindings.setItem(i, 2, it2)
+                models_list = [m.strip() for m in (b.src_model_title or "").split(",") if m.strip()]
+                if len(models_list) > 1:
+                    display_text = f"{models_list[0]}..."
+                else:
+                    display_text = models_list[0] if models_list else ""
+                it3 = QtWidgets.QTableWidgetItem(display_text)
+                it3.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter)
+                if models_list:
+                    it3.setToolTip("\n".join(models_list))
                 self.tableBindings.setItem(i, 3, it3)
-                self.bind_models_map[i] = [m.strip() for m in (b.src_model_title or "").split(",") if m.strip()]
+                self.bind_models_map[i] = models_list
             self._update_bind_header_checkbox(q)
         finally:
             self._is_filling_bind_table = False
@@ -2135,25 +2338,41 @@ class MainWin(QtWidgets.QMainWindow):
                 },
             )
             sec = ET.SubElement(root, "Section")
-            sections = ET.SubElement(sec, "Sections", {"Name": "IBIM", "IsComitted": "false"})
-            ET.SubElement(sections, "Section")
-            attrs = ET.SubElement(sections, "Attributes")
-            for i, nm in enumerate(names, start=1):
-                is_num = bool(self.attr_types.get(nm)) if self.attr_types else False
-                ET.SubElement(
-                    attrs,
-                    "Attribute",
-                    {
-                        "Name": nm,
-                        "IsComitted": "false",
-                        "Id": str(i),
-                        "Title": "",
-                        "Description": "",
-                        "Uom": "",
-                        "IsNumeric": _b(is_num),
-                        "ReportColumnType": "Text",
-                    },
-                )
+            
+            groups_map: dict[str, list[tuple[str, str]]] = {}
+            for nm in names:
+                group = (self.attr_groups or {}).get(nm, "")
+                if not group and "." in nm:
+                    group = nm.split(".", 1)[0]
+                if not group:
+                    group = "General"
+                short_name = nm.split(".", 1)[-1] if "." in nm else nm
+                if group not in groups_map:
+                    groups_map[group] = []
+                groups_map[group].append((nm, short_name))
+            
+            attr_id = 1
+            for group_name in sorted(groups_map.keys(), key=str.lower):
+                sections = ET.SubElement(sec, "Sections", {"Name": group_name, "IsComitted": "false"})
+                ET.SubElement(sections, "Section")
+                attrs = ET.SubElement(sections, "Attributes")
+                for full_name, short_name in groups_map[group_name]:
+                    is_num = bool(self.attr_types.get(full_name)) if self.attr_types else False
+                    ET.SubElement(
+                        attrs,
+                        "Attribute",
+                        {
+                            "Name": short_name,
+                            "IsComitted": "false",
+                            "Id": str(attr_id),
+                            "Title": "",
+                            "Description": "",
+                            "Uom": "",
+                            "IsNumeric": _b(is_num),
+                            "ReportColumnType": "Text",
+                        },
+                    )
+                    attr_id += 1
             ET.SubElement(sec, "Attributes")
 
             tree = ET.ElementTree(root)
@@ -2180,55 +2399,129 @@ def main():
     sys.exit(app.exec())
 # === HOTFIX: импорт параметров из Excel (вставить перед if __name__ == "__main__":) ===
 
-def _deamon_import_excel(self):
+class _ExcelSheetSelectDialog(QtWidgets.QDialog):
+    def __init__(self, sheet_names: list[str], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Выбор листов Excel")
+        self.setMinimumWidth(320)
+        self.setMinimumHeight(300)
+        self._sheet_names = sheet_names
+        self._check_states: dict[str, bool] = {name: False for name in sheet_names}
+        
+        layout = QtWidgets.QVBoxLayout(self)
+        
+        label = QtWidgets.QLabel("Выберите листы для импорта:")
+        layout.addWidget(label)
+        
+        self.list_widget = QtWidgets.QListWidget()
+        self.list_widget.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
+        for name in sheet_names:
+            item = QtWidgets.QListWidgetItem(name)
+            item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable)
+            item.setCheckState(QtCore.Qt.Unchecked)
+            self.list_widget.addItem(item)
+        self.list_widget.itemChanged.connect(self._on_item_changed)
+        layout.addWidget(self.list_widget)
+        
+        btn_layout = QtWidgets.QHBoxLayout()
+        
+        self.btn_all = QtWidgets.QPushButton("Выбрать все")
+        self.btn_all.clicked.connect(self._select_all)
+        btn_layout.addWidget(self.btn_all)
+        
+        self.btn_none = QtWidgets.QPushButton("Снять все")
+        self.btn_none.clicked.connect(self._select_none)
+        btn_layout.addWidget(self.btn_none)
+        
+        layout.addLayout(btn_layout)
+        
+        btn_box = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        )
+        btn_box.accepted.connect(self.accept)
+        btn_box.rejected.connect(self.reject)
+        layout.addWidget(btn_box)
+    
+    def _on_item_changed(self, item: QtWidgets.QListWidgetItem):
+        self._check_states[item.text()] = item.checkState() == QtCore.Qt.Checked
+    
+    def _select_all(self):
+        for i in range(self.list_widget.count()):
+            self.list_widget.item(i).setCheckState(QtCore.Qt.Checked)
+    
+    def _select_none(self):
+        for i in range(self.list_widget.count()):
+            self.list_widget.item(i).setCheckState(QtCore.Qt.Unchecked)
+    
+    def get_selected_sheets(self) -> list[str]:
+        return [name for name, checked in self._check_states.items() if checked]
+
+
+def _parse_excel_sheet(ws, default_group_from_cell: str = "") -> tuple[dict, dict, dict, list[str]]:
+    """
+    Парсит один лист Excel и возвращает данные для объединения.
+    
+    Returns:
+        tuple: (queues_dict, attr_types, attr_groups, errors)
+        - queues_dict: dict[str, BindingQueue] - словарь атрибутов
+        - attr_types: dict[str, bool] - типы атрибутов (число/строка)
+        - attr_groups: dict[str, str] - группы атрибутов
+        - errors: list[str] - список ошибок при парсинге
+    """
     from PySide6 import QtWidgets
-    try:
-        import openpyxl
-    except Exception:
-        show_error_dialog(self, "Импорт Excel", "Не установлен openpyxl.\nУстанови: pip install openpyxl")
-        return
-
-    path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Открыть Excel", "", "Excel (*.xlsx *.xlsm)")
-    if not path:
-        return
-
-    try:
-        wb = openpyxl.load_workbook(path, data_only=True)
-        ws = wb.active
-
-        def _val(r, c):
-            v = ws.cell(row=r, column=c).value
-            return (str(v).strip() if v is not None else "")
-
-        # Поиск строки заголовков
-        header_row = None
-        cols = {"name": None, "type": None, "list": None, "rep_from": None, "rep_to": None, "group": None}
-        WANT = {
-            "name": ["наименование параметра"],
-            "type": ["тип параметра"],
-            "list": ["список параметров"],
-            "rep_from": ["замена с", "замена c"],
-            "rep_to": ["замена на"],
-            "group": ["группа параметров"],
-        }
-        for r in range(1, min(ws.max_row, 30) + 1):
-            row_vals = [(_val(r, c)).lower() for c in range(1, ws.max_column + 1)]
-            found = {}
-            for key, variants in WANT.items():
-                for c, txt in enumerate(row_vals, start=1):
-                    if any(v in txt for v in variants):
-                        found[key] = c
-                        break
-            if {"name", "type", "list"}.issubset(found.keys()):
-                header_row = r
-                for k, v in found.items():
-                    cols[k] = v
-                break
-        if not header_row:
-            raise RuntimeError("Не нашёл строку заголовков - ожидаю: Наименование параметра / Тип параметра / Список параметров.")
-
-        # Группа из верхних ячеек (пример: A1='Укажите группу параметров:', B1='IBIM')
-        default_group = ""
+    
+    def _val(r, c):
+        v = ws.cell(row=r, column=c).value
+        return (str(v).strip() if v is not None else "")
+    
+    def _split_list(s: str):
+        if not s:
+            return []
+        import csv, io
+        reader = csv.reader(io.StringIO(s), delimiter=',', quotechar='"', doublequote=True, escapechar=None, skipinitialspace=True)
+        try:
+            row = next(reader)
+            return [t for t in row if t is not None and t != '']
+        except Exception:
+            s = s.replace(';', ',')
+            return [t.strip() for t in s.split(',') if t.strip()]
+    
+    def _is_valid_param_name(name: str) -> bool:
+        name = (name or "").strip()
+        if not name:
+            return False
+        return all(ch == "_" or ch.isalnum() for ch in name)
+    
+    header_row = None
+    cols = {"name": None, "type": None, "list": None, "rep_from": None, "rep_to": None, "group": None}
+    WANT = {
+        "name": ["наименование параметра"],
+        "type": ["тип параметра"],
+        "list": ["список параметров"],
+        "rep_from": ["замена с", "замена c"],
+        "rep_to": ["замена на"],
+        "group": ["группа параметров"],
+    }
+    
+    for r in range(1, min(ws.max_row, 30) + 1):
+        row_vals = [(_val(r, c)).lower() for c in range(1, ws.max_column + 1)]
+        found = {}
+        for key, variants in WANT.items():
+            for c, txt in enumerate(row_vals, start=1):
+                if any(v in txt for v in variants):
+                    found[key] = c
+                    break
+        if {"name", "type", "list"}.issubset(found.keys()):
+            header_row = r
+            for k, v in found.items():
+                cols[k] = v
+            break
+    
+    if not header_row:
+        return {}, {}, {}, ["Не найдена строка заголовков (ожидаются: Наименование параметра / Тип параметра / Список параметров)"]
+    
+    default_group = default_group_from_cell
+    if not default_group:
         for rr in range(1, min(ws.max_row, 8) + 1):
             for cc in range(1, min(ws.max_column, 8) + 1):
                 raw = ws.cell(row=rr, column=cc).value
@@ -2250,90 +2543,139 @@ def _deamon_import_excel(self):
                         break
             if default_group:
                 break
+    
+    queues_dict: dict = {}
+    attr_types: dict = {}
+    attr_groups: dict = {}
+    errors: list[str] = []
+    
+    r = header_row + 1
+    while r <= ws.max_row:
+        name = _val(r, cols["name"]) if cols["name"] else ""
+        ptype = (_val(r, cols["type"]) if cols["type"] else "").lower()
+        plist = _val(r, cols["list"]) if cols["list"] else ""
+        rep_from = _val(r, cols["rep_from"]) if cols["rep_from"] else ""
+        rep_to = _val(r, cols["rep_to"]) if cols["rep_to"] else ""
+        grp = _val(r, cols["group"]) if cols["group"] else ""
         
+        if name and not _is_valid_param_name(name):
+            errors.append(f"Строка {r}: недопустимое имя параметра \"{name}\"")
+            r += 1
+            continue
         
+        if not (name or plist or ptype or grp):
+            r += 1
+            continue
         
-        def _split_list(s: str):
-            # Строгий CSV: значения в двойных кавычках, запятая как разделитель.
-            # Обратный слэш НЕ является escape-символом; чтобы вставить кавычку внутри значения, используйте удвоенную кавычку "".
-            if not s:
-                return []
-            import csv, io
-            reader = csv.reader(io.StringIO(s), delimiter=',', quotechar='"', doublequote=True, escapechar=None, skipinitialspace=True)
-            try:
-                row = next(reader)
-                return [t for t in row if t is not None and t != '']
-            except Exception:
-                s = s.replace(';', ',')
-                return [t.strip() for t in s.split(',') if t.strip()]
+        isnum = True if "чис" in ptype else False
+        full_name = f"{(grp or default_group)}.{name}" if (grp or default_group) else name
+        
+        if full_name not in queues_dict:
+            queues_dict[full_name] = BindingQueue(attribute_full_name=full_name)
+            queues_dict[full_name].bindings = []
+        
+        attr_types[full_name] = isnum
+        if (grp or default_group):
+            attr_groups[full_name] = (grp or default_group)
+        
+        lefts = _split_list(rep_from)
+        rights = _split_list(rep_to)
+        pairs = [(l, rights[i]) for i, l in enumerate(lefts) if i < len(rights)]
+        
+        params = _split_list(plist)
+        for code in params:
+            b = Binding(parameter_code=code, src_is_numeric=None, is_enabled=True, src_model_title="Excel")
+            if pairs:
+                t = TransformSettings()
+                t.replaces = pairs
+                b.transform = t
+            queues_dict[full_name].bindings.append(b)
+        r += 1
+    
+    return queues_dict, attr_types, attr_groups, errors
 
-        def _is_valid_param_name(name: str) -> bool:
-            name = (name or "").strip()
-            if not name:
-                return False
-            return all(ch == "_" or ch.isalpha() for ch in name)
-# Подготовка документа
+
+def _deamon_import_excel(self):
+    from PySide6 import QtWidgets
+    try:
+        import openpyxl
+    except Exception:
+        show_error_dialog(self, "Импорт Excel", "Не установлен openpyxl.\nУстанови: pip install openpyxl")
+        return
+
+    path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Открыть Excel", "", "Excel (*.xlsx *.xlsm)")
+    if not path:
+        return
+
+    try:
+        wb = openpyxl.load_workbook(path, data_only=True)
+        sheet_names = wb.sheetnames
+        if not sheet_names:
+            show_error_dialog(self, "Импорт Excel", "В книге нет листов.")
+            return
+        
+        if len(sheet_names) == 1:
+            selected_sheets = sheet_names
+        else:
+            dlg = _ExcelSheetSelectDialog(sheet_names, self)
+            if dlg.exec() != QtWidgets.QDialog.Accepted:
+                return
+            selected_sheets = dlg.get_selected_sheets()
+            if not selected_sheets:
+                show_error_dialog(self, "Импорт Excel", "Не выбрано ни одного листа.")
+                return
+        
         if not hasattr(self, "attr_types"):
             self.attr_types = {}
         if not hasattr(self, "attr_groups"):
             self.attr_groups = {}
-
+        
         new_doc = AdapterDoc()
         self.attr_types.clear()
         self.attr_groups.clear()
         self.selected_attr = None
-
-        r = header_row + 1
-        while r <= ws.max_row:
-            name = _val(r, cols["name"]) if cols["name"] else ""
-            ptype = (_val(r, cols["type"]) if cols["type"] else "").lower()
-            plist = _val(r, cols["list"]) if cols["list"] else ""
-            rep_from = _val(r, cols["rep_from"]) if cols["rep_from"] else ""
-            rep_to = _val(r, cols["rep_to"]) if cols["rep_to"] else ""
-            grp = _val(r, cols["group"]) if cols["group"] else ""
-
-            if not (name or plist or ptype or grp):
-                r += 1
+        
+        loaded_sheets: list[str] = []
+        skipped_sheets: list[tuple[str, str]] = []
+        total_bindings = 0
+        
+        for sheet_name in selected_sheets:
+            ws = wb[sheet_name]
+            queues_dict, attr_types, attr_groups, errors = _parse_excel_sheet(ws)
+            
+            if errors:
+                skipped_sheets.append((sheet_name, errors[0]))
                 continue
-
-            isnum = True if "чис" in ptype else False
-            full_name = f"{(grp or default_group)}.{name}" if (grp or default_group) else name
-            q = new_doc.ensure_attr(full_name)
-            self.attr_types[full_name] = isnum
-            if (grp or default_group):
-                self.attr_groups[full_name] = (grp or default_group)
-
-            lefts = _split_list(rep_from)
-            rights = _split_list(rep_to)
-            pairs = [(l, rights[i]) for i, l in enumerate(lefts) if i < len(rights)]
-
-            params = _split_list(plist)
-            invalid_params = [code for code in params if not _is_valid_param_name(code)]
-            if invalid_params:
-                bad_values = ", ".join(f'"{x}"' for x in invalid_params[:5])
-                suffix = "" if len(invalid_params) <= 5 else ", ..."
-                raise RuntimeError(
-                    "Найдены недопустимые имена в столбце 'Список параметров' "
-                    f"(строка Excel {r}): {bad_values}{suffix}.\n\n"
-                    "Разрешены только буквы и символ подчеркивания '_'.\n"
-                    "Примеры корректных имен: Width, Ширина_проема, Param_Name."
-                )
-            for code in params:
-                b = Binding(parameter_code=code, src_is_numeric=None, is_enabled=True, src_model_title="Excel")
-                if pairs:
-                    t = TransformSettings()
-                    t.replaces = pairs
-                    b.transform = t
-                q.bindings.append(b)
-            r += 1
-
+            
+            if not queues_dict:
+                skipped_sheets.append((sheet_name, "Нет данных для импорта"))
+                continue
+            
+            for full_name, queue in queues_dict.items():
+                existing_q = new_doc.ensure_attr(full_name)
+                existing_q.bindings.extend(queue.bindings)
+                total_bindings += len(queue.bindings)
+            
+            for name, isnum in attr_types.items():
+                self.attr_types[name] = isnum
+            for name, grp in attr_groups.items():
+                self.attr_groups[name] = grp
+            
+            loaded_sheets.append(sheet_name)
+        
+        if not loaded_sheets:
+            msg = "Ни один лист не был загружен.\n\n"
+            for name, reason in skipped_sheets:
+                msg += f"• {name}: {reason}\n"
+            show_error_dialog(self, "Импорт Excel", msg)
+            return
+        
         self.doc = new_doc
         self.tableBindings.setRowCount(0)
-        self.labelAttrSource.setText("Параметры загружены из Excel")
-
-        # Обновляем дерево, выделяем первый атрибут и принудительно рисуем привязки
+        self.labelAttrSource.setText(f"Параметры загружены из Excel ({len(loaded_sheets)} листов)")
+        
         self.refresh_attr_tree(False)
-
+        
         selected_index = None
         for i in range(self.attrModel.rowCount()):
             root_item = self.attrModel.item(i, 0)
@@ -2364,8 +2706,17 @@ def _deamon_import_excel(self):
             if self.tableBindings.rowCount() > 0:
                 self.tableBindings.selectRow(0)
                 self.tableBindings.setFocus()
-
-        show_error_dialog(self, "Импорт Excel", f"Загружено атрибутов: {len(self.doc.queues)}")
+        
+        result_msg = f"Выбрано листов: {len(selected_sheets)}\n"
+        result_msg += f"Загружено: {len(loaded_sheets)}\n"
+        result_msg += f"Атрибутов: {len(self.doc.queues)}\n"
+        result_msg += f"Привязок: {total_bindings}"
+        if skipped_sheets:
+            result_msg += f"\n\nПропущено листов:\n"
+            for name, reason in skipped_sheets:
+                result_msg += f"• {name}: {reason}\n"
+        
+        show_error_dialog(self, "Импорт Excel", result_msg)
     except Exception as e:
         show_error_dialog(self, "Импорт Excel", f"Не удалось импортировать Excel:\n{e}")
 # Подмешиваем метод в класс, если его не было

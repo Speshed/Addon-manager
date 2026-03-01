@@ -56,6 +56,7 @@ _ICON_FILES: dict[str, list[str]] = {
     "insert": ["insert.png"],
     "sync": ["sync.png"],
     "warning": ["warning.png"],
+    "error": ["error.png"],
 }
 
 
@@ -444,23 +445,27 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
     QCheckBox::indicator:indeterminate, QListView::indicator:indeterminate, QListWidget::indicator:indeterminate {{ image: url("{check_mid_url}"); }}
 
     QScrollBar:vertical {{ background: {bg}; width: 12px; margin: 16px 0 16px 0; border: none; }}
-    QScrollBar::handle:vertical {{ background: rgba(247,146,30,0.15); min-height: 24px; border-radius: 6px; border: 1px solid {PALETTE.ACCENT_HOVER}; }}
-    QScrollBar::handle:vertical:hover {{ background: rgba(247,146,30,0.20); }}
-    QScrollBar::handle:vertical:pressed {{ background: rgba(247,146,30,0.28); border-color: {PALETTE.ACCENT_PRESSED}; }}
-    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ background: {bg}; height: 16px; subcontrol-origin: margin; border: none; margin: 0; }}
-    QScrollBar::add-line:vertical {{ subcontrol-position: bottom; }}
-    QScrollBar::sub-line:vertical {{ subcontrol-position: top; }}
+    QScrollBar::handle:vertical {{ background: rgba(247,146,30,0.12); min-height: 24px; border-radius: 6px; border: 1px solid {PALETTE.ACCENT_HOVER}; }}
+    QScrollBar::handle:vertical:hover {{ background: rgba(247,146,30,0.15); border: 1px solid {PALETTE.ACCENT_HOVER}; }}
+    QScrollBar::handle:vertical:pressed {{ background: rgba(247,146,30,0.25); border: 1px solid {PALETTE.ACCENT_PRESSED}; }}
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ background: {bg}; height: 16px; subcontrol-origin: margin; border: none; border-radius: 0; image: none; }}
+    QScrollBar::add-line:vertical {{ subcontrol-position: bottom; border: none; }}
+    QScrollBar::sub-line:vertical {{ subcontrol-position: top; border: none; }}
+    QScrollBar::add-line:vertical:hover, QScrollBar::sub-line:vertical:hover {{ background: rgba(247,146,30,0.15); }}
+    QScrollBar::add-line:vertical:pressed, QScrollBar::sub-line:vertical:pressed {{ background: rgba(247,146,30,0.25); }}
     QScrollBar::up-arrow:vertical {{ image: url("{up_arrow_url}"); width: 12px; height: 12px; }}
     QScrollBar::down-arrow:vertical {{ image: url("{down_arrow_url}"); width: 12px; height: 12px; }}
     QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: {bg}; }}
 
     QScrollBar:horizontal {{ background: {bg}; height: 12px; margin: 0 16px 0 16px; border: none; }}
-    QScrollBar::handle:horizontal {{ background: rgba(247,146,30,0.15); min-width: 24px; border-radius: 6px; border: 1px solid {PALETTE.ACCENT_HOVER}; }}
-    QScrollBar::handle:horizontal:hover {{ background: rgba(247,146,30,0.20); }}
-    QScrollBar::handle:horizontal:pressed {{ background: rgba(247,146,30,0.28); border-color: {PALETTE.ACCENT_PRESSED}; }}
-    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ background: {bg}; width: 16px; subcontrol-origin: margin; border: none; margin: 0; }}
-    QScrollBar::add-line:horizontal {{ subcontrol-position: right; }}
-    QScrollBar::sub-line:horizontal {{ subcontrol-position: left; }}
+    QScrollBar::handle:horizontal {{ background: rgba(247,146,30,0.12); min-width: 24px; border-radius: 6px; border: 1px solid {PALETTE.ACCENT_HOVER}; }}
+    QScrollBar::handle:horizontal:hover {{ background: rgba(247,146,30,0.15); border: 1px solid {PALETTE.ACCENT_HOVER}; }}
+    QScrollBar::handle:horizontal:pressed {{ background: rgba(247,146,30,0.25); border: 1px solid {PALETTE.ACCENT_PRESSED}; }}
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ background: {bg}; width: 16px; subcontrol-origin: margin; border: none; border-radius: 0; image: none; }}
+    QScrollBar::add-line:horizontal {{ subcontrol-position: right; border: none; }}
+    QScrollBar::sub-line:horizontal {{ subcontrol-position: left; border: none; }}
+    QScrollBar::add-line:horizontal:hover, QScrollBar::sub-line:horizontal:hover {{ background: rgba(247,146,30,0.15); }}
+    QScrollBar::add-line:horizontal:pressed, QScrollBar::sub-line:horizontal:pressed {{ background: rgba(247,146,30,0.25); }}
     QScrollBar::left-arrow:horizontal {{ image: url("{left_arrow_url}"); width: 12px; height: 12px; }}
     QScrollBar::right-arrow:horizontal {{ image: url("{right_arrow_url}"); width: 12px; height: 12px; }}
     QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: {bg}; }}
@@ -813,16 +818,23 @@ class _HoverTracker(QtCore.QObject):
     def __init__(self, view: QtWidgets.QAbstractItemView):
         super().__init__(view.viewport())
         self.view = view
+        self._last_hover_row = -1
 
     def eventFilter(self, obj, ev):
         t = ev.type()
         if t == QtCore.QEvent.MouseMove:
-            idx = self.view.indexAt(ev.pos())
-            self.view.setProperty("_hover_row", idx.row() if idx.isValid() else -1)
-            self.view.viewport().update()
+            pos = ev.position().toPoint() if hasattr(ev, "position") else ev.pos()
+            idx = self.view.indexAt(pos)
+            new_row = idx.row() if idx.isValid() else -1
+            if new_row != self._last_hover_row:
+                self._last_hover_row = new_row
+                self.view.setProperty("_hover_row", new_row)
+                self.view.viewport().update()
         elif t in (QtCore.QEvent.Leave, QtCore.QEvent.HoverLeave):
-            self.view.setProperty("_hover_row", -1)
-            self.view.viewport().update()
+            if self._last_hover_row != -1:
+                self._last_hover_row = -1
+                self.view.setProperty("_hover_row", -1)
+                self.view.viewport().update()
         return False
 
 
@@ -830,29 +842,66 @@ class RowHoverDelegate(QtWidgets.QStyledItemDelegate):
     def paint(self, painter, option, index):
         opt = QtWidgets.QStyleOptionViewItem(option)
         self.initStyleOption(opt, index)
-        # Hide dotted focus rectangle on selected/current items.
         opt.state &= ~QtWidgets.QStyle.State_HasFocus
-        hover_row = -1
+        
         view = option.widget
+        hover_row = -1
         if isinstance(view, QtWidgets.QAbstractItemView):
             try:
-                hover_row = int(view.property("_hover_row") or -1)
+                val = view.property("_hover_row")
+                hover_row = int(val) if val is not None else -1
             except Exception:
                 hover_row = -1
-        if hover_row >= 0 and index.row() == hover_row and not (opt.state & QtWidgets.QStyle.State_Selected):
-            # Disable built-in per-cell hover state to avoid double hover tint from QSS.
-            opt.state &= ~QtWidgets.QStyle.State_MouseOver
-            painter.save()
-            vp = view.viewport()
-            row_rect = QtCore.QRect(0, option.rect.top(), vp.width(), option.rect.height())
-            painter.fillRect(row_rect, QtGui.QColor(PALETTE.SOFT_HOVER))
-            painter.restore()
+        
+        is_selected = bool(opt.state & QtWidgets.QStyle.State_Selected)
+        is_hovered = bool(hover_row >= 0 and index.row() == hover_row)
+        
+        opt.state &= ~QtWidgets.QStyle.State_Selected
+        opt.state &= ~QtWidgets.QStyle.State_MouseOver
+        
+        if index.column() == 0 and isinstance(view, QtWidgets.QAbstractItemView):
+            if is_hovered and not is_selected:
+                painter.save()
+                painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+                vp = view.viewport()
+                margin_h = 4
+                margin_v = 1
+                row_rect = QtCore.QRectF(
+                    float(margin_h),
+                    float(option.rect.top()) + float(margin_v),
+                    float(vp.width()) - float(margin_h * 2),
+                    float(option.rect.height()) - float(margin_v * 2)
+                )
+                painter.setPen(QtCore.Qt.NoPen)
+                painter.setBrush(QtGui.QColor(PALETTE.SOFT_HOVER))
+                painter.drawRoundedRect(row_rect, 8.0, 8.0)
+                painter.restore()
+            
+            if is_selected:
+                painter.save()
+                painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+                vp = view.viewport()
+                margin_h = 4
+                margin_v = 1
+                row_rect = QtCore.QRectF(
+                    float(margin_h),
+                    float(option.rect.top()) + float(margin_v),
+                    float(vp.width()) - float(margin_h * 2),
+                    float(option.rect.height()) - float(margin_v * 2)
+                )
+                painter.setPen(QtCore.Qt.NoPen)
+                painter.setBrush(QtGui.QColor(PALETTE.SELECTED))
+                painter.drawRoundedRect(row_rect, 8.0, 8.0)
+                painter.restore()
+        
+        if is_selected or is_hovered:
             pal = QtGui.QPalette(opt.palette)
             dark_text = QtGui.QColor("#000000")
             for role in (QtGui.QPalette.Text, QtGui.QPalette.WindowText, QtGui.QPalette.HighlightedText):
                 pal.setColor(QtGui.QPalette.Active, role, dark_text)
                 pal.setColor(QtGui.QPalette.Inactive, role, dark_text)
             opt.palette = pal
+        
         style = opt.widget.style() if opt.widget is not None else QtWidgets.QApplication.style()
         style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
 

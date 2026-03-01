@@ -353,27 +353,29 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
     QHeaderView::section:last:pressed  {{ border-top-right-radius: 8px; }}
 
     QScrollBar:vertical {{ background: {TRACK_BG}; width: 12px; margin: 16px 0 16px 0; border: none; }}
-    QScrollBar::handle:vertical {{ background: {PALETTE.SELECTED}; min-height: 24px; border-radius: 6px; border: none; }}
-    QScrollBar::handle:vertical:hover {{ background: {PALETTE.ACCENT_HOVER}; }}
-    QScrollBar::handle:vertical:pressed {{ background: {PALETTE.ACCENT_PRESSED}; }}
-    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ background: {TRACK_BG}; height: 16px; subcontrol-origin: margin; border: none; margin: 0; }}
+    QScrollBar::handle:vertical {{ background: rgba(247,146,30,0.12); min-height: 24px; border-radius: 6px; border: 1px solid {PALETTE.ACCENT_HOVER}; }}
+    QScrollBar::handle:vertical:hover {{ background: rgba(247,146,30,0.15); border: 1px solid {PALETTE.ACCENT_HOVER}; }}
+    QScrollBar::handle:vertical:pressed {{ background: rgba(247,146,30,0.25); border: 1px solid {PALETTE.ACCENT_PRESSED}; }}
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ background: {TRACK_BG}; height: 16px; subcontrol-origin: margin; border: none; border-radius: 0; image: none; }}
     QScrollBar::add-line:vertical {{ subcontrol-position: bottom; border: none; }}
     QScrollBar::sub-line:vertical {{ subcontrol-position: top; border: none; }}
-
-    QScrollBar:horizontal {{ background: {TRACK_BG}; height: 12px; margin: 0 16px 0 16px; border: none; }}
-    QScrollBar::handle:horizontal {{ background: {PALETTE.SELECTED}; min-width: 24px; border-radius: 6px; border: none; }}
-    QScrollBar::handle:horizontal:hover {{ background: {PALETTE.ACCENT_HOVER}; }}
-    QScrollBar::handle:horizontal:pressed {{ background: {PALETTE.ACCENT_PRESSED}; }}
-    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ background: {TRACK_BG}; width: 16px; subcontrol-origin: margin; border: none; margin: 0; }}
-    QScrollBar::add-line:horizontal {{ subcontrol-position: right; border: none; }}
-    QScrollBar::sub-line:horizontal {{ subcontrol-position: left; border: none; }}
-
+    QScrollBar::add-line:vertical:hover, QScrollBar::sub-line:vertical:hover {{ background: rgba(247,146,30,0.15); }}
+    QScrollBar::add-line:vertical:pressed, QScrollBar::sub-line:vertical:pressed {{ background: rgba(247,146,30,0.25); }}
     QScrollBar::up-arrow:vertical   {{ image: url('{ar_up}');   width: 12px; height: 12px; }}
     QScrollBar::down-arrow:vertical {{ image: url('{ar_down}'); width: 12px; height: 12px; }}
+    QScrollBar::add-page:vertical,   QScrollBar::sub-page:vertical   {{ background: {TRACK_BG}; margin: 0; border: none; }}
+
+    QScrollBar:horizontal {{ background: {TRACK_BG}; height: 12px; margin: 0 16px 0 16px; border: none; }}
+    QScrollBar::handle:horizontal {{ background: rgba(247,146,30,0.12); min-width: 24px; border-radius: 6px; border: 1px solid {PALETTE.ACCENT_HOVER}; }}
+    QScrollBar::handle:horizontal:hover {{ background: rgba(247,146,30,0.15); border: 1px solid {PALETTE.ACCENT_HOVER}; }}
+    QScrollBar::handle:horizontal:pressed {{ background: rgba(247,146,30,0.25); border: 1px solid {PALETTE.ACCENT_PRESSED}; }}
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ background: {TRACK_BG}; width: 16px; subcontrol-origin: margin; border: none; border-radius: 0; image: none; }}
+    QScrollBar::add-line:horizontal {{ subcontrol-position: right; border: none; }}
+    QScrollBar::sub-line:horizontal {{ subcontrol-position: left; border: none; }}
+    QScrollBar::add-line:horizontal:hover, QScrollBar::sub-line:horizontal:hover {{ background: rgba(247,146,30,0.15); }}
+    QScrollBar::add-line:horizontal:pressed, QScrollBar::sub-line:horizontal:pressed {{ background: rgba(247,146,30,0.25); }}
     QScrollBar::left-arrow:horizontal  {{ image: url('{ar_left}');  width: 12px; height: 12px; }}
     QScrollBar::right-arrow:horizontal {{ image: url('{ar_right}'); width: 12px; height: 12px; }}
-
-    QScrollBar::add-page:vertical,   QScrollBar::sub-page:vertical   {{ background: {TRACK_BG}; margin: 0; border: none; }}
     QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: {TRACK_BG}; margin: 0; border: none; }}
 
     QAbstractScrollArea::corner {{ background: {TRACK_BG}; }}

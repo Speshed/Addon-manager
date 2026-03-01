@@ -669,7 +669,7 @@ class MainWindow(QMainWindow):
         grid.setContentsMargins(10, 10, 10, 10)
         grid.setSpacing(8)
 
-        # --- Header with logo + theme switch (Nik Style) ---
+        # --- Header with back button + theme switch ---
         header = QWidget(); header.setObjectName("header")
         hl = QHBoxLayout(header); hl.setContentsMargins(8, 8, 8, 8)
         try:
@@ -678,16 +678,8 @@ class MainWindow(QMainWindow):
             hl.addWidget(self._btn_back, 0, Qt.AlignLeft)
         except Exception:
             self._btn_back = None
-        logo_label = QLabel()
-        try:
-            set_header_logo(logo_label, ICON_DIR, height=60)
-        except Exception:
-            pm = load_logo(ICON_DIR)
-            if not pm.isNull():
-                logo_label.setPixmap(pm.scaledToHeight(60, Qt.SmoothTransformation))
-        logo_label.setAlignment(Qt.AlignCenter)
-        hl.addWidget(logo_label, 1)
-        self._logo_label = logo_label
+        hl.addStretch(1)
+        self._logo_label = None
         try:
             app = QtWidgets.QApplication.instance()
             self.theme_toggle = ThemeToggle()
@@ -867,11 +859,6 @@ class MainWindow(QMainWindow):
             pass
         try:
             apply_window_icon(self, icon_dir=ICON_DIR)
-        except Exception:
-            pass
-        try:
-            if getattr(self, "_logo_label", None) is not None:
-                set_header_logo(self._logo_label, ICON_DIR, height=60)
         except Exception:
             pass
         try:

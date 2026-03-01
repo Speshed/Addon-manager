@@ -201,10 +201,6 @@ class ModeCard(QFrame):
         self._shadow = AnimatableShadowEffect(self)
         self.setGraphicsEffect(self._shadow)
 
-        self._pos_anim = QPropertyAnimation(self, b"pos", self)
-        self._pos_anim.setDuration(180)
-        self._pos_anim.setEasingCurve(QEasingCurve.OutCubic)
-
         self._blur_anim = QPropertyAnimation(self._shadow, b"animBlurRadius", self)
         self._blur_anim.setDuration(180)
         self._blur_anim.setEasingCurve(QEasingCurve.OutCubic)
@@ -212,8 +208,6 @@ class ModeCard(QFrame):
         self._offset_anim = QPropertyAnimation(self._shadow, b"animOffsetY", self)
         self._offset_anim.setDuration(180)
         self._offset_anim.setEasingCurve(QEasingCurve.OutCubic)
-
-        self._original_pos = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -437,31 +431,16 @@ class ModeCard(QFrame):
         return img.copy(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
 
     def _animate_to(self, hover_in):
-        if self._original_pos is None:
-            self._original_pos = self.pos()
-
         if hover_in:
-            target_pos = self._original_pos - QPoint(0, 8)
-            self._pos_anim.setStartValue(self.pos())
-            self._pos_anim.setEndValue(target_pos)
-
             self._blur_anim.setStartValue(self._shadow.getBlurRadiusAnim())
             self._blur_anim.setEndValue(25)
-
             self._offset_anim.setStartValue(self._shadow.getOffsetY())
             self._offset_anim.setEndValue(8)
         else:
-            target_pos = self._original_pos
-            self._pos_anim.setStartValue(self.pos())
-            self._pos_anim.setEndValue(target_pos)
-
             self._blur_anim.setStartValue(self._shadow.getBlurRadiusAnim())
             self._blur_anim.setEndValue(0)
-
             self._offset_anim.setStartValue(self._shadow.getOffsetY())
             self._offset_anim.setEndValue(0)
-
-        self._pos_anim.start()
         self._blur_anim.start()
         self._offset_anim.start()
 
@@ -911,7 +890,7 @@ class MainMenuWidget(QWidget):
             target_h = VIEWER_LOGO_HEIGHT
         else:
             logo_path = get_logo_path(self._is_dark)
-            fallback_text = "Larix Manager"
+            fallback_text = "Larix Plugin"
             target_h = MANAGER_LOGO_HEIGHT
         if os.path.exists(logo_path):
             pix = QPixmap(logo_path)
@@ -1058,7 +1037,7 @@ class BimSyncHostWidget(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Larix Manager")
+        self.setWindowTitle("Larix Plugin")
         self.setMinimumSize(860, 640)
         self.resize(920, 700)
         self._is_dark = load_saved_theme(False)
@@ -1096,7 +1075,7 @@ class MainWindow(QMainWindow):
         if self._current_module_widget is not None:
             self._current_module_widget = None
         self._current_module_window = None
-        self.setWindowTitle("Larix Manager")
+        self.setWindowTitle("Larix Plugin")
 
         menu = MainMenuWidget(self._is_dark, self._api_base_url, self)
         menu.mode_selected.connect(self._on_mode_selected)
@@ -1133,14 +1112,14 @@ class MainWindow(QMainWindow):
             self._current_module_window = window
             self.setCentralWidget(widget)
             module_titles = {
-                "adapters": "Larix Manager - Редактор адаптера",
-                "larix_set": "Larix Manager - Создание наборов",
-                "matrix": "Larix Manager - Матрица коллизий",
-                "parameters": "Larix Manager - Профиль проверок параметров",
-                "viewer": "Larix Manager - Создание статусов",
-                "bim_sync": "Larix Manager - BIM Sync",
+                "adapters": "Larix Plugin - Редактор адаптера",
+                "larix_set": "Larix Plugin - Создание наборов",
+                "matrix": "Larix Plugin - Матрица коллизий",
+                "parameters": "Larix Plugin - Профиль проверок параметров",
+                "viewer": "Larix Plugin - Создание статусов",
+                "bim_sync": "Larix Plugin - BIM Sync",
             }
-            title = module_titles.get(mode_id, "Larix Manager")
+            title = module_titles.get(mode_id, "Larix Plugin")
             try:
                 if window is not None:
                     wt = (window.windowTitle() or "").strip()
@@ -1186,7 +1165,7 @@ class MainWindow(QMainWindow):
             self._current_module_widget = widget
             self._current_module_window = None
             self.setCentralWidget(widget)
-            self.setWindowTitle("Larix Manager - BIM Sync")
+            self.setWindowTitle("Larix Plugin - BIM Sync")
             self.setMinimumSize(600, 400)
             self.resize(700, 500)
             self._center_on_screen()
@@ -1232,7 +1211,7 @@ class MainWindow(QMainWindow):
             self._current_module_widget = widget
             self._current_module_window = win
             self.setCentralWidget(widget)
-            self.setWindowTitle((win.windowTitle() or "Larix Manager - BIM Sync").strip())
+            self.setWindowTitle((win.windowTitle() or "Larix Plugin - BIM Sync").strip())
             try:
                 self.setMinimumSize(win.minimumSize())
                 self.resize(win.size())

@@ -85,6 +85,42 @@ def _resolve_icon_path(filename: str) -> str:
     return ""
 
 
+class ErrorDialog(QtWidgets.QDialog):
+    def __init__(self, parent, title: str, message: str):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowType.WindowContextHelpButtonHint)
+        self.setMinimumWidth(320)
+        vlayout = QtWidgets.QVBoxLayout(self)
+        vlayout.setSpacing(16)
+        vlayout.setContentsMargins(20, 20, 20, 20)
+        hlayout = QtWidgets.QHBoxLayout()
+        icon_label = QtWidgets.QLabel()
+        icon_path = os.path.join(_app_root_dir(), "icon", "error.png")
+        if os.path.exists(icon_path):
+            pm = QtGui.QPixmap(icon_path)
+            if not pm.isNull():
+                icon_label.setPixmap(pm.scaled(48, 48, QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation))
+        if icon_label.pixmap() is None or icon_label.pixmap().isNull():
+            style = QtWidgets.QApplication.style()
+            icon_label.setPixmap(style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_MessageBoxWarning).pixmap(48, 48))
+        hlayout.addWidget(icon_label, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+        msg_label = QtWidgets.QLabel(message)
+        msg_label.setWordWrap(True)
+        msg_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        msg_label.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        hlayout.addWidget(msg_label, 1)
+        vlayout.addLayout(hlayout)
+        btn_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok)
+        btn_box.accepted.connect(self.accept)
+        vlayout.addWidget(btn_box, 0, QtCore.Qt.AlignmentFlag.AlignRight)
+
+
+def show_error_dialog(parent, title: str, message: str):
+    dlg = ErrorDialog(parent, title, message)
+    dlg.exec()
+
+
 def _pm(size: int) -> QtGui.QPixmap:
     pm = QtGui.QPixmap(size, size)
     pm.fill(QtCore.Qt.transparent)
@@ -726,6 +762,7 @@ class RowDragTable(QtWidgets.QTableWidget):
         self.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self._drag_rows = []   # внутреннее хранилище
         self.on_rows_moved = None  # callback(List[int] src_rows_sorted, int dest_row)
+        self._drop_indicator_row = -1  # строка для подсветки вставки
 
     def startDrag(self, supportedActions):
         # фиксируем исходные строки
@@ -759,11 +796,27 @@ class RowDragTable(QtWidgets.QTableWidget):
 
     def dragMoveEvent(self, e: QtGui.QDragMoveEvent):
         if e.mimeData().hasFormat("application/x-rows"):
+            pos = e.position().toPoint() if hasattr(e, "position") else e.pos()
+            dest_row = self.rowAt(pos.y())
+            if dest_row < 0:
+                dest_row = self.rowCount()
+            if dest_row != self._drop_indicator_row:
+                self._drop_indicator_row = dest_row
+                self.viewport().update()
             e.acceptProposedAction()
         else:
+            self._drop_indicator_row = -1
+            self.viewport().update()
             e.ignore()
 
+    def dragLeaveEvent(self, e):
+        self._drop_indicator_row = -1
+        self.viewport().update()
+        super().dragLeaveEvent(e)
+
     def dropEvent(self, e: QtGui.QDropEvent):
+        self._drop_indicator_row = -1
+        self.viewport().update()
         if not e.mimeData().hasFormat("application/x-rows"):
             e.ignore(); return
         # вычисляем строку вставки
@@ -778,6 +831,32 @@ class RowDragTable(QtWidgets.QTableWidget):
         if callable(self.on_rows_moved):
             self.on_rows_moved(rows, dest_row)
         e.acceptProposedAction()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._drop_indicator_row >= 0:
+            painter = QtGui.QPainter(self.viewport())
+            painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+            pen = QtGui.QPen(QtGui.QColor(ACCENT_ORANGE), 3)
+            pen.setCapStyle(QtCore.Qt.RoundCap)
+            painter.setPen(pen)
+            row = self._drop_indicator_row
+            if row < self.rowCount():
+                rect = self.visualRect(self.model().index(row, 0))
+                y = rect.top()
+            else:
+                if self.rowCount() > 0:
+                    last_rect = self.visualRect(self.model().index(self.rowCount() - 1, 0))
+                    y = last_rect.bottom()
+                else:
+                    y = self.viewport().height() - 2
+            x1 = 4
+            x2 = self.viewport().width() - 4
+            painter.drawLine(x1, y, x2, y)
+            arrow_size = 8
+            painter.setBrush(QtGui.QBrush(QtGui.QColor(ACCENT_ORANGE)))
+            painter.drawLine(x1, y - arrow_size, x1, y + arrow_size)
+            painter.drawLine(x2, y - arrow_size, x2, y + arrow_size)
 
 
 class MainWin(QtWidgets.QMainWindow):
@@ -807,39 +886,28 @@ class MainWin(QtWidgets.QMainWindow):
         # Top bar
         layout_top = QtWidgets.QHBoxLayout()
         layout_top.setObjectName("layoutTopBar")
-        self.btnLoadProjects = QtWidgets.QPushButton("Загрузить проекты", self.ui)
-        self.btnLoadProjects.setObjectName("btnLoadProjects")
-        self.btnImportXml = QtWidgets.QPushButton("Импорт Adapter.xml", self.ui)
+        self.btnImportXml = QtWidgets.QPushButton("Импорт XML", self.ui)
         self.btnImportXml.setObjectName("btnImportXml")
         self.btnImportXml.setToolTip("Импортировать существующий Adapter.xml")
         self.btnImportExcel = QtWidgets.QPushButton("Импорт Excel", self.ui)
         self.btnImportExcel.setObjectName("btnImportExcel")
         self.btnLoadGlobal = QtWidgets.QPushButton("Загрузить общие атрибуты", self.ui)
         self.btnLoadGlobal.setObjectName("btnLoadGlobal")
-
-        layout_top.addWidget(self.btnLoadProjects)
-        layout_top.addWidget(self.btnImportXml)
-        layout_top.addWidget(self.btnImportExcel)
-        layout_top.addWidget(self.btnLoadGlobal)
-        layout_top.addStretch(1)
-        self.verticalLayout_central.addLayout(layout_top)
-
-        # Project bar
-        layout_proj = QtWidgets.QHBoxLayout()
-        layout_proj.setObjectName("layoutProjectBar")
-        self.labelProject = QtWidgets.QLabel("Проект:", self.ui)
-        self.labelProject.setObjectName("labelProject")
+        self.btnModelsWindow = QtWidgets.QPushButton("Выбор моделей", self.ui)
+        self.btnModelsWindow.setObjectName("btnModelsWindow")
         self.comboProject = QtWidgets.QComboBox(self.ui)
         self.comboProject.setObjectName("comboProject")
         self.comboProject.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContentsOnFirstShow)
-        self.btnModelsWindow = QtWidgets.QPushButton("Окно моделей", self.ui)
-        self.btnModelsWindow.setObjectName("btnModelsWindow")
+        self.comboProject.hide()
 
-        layout_proj.addWidget(self.labelProject)
-        layout_proj.addWidget(self.comboProject)
-        layout_proj.addWidget(self.btnModelsWindow)
-        layout_proj.addStretch(1)
-        self.verticalLayout_central.addLayout(layout_proj)
+        layout_top.addWidget(self.btnImportXml)
+        layout_top.addWidget(self.btnImportExcel)
+        layout_top.addWidget(self.btnLoadGlobal)
+        layout_top.addWidget(self.btnModelsWindow)
+        layout_top.addStretch(1)
+        self.verticalLayout_central.addLayout(layout_top)
+        
+        self._update_top_bar_icons()
 
         # Main split
         self.layoutMainSplit = QtWidgets.QHBoxLayout()
@@ -887,16 +955,6 @@ class MainWin(QtWidgets.QMainWindow):
         except Exception:
             pass
         layout_attrs.addWidget(self.treeAttributes)
-
-        layout_attr_btns = QtWidgets.QHBoxLayout()
-        layout_attr_btns.setObjectName("layoutAttrButtons")
-        self.btnAttrToggleDefault = QtWidgets.QPushButton("Вкл/Выкл по умолчанию", self.groupAttributes)
-        self.btnAttrToggleDefault.setObjectName("btnAttrToggleDefault")
-        self.btnAttrMarkWithBindings = QtWidgets.QPushButton("Отметить с привязками", self.groupAttributes)
-        self.btnAttrMarkWithBindings.setObjectName("btnAttrMarkWithBindings")
-        layout_attr_btns.addWidget(self.btnAttrToggleDefault)
-        layout_attr_btns.addWidget(self.btnAttrMarkWithBindings)
-        layout_attrs.addLayout(layout_attr_btns)
 
         self.labelAttrSource = QtWidgets.QLabel("Параметры не загружены", self.groupAttributes)
         self.labelAttrSource.setObjectName("labelAttrSource")
@@ -948,21 +1006,15 @@ class MainWin(QtWidgets.QMainWindow):
         self.labelFilter.setObjectName("labelFilter")
         self.editParamFilter = QtWidgets.QLineEdit(self.groupParams)
         self.editParamFilter.setObjectName("editParamFilter")
-        self.btnModelFilter = QtWidgets.QPushButton("Фильтр по моделям", self.groupParams)
-        self.btnModelFilter.setObjectName("btnModelFilter")
         layout_param_filter.addWidget(self.labelFilter)
         layout_param_filter.addWidget(self.editParamFilter)
-        layout_param_filter.addWidget(self.btnModelFilter)
+        layout_param_filter.addStretch(1)
         layout_params.addLayout(layout_param_filter)
 
         self.tableParams = QtWidgets.QTableWidget(self.groupParams)
         self.tableParams.setObjectName("tableParams")
         self.tableParams.setFrameShape(QtWidgets.QFrame.NoFrame)
         layout_params.addWidget(self.tableParams)
-
-        self.btnAddSelected = QtWidgets.QPushButton("Добавить выделенные → привязки", self.groupParams)
-        self.btnAddSelected.setObjectName("btnAddSelected")
-        layout_params.addWidget(self.btnAddSelected)
 
         self.sepMain1 = _make_split_separator()
         self.sepMain2 = _make_split_separator()
@@ -1147,10 +1199,9 @@ class MainWin(QtWidgets.QMainWindow):
         # сделаем минимальную ширину для колонки "Шифр" покрупнее
         self.tableParams.horizontalHeader().setMinimumSectionSize(40)
 
-        # кликабельный заголовок для фильтра по типу
+        # контекстное меню заголовка для фильтров (только ПКМ)
         header = self.tableParams.horizontalHeader()
-        header.setSectionsClickable(True)
-        header.sectionClicked.connect(self.on_param_header_clicked)
+        header.setSectionsClickable(False)
         header.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         header.customContextMenuRequested.connect(self._on_param_header_menu)
 
@@ -1159,18 +1210,14 @@ class MainWin(QtWidgets.QMainWindow):
         self.setup_icon_buttons()
 
         # События
-        self.btnLoadProjects.clicked.connect(self.load_projects)
         self.btnImportXml.clicked.connect(self.import_xml)
         self.btnLoadGlobal.clicked.connect(self.load_global_attrs)
         self.btnImportExcel.clicked.connect(self.import_excel)
         btnModelsWindow = getattr(self, 'btnModelsWindow', None)
         if btnModelsWindow is not None:
             btnModelsWindow.clicked.connect(self.open_models_window)
-        self.comboProject.currentIndexChanged.connect(self.on_project_changed)
         self.editAttrSearch.textChanged.connect(lambda *_: self.refresh_attr_tree(True))
         self.treeAttributes.selectionModel().selectionChanged.connect(self.on_attr_pick)
-        self.btnAttrToggleDefault.clicked.connect(self.attrs_toggle_default)
-        self.btnAttrMarkWithBindings.clicked.connect(self.attrs_mark_with_bindings)
         if self.btnBindDelete is not None:
             self.btnBindDelete.clicked.connect(self.bind_delete)
         if self.btnBindToggle is not None:
@@ -1181,7 +1228,6 @@ class MainWin(QtWidgets.QMainWindow):
             self.btnUp.clicked.connect(self.bind_move_up)
         if self.btnDown is not None:
             self.btnDown.clicked.connect(self.bind_move_down)
-        self.btnAddSelected.clicked.connect(self.add_selected_params_as_bindings)
         self.btnSave.clicked.connect(self.export_xml)
         if self.btnSaveGlobal is not None:
             self.btnSaveGlobal.clicked.connect(self.export_global_attrs_xml)
@@ -1189,10 +1235,8 @@ class MainWin(QtWidgets.QMainWindow):
         self.tableBindings.itemDoubleClicked.connect(lambda *_: self.bind_delete())
         self.tableBindings.cellClicked.connect(self._on_bind_cell_clicked)
         self.editParamFilter.textChanged.connect(lambda *_: self.fill_param_table())
-        self.btnModelFilter.clicked.connect(self.open_model_filter_dialog)
 
         # Старт
-        self.load_projects()
         self.refresh_attr_tree(True)
 
     def changeEvent(self, event: QtCore.QEvent) -> None:
@@ -1221,6 +1265,10 @@ class MainWin(QtWidgets.QMainWindow):
         self._reload_bind_checkbox_icons(bool(dark))
         self._reload_attr_status_icons()
         try:
+            self._update_top_bar_icons()
+        except Exception:
+            pass
+        try:
             self.setup_icon_buttons()
         except Exception:
             pass
@@ -1231,6 +1279,26 @@ class MainWin(QtWidgets.QMainWindow):
         q = self.current_queue()
         if q:
             self.fill_bind_table(q)
+
+    def _update_top_bar_icons(self) -> None:
+        app = QtWidgets.QApplication.instance()
+        dark = is_dark_theme(app)
+        icon_size = QtCore.QSize(24, 24)
+        
+        xml_path = resolve_icon_path("xml", ICON_DIR, app=app, tint_in_dark=True)
+        if xml_path and os.path.exists(xml_path):
+            self.btnImportXml.setIcon(QtGui.QIcon(xml_path))
+        self.btnImportXml.setIconSize(icon_size)
+        
+        excel_path = resolve_icon_path("excel1", ICON_DIR, app=app, tint_in_dark=True)
+        if excel_path and os.path.exists(excel_path):
+            self.btnImportExcel.setIcon(QtGui.QIcon(excel_path))
+        self.btnImportExcel.setIconSize(icon_size)
+        
+        upload_path = resolve_icon_path("upload", ICON_DIR, app=app, tint_in_dark=True)
+        if upload_path and os.path.exists(upload_path):
+            self.btnLoadGlobal.setIcon(QtGui.QIcon(upload_path))
+        self.btnLoadGlobal.setIconSize(icon_size)
 
     def _apply_theme_extras_from_app(self) -> None:
         self._pending_theme_apply = False
@@ -1392,7 +1460,7 @@ class MainWin(QtWidgets.QMainWindow):
         try:
             self.containers = sorted(api_get_containers(self.base(), pid), key=lambda c: (c["title"] or "").lower())
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "API", f"Не удалось получить модели:\n{e}")
+            show_error_dialog(self, "API", f"Не удалось получить модели:\n{e}")
             return
         # сбрасываем параметры и фильтры по моделям (т.к. модели другие)
         self.per_model_params.clear()
@@ -1404,22 +1472,21 @@ class MainWin(QtWidgets.QMainWindow):
         try:
             self.projects = sorted(api_get_projects(self.base()), key=lambda p: (p["title"] or "").lower())
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "API", f"Не удалось получить проекты:\n{e}")
-            return
+            show_error_dialog(self, "API", f"Не удалось получить проекты:\n{e}")
+            return False
         self.comboProject.clear()
         for p in self.projects:
             self.comboProject.addItem(p["title"])
-        # автоматически подгрузим модели для выбранного проекта
-        self.on_project_changed(self.comboProject.currentIndex())
         self.containers.clear()
         self.per_model_params.clear()
         self.tableParams.setRowCount(0)
         self.lblStatus.setText("")
+        return True
 
     def ensure_containers_loaded(self) -> bool:
         i = self.comboProject.currentIndex()
         if i < 0:
-            QtWidgets.QMessageBox.warning(self, "API", "Выбери проект.")
+            show_error_dialog(self, "API", "Выбери проект.")
             return False
         if self.containers:
             return True
@@ -1427,23 +1494,53 @@ class MainWin(QtWidgets.QMainWindow):
         try:
             self.containers = sorted(api_get_containers(self.base(), pid), key=lambda c: (c["title"] or "").lower())
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "API", f"Не удалось получить модели:\n{e}")
+            show_error_dialog(self, "API", f"Не удалось получить модели:\n{e}")
             return False
         return True
 
     def open_models_window(self):
-        if not self.ensure_containers_loaded():
-            return
+        if not self.projects:
+            if not self.load_projects():
+                return
         dlg = QtWidgets.QDialog(self)
         dlg.setWindowTitle("Выбор моделей")
-        dlg.resize(700, 420)
+        dlg.resize(700, 500)
         v = QtWidgets.QVBoxLayout(dlg)
+
+        proj_layout = QtWidgets.QHBoxLayout()
+        proj_label = QtWidgets.QLabel("Проект:")
+        combo_proj = QtWidgets.QComboBox()
+        combo_proj.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContentsOnFirstShow)
+        for p in self.projects:
+            combo_proj.addItem(p["title"])
+        if self.comboProject.currentIndex() >= 0:
+            combo_proj.setCurrentIndex(self.comboProject.currentIndex())
+        proj_layout.addWidget(proj_label)
+        proj_layout.addWidget(combo_proj)
+        proj_layout.addStretch(1)
+        v.addLayout(proj_layout)
 
         lst = QtWidgets.QListWidget()
         lst.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        for c in self.containers:
-            lst.addItem(c["title"])
         v.addWidget(lst)
+
+        def on_proj_change(idx: int):
+            lst.clear()
+            if idx is None or idx < 0 or idx >= len(self.projects):
+                return
+            pid = int(self.projects[idx]["id"])
+            try:
+                containers = sorted(api_get_containers(self.base(), pid), key=lambda c: (c["title"] or "").lower())
+                for c in containers:
+                    lst.addItem(c["title"])
+                lst._containers = containers
+            except Exception as e:
+                show_error_dialog(dlg, "API", f"Не удалось получить модели:\n{e}")
+        
+        lst._containers = []
+        combo_proj.currentIndexChanged.connect(on_proj_change)
+        if combo_proj.currentIndex() >= 0:
+            on_proj_change(combo_proj.currentIndex())
 
         h = QtWidgets.QHBoxLayout()
         v.addLayout(h)
@@ -1458,19 +1555,31 @@ class MainWin(QtWidgets.QMainWindow):
         def do_load():
             sels = lst.selectedIndexes()
             if not sels:
-                QtWidgets.QMessageBox.warning(dlg, "API", "Выдели минимум одну модель.")
+                show_error_dialog(dlg, "API", "Выдели минимум одну модель.")
                 return
+            idx = combo_proj.currentIndex()
+            if idx >= 0:
+                self.comboProject.setCurrentIndex(idx)
+            containers = getattr(lst, '_containers', [])
+            if not containers:
+                pid = int(self.projects[idx]["id"])
+                try:
+                    containers = sorted(api_get_containers(self.base(), pid), key=lambda c: (c["title"] or "").lower())
+                except Exception as e:
+                    show_error_dialog(dlg, "API", f"Не удалось получить модели:\n{e}")
+                    return
+            self.containers = containers
             self.per_model_params.clear()
-            self.model_filter_set = None  # сбрасываем фильтр моделей при новой загрузке
+            self.model_filter_set = None
             errs = 0
             for i in sels:
-                idx = i.row()
-                cid = int(self.containers[idx]["id"])
+                row = i.row()
+                cid = int(containers[row]["id"])
                 try:
                     self.per_model_params[cid] = api_get_params_for_container(self.base(), cid)
                 except Exception as e:
                     errs += 1
-                    QtWidgets.QMessageBox.critical(dlg, "API", f"Не получил параметры для «{self.containers[idx]['title']}»:\n{e}")
+                    show_error_dialog(dlg, "API", f"Не получил параметры для «{containers[row]['title']}»:\n{e}")
             self.fill_param_table()
             self.lblStatus.setText(f"Загружено моделей: {len(sels)}; ошибок: {errs}")
             dlg.accept()
@@ -1575,7 +1684,7 @@ class MainWin(QtWidgets.QMainWindow):
     def _show_model_filter_menu(self, global_pos: QtCore.QPoint):
         models = self.current_models()
         if not models:
-            QtWidgets.QMessageBox.information(self, "Фильтр по моделям", "Сначала загрузите параметры через «Окно моделей».")
+            show_error_dialog(self, "Фильтр по моделям", "Сначала загрузите параметры через «Выбор моделей».")
             return
 
         menu = QtWidgets.QMenu(self)
@@ -1611,7 +1720,7 @@ class MainWin(QtWidgets.QMainWindow):
     def open_model_filter_dialog(self):
         models = self.current_models()
         if not models:
-            QtWidgets.QMessageBox.information(self, "Фильтр по моделям", "Сначала загрузите параметры через «Окно моделей».")
+            show_error_dialog(self, "Фильтр по моделям", "Сначала загрузите параметры через «Выбор моделей».")
             return
         dlg = ModelFilterDialog(self, models, self.model_filter_set)
         if dlg.exec() == QtWidgets.QDialog.Accepted:
@@ -1865,10 +1974,10 @@ class MainWin(QtWidgets.QMainWindow):
     def add_selected_params_as_bindings(self):
         q = self.current_queue()
         if not q:
-            QtWidgets.QMessageBox.warning(self, "Атрибут", "Выбери атрибут-лист слева."); return
+            show_error_dialog(self, "Атрибут", "Выбери атрибут-лист слева."); return
         sels = self.tableParams.selectionModel().selectedRows()
         if not sels:
-            QtWidgets.QMessageBox.warning(self, "Параметры", "Отметь строки справа."); return
+            show_error_dialog(self, "Параметры", "Отметь строки справа."); return
         for m in sels:
             r = m.row()
             code = self.tableParams.item(r, 0).text()
@@ -1947,7 +2056,7 @@ class MainWin(QtWidgets.QMainWindow):
             return
         sels = [m.row() for m in self.tableBindings.selectionModel().selectedRows()]
         if not sels:
-            QtWidgets.QMessageBox.warning(self, "Преобразования", "Выбери строку привязки.")
+            show_error_dialog(self, "Преобразования", "Выбери строку привязки.")
             return
         r = sels[0]
         if not (0 <= r < len(q.bindings)):
@@ -1962,7 +2071,7 @@ class MainWin(QtWidgets.QMainWindow):
         try:
             gc = api_get_global_component(self.base(), comp_type=1)
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "API", f"Не удалось получить общие атрибуты:\n{e}")
+            show_error_dialog(self, "API", f"Не удалось получить общие атрибуты:\n{e}")
             return
         pairs = flatten_global_attributes_with_types(gc)
         self.doc = AdapterDoc()
@@ -1975,7 +2084,7 @@ class MainWin(QtWidgets.QMainWindow):
         self.tableBindings.setRowCount(0)
         self.labelAttrSource.setText("Параметры загружены из общих атрибутов")
         self.refresh_attr_tree(True)
-        QtWidgets.QMessageBox.information(self, "Общие атрибуты", f"Получено: {len(pairs)}")
+        show_error_dialog(self, "Общие атрибуты", f"Получено: {len(pairs)}")
 
     def import_xml(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Открыть Adapter.xml", "", "Adapter XML (*.xml);;All files (*.*)")
@@ -1987,25 +2096,25 @@ class MainWin(QtWidgets.QMainWindow):
             self.tableBindings.setRowCount(0)
             self.labelAttrSource.setText("Параметры загружены из импортированного файла")
             self.refresh_attr_tree(True)
-            QtWidgets.QMessageBox.information(self, "Импорт", f"Загружено атрибутов: {len(self.doc.queues)}")
+            show_error_dialog(self, "Импорт", f"Загружено атрибутов: {len(self.doc.queues)}")
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Импорт", f"Не удалось импортировать:\n{e}")
+            show_error_dialog(self, "Импорт", f"Не удалось импортировать:\n{e}")
 
     def export_xml(self):
         if not self.doc.queues:
-            QtWidgets.QMessageBox.warning(self, "Экспорт", "Нет данных для сохранения."); return
+            show_error_dialog(self, "Экспорт", "Нет данных для сохранения."); return
         path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Сохранить Adapter.xml", "Adapter.xml", "Adapter XML (*.xml);;All files (*.*)")
         if not path: return
         try:
             tree = self.doc.to_xml(); tree.write(path, encoding="utf-8", xml_declaration=True)
-            QtWidgets.QMessageBox.information(self, "Экспорт", f"Сохранено:\n{path}")
+            show_error_dialog(self, "Экспорт", f"Сохранено:\n{path}")
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Экспорт", f"Ошибка сохранения:\n{e}")
+            show_error_dialog(self, "Экспорт", f"Ошибка сохранения:\n{e}")
 
     def export_global_attrs_xml(self):
         names = sorted((self.doc.queues or {}).keys(), key=lambda s: (s or "").lower())
         if not names:
-            QtWidgets.QMessageBox.warning(self, "Общие атрибуты", "Нет общих атрибутов для сохранения.")
+            show_error_dialog(self, "Общие атрибуты", "Нет общих атрибутов для сохранения.")
             return
 
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
@@ -2049,9 +2158,9 @@ class MainWin(QtWidgets.QMainWindow):
 
             tree = ET.ElementTree(root)
             tree.write(path, encoding="utf-8", xml_declaration=True)
-            QtWidgets.QMessageBox.information(self, "Общие атрибуты", f"Сохранено:\n{path}")
+            show_error_dialog(self, "Общие атрибуты", f"Сохранено:\n{path}")
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Общие атрибуты", f"Ошибка сохранения:\n{e}")
+            show_error_dialog(self, "Общие атрибуты", f"Ошибка сохранения:\n{e}")
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
@@ -2076,7 +2185,7 @@ def _deamon_import_excel(self):
     try:
         import openpyxl
     except Exception:
-        QtWidgets.QMessageBox.critical(self, "Импорт Excel", "Не установлен openpyxl.\nУстанови: pip install openpyxl")
+        show_error_dialog(self, "Импорт Excel", "Не установлен openpyxl.\nУстанови: pip install openpyxl")
         return
 
     path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Открыть Excel", "", "Excel (*.xlsx *.xlsm)")
@@ -2256,9 +2365,9 @@ def _deamon_import_excel(self):
                 self.tableBindings.selectRow(0)
                 self.tableBindings.setFocus()
 
-        QtWidgets.QMessageBox.information(self, "Импорт Excel", f"Загружено атрибутов: {len(self.doc.queues)}")
+        show_error_dialog(self, "Импорт Excel", f"Загружено атрибутов: {len(self.doc.queues)}")
     except Exception as e:
-        QtWidgets.QMessageBox.critical(self, "Импорт Excel", f"Не удалось импортировать Excel:\n{e}")
+        show_error_dialog(self, "Импорт Excel", f"Не удалось импортировать Excel:\n{e}")
 # Подмешиваем метод в класс, если его не было
 MainWin.import_excel = _deamon_import_excel
 # === /HOTFIX ===

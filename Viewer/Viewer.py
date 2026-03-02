@@ -148,16 +148,61 @@ def set_header_logo(label: QtWidgets.QLabel, icon_dir: str, height: int = 48):
         label.setAlignment(QtCore.Qt.AlignCenter)
 
 def show_error_dialog(text: str, *, title: str = "Ошибка", icon_dir: str | None = None, parent=None, modal: bool = True):
+    if icon_dir is None:
+        icon_dir = ICON_DIR
     if parent is None:
         try:
             parent = QtWidgets.QApplication.activeWindow()
         except Exception:
             parent = None
-    if modal:
-        QtWidgets.QMessageBox.critical(parent, title, text)
+    msg = QtWidgets.QMessageBox(parent)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    app = QtWidgets.QApplication.instance()
+    p = resolve_icon_path("error", icon_dir, app=app)
+    pm = QPixmap(p) if p else QPixmap()
+    if not pm.isNull():
+        msg.setIconPixmap(pm.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
     else:
-        m = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, title, text, QtWidgets.QMessageBox.Ok, parent)
-        m.open()
+        msg.setIcon(QtWidgets.QMessageBox.Critical)
+    msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+    try:
+        msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
+    except Exception:
+        pass
+    if modal:
+        msg.exec()
+    else:
+        msg.open()
+
+
+def show_info_dialog(text: str, *, title: str = "Информация", icon_dir: str | None = None, parent=None, modal: bool = True):
+    if icon_dir is None:
+        icon_dir = ICON_DIR
+    if parent is None:
+        try:
+            parent = QtWidgets.QApplication.activeWindow()
+        except Exception:
+            parent = None
+    msg = QtWidgets.QMessageBox(parent)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    app = QtWidgets.QApplication.instance()
+    p = resolve_icon_path("alert", icon_dir, app=app)
+    pm = QPixmap(p) if p else QPixmap()
+    if not pm.isNull():
+        msg.setIconPixmap(pm.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+    else:
+        msg.setIcon(QtWidgets.QMessageBox.Information)
+    msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+    try:
+        msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
+    except Exception:
+        pass
+    if modal:
+        msg.exec()
+    else:
+        msg.open()
 
 
 def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down: str,
@@ -923,7 +968,7 @@ class MainWindow(QMainWindow):
             self.auth_status.setObjectName("statusBad")
             self._refresh_status_style()
             self._set_auth_status_icon(False)
-            QMessageBox.critical(self, "Ошибка", "Введите корректный токен (Bearer ...)")
+            _popup_error(self, "Введите корректный токен (Bearer ...)")
             return
 
         ACCESS_TOKEN = raw[7:].strip()
@@ -936,25 +981,25 @@ class MainWindow(QMainWindow):
                 self.auth_status.setObjectName("statusOk")
                 self._refresh_status_style()
                 self._set_auth_status_icon(True)
-                QMessageBox.information(self, "Успех", "Авторизация прошла успешно.")
+                show_info_dialog("Авторизация прошла успешно.", title="Успех", parent=self)
             else:
                 self.auth_status.setText("Не подключено")
                 self.auth_status.setObjectName("statusBad")
                 self._refresh_status_style()
                 self._set_auth_status_icon(False)
-                QMessageBox.critical(self, "Ошибка", f"Не удалось авторизоваться: {r.status_code}")
+                _popup_error(self, f"Не удалось авторизоваться: {r.status_code}")
         except Exception as e:
             self.auth_status.setText("Не подключено")
             self.auth_status.setObjectName("statusBad")
             self._refresh_status_style()
             self._set_auth_status_icon(False)
-            QMessageBox.critical(self, "Ошибка", f"Не удалось подключиться: {e}")
+            _popup_error(self, f"Не удалось подключиться: {e}")
 
     # --- Viewer projects/models ---
     def load_projects(self):
         data = api_get(f"{EXTERNAL_BASE_URL}/api/projects/all", EXTERNAL_HEADERS)
         if not data:
-            QMessageBox.critical(self, "Ошибка", "Не удалось загрузить проекты")
+            _popup_error(self, "Не удалось загрузить проекты")
             return
         self.proj_combo.clear()
         for p in data:
@@ -1017,7 +1062,7 @@ class MainWindow(QMainWindow):
                     self.schema_data[sid]["attributes"].setdefault(aid, a["title"])
 
         if not self.schema_data:
-            QMessageBox.information(self, "Инфо", "Нет доступных схем для выбранных моделей")
+            show_info_dialog("Нет доступных схем для выбранных моделей", title="Инфо", parent=self)
             return
 
         for sid, s in self.schema_data.items():
@@ -1099,28 +1144,26 @@ class MainWindow(QMainWindow):
         code = self.param_code.text().strip()
         value = self.value_entry.text().strip()
         if not code or not value:
-            QMessageBox.critical(self, "Ошибка", "Заполните параметры")
+            _popup_error(self, "Заполните параметры")
             return
         if self.attr_combo.count() == 0:
-            QMessageBox.critical(self, "Ошибка", "Выберите атрибут")
+            _popup_error(self, "Выберите атрибут")
             return
 
         schema_id = self._current_combo_id(self.schema_combo)
         attr_id = self._current_combo_id(self.attr_combo)
         if None in (schema_id, attr_id):
-            QMessageBox.critical(self, "Ошибка", "Не удалось получить ID схемы/атрибута")
+            _popup_error(self, "Не удалось получить ID схемы/атрибута")
             return
 
-        # Выбранные модели и их имена
         selected_models = [(mid, cb.text()) for mid, cb in self.checked_models.items() if cb.isChecked()]
         if not selected_models:
-            QMessageBox.critical(self, "Ошибка", "Выберите модели")
+            _popup_error(self, "Выберите модели")
             return
 
-        # Выбранные контейнеры
         selected_containers = [(cid, self.container_titles.get(cid, "")) for cid, cb in self.checked_containers.items() if cb.isChecked()]
         if not selected_containers:
-            QMessageBox.critical(self, "Ошибка", "Выберите контейнеры")
+            _popup_error(self, "Выберите контейнеры")
             return
 
         self.log("✅ Начинаем синхронизацию")

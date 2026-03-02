@@ -368,16 +368,61 @@ def set_header_logo(label: QtWidgets.QLabel, icon_dir: str, height: int = 48):
         label.setAlignment(QtCore.Qt.AlignCenter)
 
 def show_error_dialog(text: str, *, title: str = "Ошибка", icon_dir: str | None = None, parent=None, modal: bool = True):
+    if icon_dir is None:
+        icon_dir = ICON_DIR
     if parent is None:
         try:
             parent = QtWidgets.QApplication.activeWindow()
         except Exception:
             parent = None
-    if modal:
-        QtWidgets.QMessageBox.critical(parent, title, text)
+    msg = QtWidgets.QMessageBox(parent)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    app = QtWidgets.QApplication.instance()
+    p = resolve_icon_path("error", icon_dir, app=app)
+    pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
+    if not pm.isNull():
+        msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
     else:
-        m = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, title, text, QtWidgets.QMessageBox.Ok, parent)
-        m.open()
+        msg.setIcon(QtWidgets.QMessageBox.Critical)
+    msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+    try:
+        msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
+    except Exception:
+        pass
+    if modal:
+        msg.exec()
+    else:
+        msg.open()
+
+
+def show_info_dialog(text: str, *, title: str = "Информация", icon_dir: str | None = None, parent=None, modal: bool = True):
+    if icon_dir is None:
+        icon_dir = ICON_DIR
+    if parent is None:
+        try:
+            parent = QtWidgets.QApplication.activeWindow()
+        except Exception:
+            parent = None
+    msg = QtWidgets.QMessageBox(parent)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    app = QtWidgets.QApplication.instance()
+    p = resolve_icon_path("alert", icon_dir, app=app)
+    pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
+    if not pm.isNull():
+        msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
+    else:
+        msg.setIcon(QtWidgets.QMessageBox.Information)
+    msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+    try:
+        msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
+    except Exception:
+        pass
+    if modal:
+        msg.exec()
+    else:
+        msg.open()
 
 
 def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down: str,
@@ -1677,7 +1722,7 @@ class MappingDialog(QtWidgets.QDialog):
         except Exception:
             pass
         self._apply_mapping_to_rows()
-        QtWidgets.QMessageBox.information(self, "Готово", f"Импортировано: {len(mapping)} параметров.")
+        show_info_dialog(f"Импортировано: {len(mapping)} параметров.", title="Готово", parent=self)
 
     def _apply_param_filter(self, text: str):
         pattern = (text or "").strip().lower()
@@ -2073,7 +2118,7 @@ class MappingDialogLarix(QtWidgets.QDialog):
         except Exception:
             pass
         self._apply_mapping_to_rows()
-        QtWidgets.QMessageBox.information(self, "Готово", f"Импортировано: {len(mapping)} параметров.")
+        show_info_dialog(f"Импортировано: {len(mapping)} параметров.", title="Готово", parent=self)
 # --------- Диалог сопоставления листов ---------
 
 
@@ -2778,7 +2823,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if not fn.lower().endswith('.xlsx'):
                 fn += '.xlsx'
             out = _run_add_category_build(fn)
-            QtWidgets.QMessageBox.information(self, "Готово", f"Шаблон LOIN сохранён:\n{out}")
+            show_info_dialog(f"Шаблон LOIN сохранён:\n{out}", title="Готово", parent=self)
             self.input_file = out
             self.ed_loin_file.setText(os.path.basename(out))
             # Загружаем листы в комбобокс
@@ -2804,7 +2849,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if not fn.lower().endswith('.xlsx'):
                 fn += '.xlsx'
             out = _run_add_class_build(fn)
-            QtWidgets.QMessageBox.information(self, "Готово", f"Шаблон Коды сохранён:\n{out}")
+            show_info_dialog(f"Шаблон Коды сохранён:\n{out}", title="Готово", parent=self)
             self.classifier_file = out
             self.ed_codes_file.setText(os.path.basename(out))
             # Загружаем листы в комбобокс
@@ -2846,7 +2891,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if path:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            QtWidgets.QMessageBox.information(self, "Сохранено", f"Глобальная карта сохранена:\n{path}")
+            show_info_dialog(f"Глобальная карта сохранена:\n{path}", title="Сохранено", parent=self)
 
     def import_json_master(self):
         """Импортировать глобальную карту сопоставлений из JSON."""
@@ -2861,13 +2906,13 @@ class MainWindow(QtWidgets.QMainWindow):
         normalized = _normalize_mapping_payload(data)
         wb = _wb_id(getattr(self, "input_file", "") or "")
         MASTER_MAP_CACHE[wb] = _deepcopy_dict(normalized)
-        QtWidgets.QMessageBox.information(self, "Импорт", "Глобальная карта импортирована.")
+        show_info_dialog("Глобальная карта импортирована.", title="Импорт", parent=self)
 
     def clear_master(self):
         """Очистить глобальную карту сопоставлений."""
         wb = _wb_id(getattr(self, "input_file", "") or "")
         MASTER_MAP_CACHE[wb] = {}
-        QtWidgets.QMessageBox.information(self, "Очищено", "Глобальная карта очищена для текущей книги.")
+        show_info_dialog("Глобальная карта очищена для текущей книги.", title="Очищено", parent=self)
 
     def _on_generate_click(self):
         """Генерация профиля без сопоставления параметров."""
@@ -2890,7 +2935,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.last_output_dir = os.path.dirname(output_path)
         self.output_file = os.path.basename(output_path)
         ok, msg = excel_to_pv_profile(self.input_file, output_path, title, sheet, use_cls, cls_path, mode)
-        QtWidgets.QMessageBox.information(self, "Готово" if ok else "Ошибка", msg)
+        show_info_dialog(msg, title="Готово" if ok else "Ошибка", parent=self)
 
 class MainWindowMaster(MainWindow):
     pass

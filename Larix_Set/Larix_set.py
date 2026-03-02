@@ -97,6 +97,8 @@ _DEKSTOP_ICON_FILES = {
     "filter":      ["filter.png"],
     "flash":       ["flash.png"],
     "warning":     ["warning.png"],
+    "error":       ["error.png"],
+    "alert":       ["alert.png"],
     "structure":   ["structure.png"],
     "insert":      ["insert.png"],
     "back":        ["back.png"],
@@ -234,6 +236,26 @@ def _ensure_black_copy(src_path: str, icon_dir: str) -> str:
         return dst
     except Exception:
         return src_path
+
+
+def _ensure_gray_copy(src_path: str, icon_dir: str) -> str:
+    try:
+        if not src_path or not os.path.exists(src_path):
+            return src_path
+        out_dir = _cache_dir(icon_dir)
+        base = os.path.basename(src_path)
+        dst = os.path.join(out_dir, f"__gray__{base}")
+        if os.path.exists(dst):
+            return dst
+        pm = QtGui.QPixmap(src_path)
+        if pm.isNull():
+            return src_path
+        gray_pm = _tint_pixmap(pm, QtGui.QColor("#8f8f8f"))
+        gray_pm.save(dst)
+        return dst
+    except Exception:
+        return src_path
+
 
 def _ensure_rotated_left(icon_dir: str) -> str:
     src = _first_existing(["arrow-left.png"], icon_dir)
@@ -643,7 +665,7 @@ def show_error_dialog(text: str,
                       icon_dir: str = DEFAULT_ICON_DIR,
                       parent: QtWidgets.QWidget | None = None,
                       modal: bool = True) -> None:
-    """Показывает отдельное окно ошибки с картинкой warning.png.
+    """Показывает отдельное окно ошибки с картинкой error.png.
 
     - Использует `QMessageBox` и подменяет иконку через `setIconPixmap`.
     - Если `modal=True` — модально (`exec()`), иначе — немодально (`open()`).
@@ -652,14 +674,72 @@ def show_error_dialog(text: str,
     msg = QtWidgets.QMessageBox(parent)
     msg.setWindowTitle(title)
     msg.setText(text)
-    # Подменяем иконку на warning.png
+    p = resolve_icon_path("error", icon_dir, app=app)
+    pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
+    if not pm.isNull():
+        msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
+    else:
+        msg.setIcon(QtWidgets.QMessageBox.Critical)
+    try:
+        msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
+    except Exception:
+        pass
+    msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+    if modal:
+        msg.exec()
+    else:
+        msg.open()
+
+
+def show_info_dialog(text: str,
+                     *,
+                     title: str = "Информация",
+                     icon_dir: str = DEFAULT_ICON_DIR,
+                     parent: QtWidgets.QWidget | None = None,
+                     modal: bool = True) -> None:
+    """Показывает информационное окно с картинкой alert.png.
+
+    - Использует `QMessageBox` и подменяет иконку через `setIconPixmap`.
+    - Если `modal=True` — модально (`exec()`), иначе — немодально (`open()`).
+    """
+    app = QtWidgets.QApplication.instance()
+    msg = QtWidgets.QMessageBox(parent)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    p = resolve_icon_path("alert", icon_dir, app=app)
+    pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
+    if not pm.isNull():
+        msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
+    else:
+        msg.setIcon(QtWidgets.QMessageBox.Information)
+    try:
+        msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
+    except Exception:
+        pass
+    msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+    if modal:
+        msg.exec()
+    else:
+        msg.open()
+
+
+def show_warning_dialog(text: str,
+                        *,
+                        title: str = "Внимание",
+                        icon_dir: str = DEFAULT_ICON_DIR,
+                        parent: QtWidgets.QWidget | None = None,
+                        modal: bool = True) -> None:
+    """Показывает предупреждение с картинкой warning.png."""
+    app = QtWidgets.QApplication.instance()
+    msg = QtWidgets.QMessageBox(parent)
+    msg.setWindowTitle(title)
+    msg.setText(text)
     p = resolve_icon_path("warning", icon_dir, app=app)
-    pm = QtGui.QPixmap(p)
+    pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
     if not pm.isNull():
         msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
     else:
         msg.setIcon(QtWidgets.QMessageBox.Warning)
-    # Сместить текст вниз на ~10px в этом окне
     try:
         msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
     except Exception:
@@ -1732,15 +1812,6 @@ class ApiSelectDialog(QtWidgets.QDialog):
 
         self._build_ui()
 
-        # Иконка-стрелка справа и по центру строки
-        try:
-            apply_themed_icon(self.btn_load_params, "arrow_right", ICON_DIR)
-            self.btn_load_params.setIconSize(QtCore.QSize(8, 8))
-            self.btn_load_params.setLayoutDirection(QtCore.Qt.RightToLeft)
-            self.btn_load_params.setStyleSheet("padding-top: 8px;")
-        except Exception:
-            pass
-
         self._refresh_projects()
         self._restore_state()
 
@@ -1780,6 +1851,7 @@ class ApiSelectDialog(QtWidgets.QDialog):
         self.lst_cont.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.lst_cont.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.lst_cont.setStyleSheet("border: none;")
+        self.lst_cont.setItemDelegate(_ApiModelListDelegate(self.lst_cont, icon_dir=ICON_DIR))
         left_l.addWidget(self.lst_cont, 1)
         split.addWidget(left_box); left_box.setMinimumWidth(260)
 
@@ -1829,7 +1901,7 @@ class ApiSelectDialog(QtWidgets.QDialog):
         except Exception:
             pass
         self.tbl.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        self.tbl.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.tbl.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         g.addWidget(self.tbl, 1, 0, 1, 1)
 
         bottom = QtWidgets.QHBoxLayout(); root.addLayout(bottom)
@@ -1841,7 +1913,9 @@ class ApiSelectDialog(QtWidgets.QDialog):
         # Signals
         self.btn_proj.clicked.connect(self._refresh_projects)
         self.cmb_projects.currentIndexChanged.connect(self._on_project_changed)
-        self.btn_load_params.clicked.connect(self._load_parameters)
+        self.btn_load_params.clicked.connect(lambda _checked=False: self._load_parameters())
+        self.lst_cont.itemDoubleClicked.connect(self._on_model_double_clicked)
+        self.lst_cont.itemChanged.connect(self._on_model_item_changed)
         self.ed_filter.textChanged.connect(self._apply_filter)
         self.btn_find.clicked.connect(self._apply_filter)
         self.chk_type_num.toggled.connect(self._apply_filter)
@@ -1953,15 +2027,71 @@ class ApiSelectDialog(QtWidgets.QDialog):
             if k not in uniq:
                 uniq[k] = {"id": c.get("id"), "title": title}
         self._containers = sorted(uniq.values(), key=lambda x: x["title"].lower())
+        self.lst_cont.blockSignals(True)
         self.lst_cont.clear()
+        item_all = QtWidgets.QListWidgetItem("Все модели")
+        item_all.setFlags(item_all.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
+        item_all.setCheckState(QtCore.Qt.CheckState.Unchecked)
+        self.lst_cont.addItem(item_all)
         for c in self._containers:
-            self.lst_cont.addItem(c["title"])
+            item = QtWidgets.QListWidgetItem(c["title"])
+            item.setFlags(item.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(QtCore.Qt.CheckState.Unchecked)
+            self.lst_cont.addItem(item)
+        self.lst_cont.blockSignals(False)
 
-    def _load_parameters(self) -> None:
-        sels = self.lst_cont.selectedIndexes()
-        if not sels:
-            QtWidgets.QMessageBox.warning(self, "API", "Выберите одну или несколько моделей."); return
-        ids = [int(self._containers[i.row()]["id"]) for i in sels]
+    def _on_model_item_changed(self, item: QtWidgets.QListWidgetItem) -> None:
+        item_all = self.lst_cont.item(0)
+        if item is item_all:
+            state = item.checkState()
+            self.lst_cont.blockSignals(True)
+            for i in range(1, self.lst_cont.count()):
+                self.lst_cont.item(i).setCheckState(state)
+            self.lst_cont.blockSignals(False)
+        else:
+            all_checked = all(
+                self.lst_cont.item(i).checkState() == QtCore.Qt.CheckState.Checked
+                for i in range(1, self.lst_cont.count())
+            )
+            self.lst_cont.blockSignals(True)
+            item_all.setCheckState(QtCore.Qt.CheckState.Checked if all_checked else QtCore.Qt.CheckState.Unchecked)
+            self.lst_cont.blockSignals(False)
+
+    def _on_model_double_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
+        idx = self.lst_cont.row(item)
+        if idx <= 0:
+            return
+        model_idx = idx - 1
+        self._load_parameters(model_indices=[model_idx])
+
+    def _load_parameters(self, model_indices: Optional[List[int]] = None) -> None:
+        if isinstance(model_indices, bool):
+            model_indices = None
+        if model_indices is None:
+            checked_indices: List[int] = []
+            for i in range(1, self.lst_cont.count()):
+                item = self.lst_cont.item(i)
+                if item and item.checkState() == QtCore.Qt.CheckState.Checked:
+                    checked_indices.append(i - 1)
+            if checked_indices:
+                target_indices = checked_indices
+            else:
+                selected_rows = sorted({
+                    idx.row() - 1
+                    for idx in (self.lst_cont.selectedIndexes() or [])
+                    if idx.isValid() and idx.row() > 0
+                })
+                if not selected_rows:
+                    show_warning_dialog("Выберите одну или несколько моделей.", title="API", parent=self, modal=True)
+                    return
+                target_indices = selected_rows
+            ids = [int(self._containers[idx]["id"]) for idx in target_indices]
+            titles = [self._containers[idx]["title"] for idx in target_indices]
+        else:
+            if not model_indices:
+                return
+            ids = [int(self._containers[idx]["id"]) for idx in model_indices]
+            titles = [self._containers[idx]["title"] for idx in model_indices]
         try:
             native = self._load_params(self._get_base_url(), ids) or []
         except Exception as e:
@@ -1984,7 +2114,7 @@ class ApiSelectDialog(QtWidgets.QDialog):
         self._apply_filter()
 
         self._state["project_title"] = self.cmb_projects.currentText().strip()
-        self._state["container_titles"] = [self._containers[i.row()]["title"] for i in sels]
+        self._state["container_titles"] = titles
         self._state["param_filter"] = self.ed_filter.text()
         self._state["last_base_url"] = _runtime_api_base_url()
 
@@ -2023,7 +2153,7 @@ class ApiSelectDialog(QtWidgets.QDialog):
 # ----------------- Helper functions -----------------
 def _msg_critical(parent, title: str, text: str):
     """Show critical error message"""
-    QtWidgets.QMessageBox.critical(parent, title, text)
+    show_error_dialog(text, title=title, parent=parent, modal=True)
 
 def indent_xml(elem, level: int = 0) -> None:
     """Pretty-print XML with indentation"""
@@ -2042,29 +2172,28 @@ def indent_xml(elem, level: int = 0) -> None:
             elem.tail = i
 
 def build_empty_item_block():
-    cb = ET.Element("ConditionBlock", {"Type": "Block", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"})
-    sig = ET.SubElement(cb, "Signal"); ET.SubElement(sig, "Messages")
-    cond = ET.SubElement(cb, "Condition", {
-        "FieldName": "", "FieldIsNumeric": "false", "Operator": "Equal", "Value": "",
-        "TextCaseSensitive": "false", "TextSpaceSensitive": "true", "IsUndefinedFieldName": "false",
+    cb = ET.Element("ConditionBlock", {"Type": "Block"})
+    ET.SubElement(cb, "Condition", {
+        "FieldIsNumeric": "false",
+        "TextSpaceSensitive": "true",
+        "IsUndefinedFieldName": "false",
     })
-    sig2 = ET.SubElement(cond, "Signal"); ET.SubElement(sig2, "Messages")
     ET.SubElement(cb, "ConditionsBlocks")
     return cb
 
 def build_single_condition_block(value: str, field_name: str):
-    b = ET.Element("ConditionsBlock", {"Type": "Single", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"})
-    sig = ET.SubElement(b, "Signal"); ET.SubElement(sig, "Messages")
+    b = ET.Element("ConditionsBlock")
     ET.SubElement(b, "Condition", {
-        "FieldName": field_name, "FieldIsNumeric": "false", "Operator": "Equal", "Value": value,
-        "TextCaseSensitive": "false", "TextSpaceSensitive": "false", "IsUndefinedFieldName": "false",
+        "FieldName": field_name,
+        "FieldIsNumeric": "false",
+        "Value": value,
+        "IsUndefinedFieldName": "false",
     })
-    sig2 = ET.SubElement(b, "Signal"); ET.SubElement(sig2, "Messages")
     ET.SubElement(b, "ConditionsBlocks")
     return b
 
-def build_multi_condition_block(field_values_pairs: List[Tuple[str, List[str]]]):
-    vals: List[Tuple[str, str]] = []
+def build_flat_condition_block(field_values_pairs: List[Tuple[str, List[str]]]):
+    flat_conditions: List[Tuple[str, str]] = []
     for field_name, values in (field_values_pairs or []):
         field = sanitize_str(field_name)
         if not field:
@@ -2072,24 +2201,59 @@ def build_multi_condition_block(field_values_pairs: List[Tuple[str, List[str]]])
         for value in (values or []):
             v = sanitize_str(value)
             if v:
-                vals.append((field, v))
-    if not vals:
+                flat_conditions.append((field, v))
+    if not flat_conditions:
         return build_empty_item_block()
 
-    cb = ET.Element("ConditionBlock", {"Type": "Block", "LogicalOperator": "Or", "IsNegative": "false", "IsEnabled": "true"})
-    sig = ET.SubElement(cb, "Signal"); ET.SubElement(sig, "Messages")
+    cb = ET.Element("ConditionBlock", {"Type": "Block", "LogicalOperator": "Or"})
     ET.SubElement(cb, "Condition", {
-        "FieldName": "", "FieldIsNumeric": "false", "Operator": "Equal", "Value": "",
-        "TextCaseSensitive": "false", "TextSpaceSensitive": "true", "IsUndefinedFieldName": "false",
+        "IsUndefinedFieldName": "false",
     })
     blocks = ET.SubElement(cb, "ConditionsBlocks")
-    for field_name, value in vals:
+    for field_name, value in flat_conditions:
         blocks.append(build_single_condition_block(value, field_name))
     return cb
 
 
+def build_grouped_condition_block(field_values_pairs: List[Tuple[str, List[str]]]):
+    field_to_values: Dict[str, List[str]] = {}
+    field_order: List[str] = []
+    for field_name, values in (field_values_pairs or []):
+        field = sanitize_str(field_name)
+        if not field:
+            continue
+        bucket = field_to_values.setdefault(field, [])
+        if field not in field_order:
+            field_order.append(field)
+        for value in (values or []):
+            v = sanitize_str(value)
+            if v and v not in bucket:
+                bucket.append(v)
+    if not any(field_to_values.values()):
+        return build_empty_item_block()
+
+    cb = ET.Element("ConditionBlock", {"Type": "Block", "LogicalOperator": "Or"})
+    ET.SubElement(cb, "Condition", {
+        "IsUndefinedFieldName": "false",
+    })
+    blocks = ET.SubElement(cb, "ConditionsBlocks")
+    for field_name in field_order:
+        values = field_to_values.get(field_name, [])
+        if not values:
+            continue
+        field_block = ET.Element("ConditionsBlock", {"Type": "Block", "LogicalOperator": "Or"})
+        ET.SubElement(field_block, "Condition", {
+            "IsUndefinedFieldName": "false",
+        })
+        value_blocks = ET.SubElement(field_block, "ConditionsBlocks")
+        for value in values:
+            value_blocks.append(build_single_condition_block(value, field_name))
+        blocks.append(field_block)
+    return cb
+
+
 def build_mixed_item_condition_block_3(cat_values, cat_field, cls_values, cls_field, ifc_values, ifc_field):
-    return build_multi_condition_block([
+    return build_grouped_condition_block([
         (cat_field, cat_values or []),
         (cls_field, cls_values or []),
         (ifc_field, ifc_values or []),
@@ -2118,7 +2282,8 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
                     auto_number, build_filters, field_name_category, field_name_ifc, filter_mode,
                     classif_map, classif_column, field_name_classif, group_idx_start=0,
                     param_field_map: Optional[Dict[str, str]] = None,
-                    active_param_columns: Optional[List[str]] = None):
+                    active_param_columns: Optional[List[str]] = None,
+                    grouped: bool = False):
     if pd is None:
         raise RuntimeError("Нужен pandas: pip install pandas")
     next_id = id_start
@@ -2246,6 +2411,46 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
                 return razdel_idx
         return None
 
+    def _merge_condition_pairs(left_pairs: List[Tuple[str, List[str]]],
+                               right_pairs: List[Tuple[str, List[str]]]) -> List[Tuple[str, List[str]]]:
+        merged: Dict[str, List[str]] = {}
+        order: List[str] = []
+        for pairs in (left_pairs or [], right_pairs or []):
+            for field_name, values in pairs:
+                field = sanitize_str(field_name)
+                if field not in merged:
+                    merged[field] = []
+                    order.append(field)
+                for value in (values or []):
+                    v = sanitize_str(value)
+                    if v and v not in merged[field]:
+                        merged[field].append(v)
+        return [(field, merged[field]) for field in order]
+
+    if grouped:
+        merged_rows: List[Dict[str, Any]] = []
+        merged_index: Dict[Tuple[Optional[int], str, str, int], Dict[str, Any]] = {}
+        for row_data in rows_data:
+            if row_data["is_razdel"]:
+                merged_rows.append(row_data)
+                continue
+            section_idx = get_razdel_parent_idx(row_data["orig_idx"])
+            merge_key = (
+                section_idx,
+                sanitize_str(row_data["prefix"] or ""),
+                sanitize_str(row_data["name"]),
+                int(row_data["level"]),
+            )
+            existing = merged_index.get(merge_key)
+            if existing is None:
+                row_copy = dict(row_data)
+                row_copy["condition_pairs"] = _merge_condition_pairs([], row_data["condition_pairs"])
+                merged_rows.append(row_copy)
+                merged_index[merge_key] = row_copy
+            else:
+                existing["condition_pairs"] = _merge_condition_pairs(existing["condition_pairs"], row_data["condition_pairs"])
+        rows_data = merged_rows
+
     rows_data.sort(key=lambda r: (r["prefix"] or "zzz", r["name"]))
 
     razdel_rows = [r for r in rows_data if r["is_razdel"]]
@@ -2271,12 +2476,16 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
         ET.SubElement(item, "ParentId", {"xsi:nil": "true"})
 
         clean_name = strip_prefix(name_1st)
-        group_idx += 1
-        code = f"{group_idx:02d}"
-        ET.SubElement(item, "Title").text = f"{code}_{clean_name}"
+        if auto_number:
+            group_idx += 1
+            code = f"{group_idx:02d}"
+            ET.SubElement(item, "Title").text = f"{code}_{clean_name}"
+        else:
+            ET.SubElement(item, "Title").text = clean_name
 
         if build_filters:
-            item.append(build_multi_condition_block(condition_pairs))
+            builder = build_grouped_condition_block if grouped else build_flat_condition_block
+            item.append(builder(condition_pairs))
         else:
             item.append(build_empty_item_block())
 
@@ -2316,28 +2525,33 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
         if auto_number:
             if prefix:
                 ET.SubElement(item, "Title").text = name_1st
-                prefix_to_id[prefix] = item_id
+                if not grouped or prefix not in prefix_to_id:
+                    prefix_to_id[prefix] = item_id
             else:
                 parent_prefix = find_existing_parent(prefix, prefix_to_id) if prefix else None
                 
                 if parent_prefix is None:
                     group_idx += 1
                     code = f"{group_idx:02d}"
-                    prefix_to_id[code] = item_id
+                    if not grouped or code not in prefix_to_id:
+                        prefix_to_id[code] = item_id
                 else:
                     if parent_prefix not in child_counters:
                         child_counters[parent_prefix] = 0
                     child_counters[parent_prefix] += 1
                     code = f"{parent_prefix}.{child_counters[parent_prefix]:02d}"
-                    prefix_to_id[code] = item_id
+                    if not grouped or code not in prefix_to_id:
+                        prefix_to_id[code] = item_id
                 ET.SubElement(item, "Title").text = f"{code}_{clean_name}"
         else:
             ET.SubElement(item, "Title").text = clean_name
             if prefix:
-                prefix_to_id[prefix] = item_id
+                if not grouped or prefix not in prefix_to_id:
+                    prefix_to_id[prefix] = item_id
 
         if build_filters:
-            item.append(build_multi_condition_block(condition_pairs))
+            builder = build_grouped_condition_block if grouped else build_flat_condition_block
+            item.append(builder(condition_pairs))
         else:
             item.append(build_empty_item_block())
 
@@ -2346,6 +2560,123 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
     return next_id, group_idx
 
 # ----------------- SheetPicker Dialog -----------------
+class _SheetListDelegate(QtWidgets.QStyledItemDelegate):
+    """Delegate для списка листов: перекрашивает чекбокс в черный при hover/selected в темной теме."""
+    _UNCHECKED_VALUE = getattr(QtCore.Qt.Unchecked, "value", 0)
+    _CHECKED_VALUE = getattr(QtCore.Qt.Checked, "value", 2)
+
+    def __init__(self, parent: QtWidgets.QWidget | None = None, *, icon_dir: str = DEFAULT_ICON_DIR):
+        super().__init__(parent)
+        self.icon_dir = icon_dir
+        self._cache: dict[str, QtGui.QPixmap] = {}
+
+    @classmethod
+    def _state_value(cls, state) -> int:
+        if state is None:
+            return cls._UNCHECKED_VALUE
+        return getattr(state, "value", state)
+
+    def _get_pixmap(self, name: str, black: bool) -> QtGui.QPixmap:
+        key = f"{name}_{'black' if black else 'normal'}"
+        if key in self._cache:
+            return self._cache[key]
+        
+        if black:
+            spec = _DEKSTOP_ICON_FILES.get(name)
+            candidates = spec if isinstance(spec, list) else [spec] if isinstance(spec, str) else []
+            path = _first_existing(candidates, self.icon_dir)
+            if not path:
+                return QtGui.QPixmap()
+            pm = QtGui.QPixmap(path)
+            if pm.isNull():
+                return pm
+            pm = _tint_pixmap(pm, QtGui.QColor("#000000"))
+        else:
+            app = QtWidgets.QApplication.instance()
+            path = resolve_icon_path(name, self.icon_dir, app=app)
+            if not path:
+                return QtGui.QPixmap()
+            pm = QtGui.QPixmap(path)
+        
+        self._cache[key] = pm
+        return pm
+
+    def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex) -> None:
+        app = QtWidgets.QApplication.instance()
+        is_hover = bool(option.state & QtWidgets.QStyle.State_MouseOver)
+        is_selected = bool(option.state & QtWidgets.QStyle.State_Selected)
+        is_hover_or_selected = is_hover or is_selected
+        use_black = is_hover_or_selected
+
+        opt = QtWidgets.QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+
+        check_state = index.data(QtCore.Qt.CheckStateRole)
+        is_checked = self._state_value(check_state) == self._CHECKED_VALUE
+
+        icon_name = "select" if is_checked else "check"
+        pm = self._get_pixmap(icon_name, use_black)
+
+        style = opt.widget.style() if opt.widget else QtWidgets.QApplication.style()
+        orig_rect = QtCore.QRect(option.rect)
+        check_rect = style.subElementRect(QtWidgets.QStyle.SE_ItemViewItemCheckIndicator, opt, opt.widget)
+        margin = style.pixelMetric(QtWidgets.QStyle.PM_FocusFrameHMargin, None, opt.widget)
+        gap = max(4, margin)
+        text_x = check_rect.right() + gap
+        text_width = orig_rect.right() - text_x
+
+        painter.save()
+        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        painter.setFont(opt.font)
+
+        if is_hover_or_selected:
+            bg_color = QtGui.QColor(PALETTE.SELECTED if is_selected else PALETTE.SOFT_HOVER)
+            row_rect = orig_rect.adjusted(2, 1, -2, -1)
+            painter.setPen(QtCore.Qt.NoPen)
+            painter.setBrush(bg_color)
+            painter.drawRoundedRect(row_rect, 8, 8)
+            text_color = QtGui.QColor("#000000")
+        else:
+            text_color = QtGui.QColor(PALETTE.FG_DARK if is_dark_theme(app) else PALETTE.FG_LIGHT)
+
+        painter.setPen(text_color)
+        text_rect = QtCore.QRect(text_x, orig_rect.top(), text_width, orig_rect.height())
+        elided = opt.fontMetrics.elidedText(opt.text, QtCore.Qt.ElideRight, text_rect.width())
+        painter.drawText(text_rect, QtCore.Qt.AlignVCenter | QtCore.Qt.AlignLeft, elided)
+        painter.restore()
+
+        if not pm.isNull():
+            sz = min(pm.width(), pm.height(), check_rect.width(), check_rect.height())
+            if sz > 0:
+                scaled = pm.scaled(sz, sz, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                offset_y = (check_rect.height() - scaled.height()) // 2
+                painter.drawPixmap(check_rect.left(), check_rect.top() + offset_y, scaled)
+
+    def editorEvent(self, event: QtCore.QEvent, model: QtCore.QAbstractItemModel, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex) -> bool:
+        if event.type() == QtCore.QEvent.MouseButtonRelease:
+            opt = QtWidgets.QStyleOptionViewItem(option)
+            self.initStyleOption(opt, index)
+            style = opt.widget.style() if opt.widget else QtWidgets.QApplication.style()
+            check_rect = style.subElementRect(QtWidgets.QStyle.SE_ItemViewItemCheckIndicator, opt, opt.widget)
+            if check_rect.contains(event.pos()):
+                current = self._state_value(index.data(QtCore.Qt.CheckStateRole))
+                new_state = self._UNCHECKED_VALUE if current == self._CHECKED_VALUE else self._CHECKED_VALUE
+                model.setData(index, new_state, QtCore.Qt.CheckStateRole)
+                return True
+        elif event.type() == QtCore.QEvent.KeyPress:
+            if event.key() in (QtCore.Qt.Key_Space, QtCore.Qt.Key_Select):
+                current = self._state_value(index.data(QtCore.Qt.CheckStateRole))
+                new_state = self._UNCHECKED_VALUE if current == self._CHECKED_VALUE else self._CHECKED_VALUE
+                model.setData(index, new_state, QtCore.Qt.CheckStateRole)
+                return True
+        return super().editorEvent(event, model, option, index)
+
+
+class _ApiModelListDelegate(_SheetListDelegate):
+    """Delegate для списка моделей API: наследует логику _SheetListDelegate (черный чекбокс при hover/selected)."""
+    pass
+
+
 class SheetPickerDialog(QtWidgets.QDialog):
     """
     Простой диалог выбора листов Excel.
@@ -2353,11 +2684,6 @@ class SheetPickerDialog(QtWidgets.QDialog):
     """
     def __init__(self, master: QtWidgets.QWidget, existing_path: str = "", existing_sheets: list|None = None):
         super().__init__(master)
-        try:
-            self.setProperty("noCheckHoverRecolor", True)
-            self.style().unpolish(self); self.style().polish(self)
-        except Exception:
-            pass
         self.setWindowTitle("Выбор листа Excel")
         self.resize(500, 400)
         self._selected_path = existing_path
@@ -2388,6 +2714,8 @@ class SheetPickerDialog(QtWidgets.QDialog):
         self.lst_sheets = QtWidgets.QListWidget()
         self.lst_sheets.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.lst_sheets.setStyleSheet("border: none;")
+        self.lst_sheets.setItemDelegate(_SheetListDelegate(self.lst_sheets, icon_dir=DEFAULT_ICON_DIR))
+        self.lst_sheets.setMouseTracking(True)
         root.addWidget(self.lst_sheets, 1)
 
         row_actions = QtWidgets.QHBoxLayout()
@@ -2430,7 +2758,7 @@ class SheetPickerDialog(QtWidgets.QDialog):
             sheets = ["Лист1"]
         for name in sheets:
             it = QtWidgets.QListWidgetItem(name)
-            it.setFlags(it.flags() | QtCore.Qt.ItemIsUserCheckable)
+            it.setFlags(it.flags() | QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
             it.setCheckState(QtCore.Qt.Checked if name in self._selected_sheets else QtCore.Qt.Unchecked)
             self.lst_sheets.addItem(it)
 
@@ -2446,7 +2774,7 @@ class SheetPickerDialog(QtWidgets.QDialog):
             if it.checkState() == QtCore.Qt.Checked:
                 self._selected_sheets.append(it.text())
         if not self._selected_sheets:
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Выберите хотя бы один лист.")
+            show_error_dialog("Выберите хотя бы один лист.", title="Внимание", parent=self, modal=True)
             return
         self.accept()
 
@@ -2589,11 +2917,26 @@ class ContentWidget(QtWidgets.QWidget):
         root.addWidget(sec_settings)
         
         self.cb_auto = QtWidgets.QCheckBox("Автонумерация (01_ 01.01_)")
-        self.cb_auto.setChecked(True)
+        self.cb_auto.setChecked(False)
+        self.cb_auto.setEnabled(False)
+        self.cb_auto.setToolTip("Добавляет числовые префиксы к названиям групп и элементов, например 01_ и 01.01_.")
         g.addWidget(self.cb_auto, 0, 0)
         self.cb_filter = QtWidgets.QCheckBox("Фильтр")
-        self.cb_filter.setChecked(True)
+        self.cb_filter.setChecked(False)
+        self.cb_filter.setEnabled(False)
+        self.cb_filter.setToolTip("Создаёт условия отбора параметров в экспортируемом профиле.")
         g.addWidget(self.cb_filter, 0, 1)
+        self.cb_grouped = QtWidgets.QCheckBox("Распределить по группам")
+        self.cb_grouped.setChecked(False)
+        self.cb_grouped.setEnabled(False)
+        self._cb_grouped_tooltip = "Если одинаковые параметры встречаются в разных группах, создаёт отдельные элементы в каждой группе, а не объединяет их в один."
+        self._cb_grouped_tooltip_disabled = "Сначала включите «Фильтр» для активации этой опции."
+        self.cb_grouped.setToolTip(self._cb_grouped_tooltip_disabled)
+        g.addWidget(self.cb_grouped, 0, 2)
+        
+        self._setup_checkbox_disabled_style()
+        
+        self.cb_filter.toggled.connect(self._on_filter_toggled)
 
         btns = QtWidgets.QVBoxLayout()
         self.btn_generate = QtWidgets.QPushButton("Сгенерировать профиль")
@@ -2604,6 +2947,48 @@ class ContentWidget(QtWidgets.QWidget):
 
         self.btn_pick.clicked.connect(self._open_sheet_dialog)
         self.btn_generate.clicked.connect(self.generate_clicked)
+
+    def _on_filter_toggled(self, checked: bool):
+        self.cb_grouped.setEnabled(checked)
+        if checked:
+            self.cb_grouped.setToolTip(self._cb_grouped_tooltip)
+        else:
+            self.cb_grouped.setChecked(False)
+            self.cb_grouped.setToolTip(self._cb_grouped_tooltip_disabled)
+
+    def _setup_checkbox_disabled_style(self):
+        app = QtWidgets.QApplication.instance()
+        chk_off = resolve_icon_path("check", DEFAULT_ICON_DIR, app=app)
+        chk_on = resolve_icon_path("select", DEFAULT_ICON_DIR, app=app)
+        chk_mid = resolve_icon_path("poloska", DEFAULT_ICON_DIR, app=app)
+        chk_off_dis = _ensure_gray_copy(chk_off, DEFAULT_ICON_DIR) if chk_off else ""
+        chk_on_dis = _ensure_gray_copy(chk_on, DEFAULT_ICON_DIR) if chk_on else ""
+        chk_mid_dis = _ensure_gray_copy(chk_mid, DEFAULT_ICON_DIR) if chk_mid else ""
+        chk_off_dis_url = _qss_url(chk_off_dis) if chk_off_dis else ""
+        chk_on_dis_url = _qss_url(chk_on_dis) if chk_on_dis else ""
+        chk_mid_dis_url = _qss_url(chk_mid_dis) if chk_mid_dis else ""
+        dis_qss = f"""
+        QCheckBox:disabled {{ color: #8f8f8f; }}
+        QCheckBox::indicator:unchecked:disabled {{ image: url('{chk_off_dis_url}'); }}
+        QCheckBox::indicator:checked:disabled {{ image: url('{chk_on_dis_url}'); }}
+        QCheckBox::indicator:indeterminate:disabled {{ image: url('{chk_mid_dis_url}'); }}
+        """
+        self.cb_auto.setStyleSheet(dis_qss)
+        self.cb_filter.setStyleSheet(dis_qss)
+        self.cb_grouped.setStyleSheet(dis_qss)
+
+    def _enable_settings_checkboxes(self, enable: bool):
+        self.cb_auto.setEnabled(enable)
+        self.cb_filter.setEnabled(enable)
+        if enable:
+            self.cb_auto.setChecked(True)
+            self.cb_filter.setChecked(True)
+            self.cb_grouped.setEnabled(True)
+            self.cb_grouped.setChecked(True)
+            self.cb_grouped.setToolTip(self._cb_grouped_tooltip)
+        else:
+            self.cb_grouped.setEnabled(False)
+            self.cb_grouped.setToolTip(self._cb_grouped_tooltip_disabled)
 
     @staticmethod
     def _normalize_col_name(name: str) -> str:
@@ -2738,6 +3123,7 @@ class ContentWidget(QtWidgets.QWidget):
             else:
                 self.ed_sel_summary.setText("Не выбрано")
             self._load_column_params()
+            self._enable_settings_checkboxes(True)
 
     def _load_column_params(self):
         self._excel_param_columns = []
@@ -2851,6 +3237,7 @@ class ContentWidget(QtWidgets.QWidget):
             next_id = 10000
             auto_number = self.cb_auto.isChecked()
             build_filters = self.cb_filter.isChecked()
+            grouped = self.cb_grouped.isChecked()
             param_field_map = self._param_field_map()
 
             group_col = self._excel_column_roles.get("group") or GROUP_COL_DEFAULT
@@ -2892,11 +3279,12 @@ class ContentWidget(QtWidgets.QWidget):
                     group_idx_start=group_idx,
                     param_field_map=param_field_map,
                     active_param_columns=list(param_field_map.keys()),
+                    grouped=grouped,
                 )
 
             indent_xml(root)
             ET.ElementTree(root).write(out_path, encoding="utf-8", xml_declaration=True)
-            QtWidgets.QMessageBox.information(self, "Успех", f"Файл сохранён:\n{out_path}")
+            show_info_dialog(f"Файл сохранён:\n{out_path}", title="Успех", parent=self)
         except Exception as e:
             _msg_critical(self, "Ошибка", str(e))
 

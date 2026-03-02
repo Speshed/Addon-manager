@@ -115,6 +115,48 @@ def _apply_native_dark_titlebar(widget: QtWidgets.QWidget, dark: bool) -> None:
     except Exception:
         pass
 
+def _popup_error(parent, text: str, title: str = "Ошибка"):
+    try:
+        app = QtWidgets.QApplication.instance()
+        p = resolve_icon_path("error", ICON_DIR, app=app)
+        pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
+        msg = QtWidgets.QMessageBox(parent)
+        msg.setWindowTitle(title)
+        msg.setText(text)
+        if not pm.isNull():
+            msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation))
+        else:
+            msg.setIcon(QtWidgets.QMessageBox.Icon.Critical)
+        msg.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Ok)
+        msg.exec()
+    except Exception:
+        try:
+            QtWidgets.QMessageBox.critical(parent, title, text)
+        except Exception:
+            pass
+
+
+def _popup_info(parent, text: str, title: str = "Информация"):
+    try:
+        app = QtWidgets.QApplication.instance()
+        p = resolve_icon_path("alert", ICON_DIR, app=app)
+        pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
+        msg = QtWidgets.QMessageBox(parent)
+        msg.setWindowTitle(title)
+        msg.setText(text)
+        if not pm.isNull():
+            msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation))
+        else:
+            msg.setIcon(QtWidgets.QMessageBox.Icon.Information)
+        msg.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Ok)
+        msg.exec()
+    except Exception:
+        try:
+            QtWidgets.QMessageBox.information(parent, title, text)
+        except Exception:
+            pass
+
+
 # -----------------------------
 # XML ШАБЛОНЫ
 # -----------------------------
@@ -751,7 +793,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_sheet_matrix.setEditable(True)
         self.cb_sheet_matrix.lineEdit().setPlaceholderText("не выбрано")
         self.cb_sheet_matrix.setCurrentIndex(-1)
-        self.cb_sheet_matrix.setFixedWidth(160)
+        self.cb_sheet_matrix.setFixedWidth(300)
         spm = self.cb_sheet_matrix.sizePolicy()
         spm.setHorizontalPolicy(QtWidgets.QSizePolicy.Fixed)
         self.cb_sheet_matrix.setSizePolicy(spm)
@@ -770,22 +812,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_sheet_nabory.setEditable(True)
         self.cb_sheet_nabory.lineEdit().setPlaceholderText("не выбрано")
         self.cb_sheet_nabory.setCurrentIndex(-1)
-        self.cb_sheet_nabory.setFixedWidth(160)
+        self.cb_sheet_nabory.setFixedWidth(300)
         spn = self.cb_sheet_nabory.sizePolicy()
         spn.setHorizontalPolicy(QtWidgets.QSizePolicy.Fixed)
         self.cb_sheet_nabory.setSizePolicy(spn)
         l.addWidget(QtWidgets.QLabel("Лист (наборы):"), 4, 0)
         l.addWidget(self.cb_sheet_nabory, 4, 1)
 
-        # Выход
-        self.ed_output = QtWidgets.QLineEdit()
-        self.btn_output = QtWidgets.QPushButton("Выбрать...")
-        self.btn_output.clicked.connect(self._pick_output)
-        l.addWidget(QtWidgets.QLabel("Выходной файл (.cv/.xml)"), 5, 0)
-        l.addWidget(self.ed_output, 5, 1)
-        l.addWidget(self.btn_output, 5, 2)
-
-        # Название профиля
         self.ed_title = QtWidgets.QLineEdit()
         self.ed_title.setPlaceholderText("Матрица")
         l.addWidget(QtWidgets.QLabel("Название профиля"), 0, 0)
@@ -959,11 +992,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ed_matrix.setText(path)
             self._populate_sheets(path, self.cb_sheet_matrix)
 
-    def _pick_output(self):
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Выберите выходной файл", "matrix.cv", "Профиль (*.cv *.xml)")
-        if path:
-            self.ed_output.setText(path)
-
     def _populate_sheets(self, file_path: str, combo: QtWidgets.QComboBox):
         sheets = list_sheets(file_path)
         combo.clear()
@@ -981,7 +1009,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def _start_generation(self):
         nabory = self.ed_nabory.text().strip()
         matrix = self.ed_matrix.text().strip()
-        out = self.ed_output.text().strip()
         profile_title = (self.ed_title.text() or "").strip() or "Матрица"
         param_field = (self.cb_param.currentText() or "").strip() or "Категория:\\"
 
@@ -994,9 +1021,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if nabory and not os.path.exists(nabory):
             QtWidgets.QMessageBox.warning(self, "Файл не найден", "Укажите корректный путь к файлу наборов или оставьте поле пустым.")
             return
-        if not out:
-            QtWidgets.QMessageBox.warning(self, "Не задан выходной файл", "Укажите путь сохранения .cv/.xml")
-            return
         if nabory and not sheet_nabory:
             QtWidgets.QMessageBox.warning(self, "Не выбран лист", "Выберите лист в файле наборов или очистите путь к наборам.")
             return
@@ -1004,7 +1028,9 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Не выбран лист", "Выберите лист в матрице.")
             return
 
-        # log removed
+        out, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Выберите выходной файл", "matrix.cv", "Профиль (*.cv *.xml)")
+        if not out:
+            return
         
         self.btn_generate.setEnabled(False)
         self.status.showMessage("Обработка...")
@@ -1030,12 +1056,12 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_done(self, out_path: str):
         
         self.status.showMessage("Готово")
-        QtWidgets.QMessageBox.information(self, "Готово", f"Файл создан:\n{out_path}")
+        _popup_info(self, f"Файл создан:\n{out_path}", "Готово")
 
     def _on_failed(self, err: str):
         
         self.status.showMessage("Ошибка")
-        QtWidgets.QMessageBox.critical(self, "Ошибка", "Произошла ошибка при генерации. Подробности в журнале.")
+        _popup_error(self, "Произошла ошибка при генерации. Подробности в журнале.")
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

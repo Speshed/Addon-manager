@@ -123,6 +123,43 @@ def show_error_dialog(parent, title: str, message: str):
     dlg.exec()
 
 
+class InfoDialog(QtWidgets.QDialog):
+    def __init__(self, parent, title: str, message: str):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowType.WindowContextHelpButtonHint)
+        self.setMinimumWidth(320)
+        vlayout = QtWidgets.QVBoxLayout(self)
+        vlayout.setSpacing(16)
+        vlayout.setContentsMargins(20, 20, 20, 20)
+        hlayout = QtWidgets.QHBoxLayout()
+        icon_label = QtWidgets.QLabel()
+        app = QtWidgets.QApplication.instance()
+        icon_path = resolve_icon_path("alert", ICON_DIR, app=app, tint_in_dark=True)
+        if icon_path and os.path.exists(icon_path):
+            pm = QtGui.QPixmap(icon_path)
+            if not pm.isNull():
+                icon_label.setPixmap(pm.scaled(48, 48, QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation))
+        if icon_label.pixmap() is None or icon_label.pixmap().isNull():
+            style = QtWidgets.QApplication.style()
+            icon_label.setPixmap(style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_MessageBoxInformation).pixmap(48, 48))
+        hlayout.addWidget(icon_label, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+        msg_label = QtWidgets.QLabel(message)
+        msg_label.setWordWrap(True)
+        msg_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        msg_label.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        hlayout.addWidget(msg_label, 1)
+        vlayout.addLayout(hlayout)
+        btn_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok)
+        btn_box.accepted.connect(self.accept)
+        vlayout.addWidget(btn_box, 0, QtCore.Qt.AlignmentFlag.AlignRight)
+
+
+def show_info_dialog(parent, title: str, message: str):
+    dlg = InfoDialog(parent, title, message)
+    dlg.exec()
+
+
 def _pm(size: int) -> QtGui.QPixmap:
     pm = QtGui.QPixmap(size, size)
     pm.fill(QtCore.Qt.transparent)
@@ -2299,7 +2336,7 @@ class MainWin(QtWidgets.QMainWindow):
             self.tableBindings.setRowCount(0)
             self.labelAttrSource.setText("Параметры загружены из импортированного файла")
             self.refresh_attr_tree(True)
-            show_error_dialog(self, "Импорт", f"Загружено атрибутов: {len(self.doc.queues)}")
+            show_info_dialog(self, "Импорт", f"Загружено атрибутов: {len(self.doc.queues)}")
         except Exception as e:
             show_error_dialog(self, "Импорт", f"Не удалось импортировать:\n{e}")
 
@@ -2310,7 +2347,7 @@ class MainWin(QtWidgets.QMainWindow):
         if not path: return
         try:
             tree = self.doc.to_xml(); tree.write(path, encoding="utf-8", xml_declaration=True)
-            show_error_dialog(self, "Экспорт", f"Сохранено:\n{path}")
+            show_info_dialog(self, "Экспорт", f"Сохранено:\n{path}")
         except Exception as e:
             show_error_dialog(self, "Экспорт", f"Ошибка сохранения:\n{e}")
 

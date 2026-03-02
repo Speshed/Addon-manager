@@ -28,6 +28,48 @@ VIEWER_LOGO_HEIGHT = 64
 _ACTIVE_API_CHECK_THREADS = set()
 
 
+def _popup_error(parent, text: str, title: str = "Ошибка"):
+    try:
+        app = QApplication.instance()
+        p = resolve_icon_path("error", ICON_DIR, app=app)
+        pm = QPixmap(p) if p else QPixmap()
+        msg = QMessageBox(parent)
+        msg.setWindowTitle(title)
+        msg.setText(text)
+        if not pm.isNull():
+            msg.setIconPixmap(pm.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        else:
+            msg.setIcon(QMessageBox.Critical)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec()
+    except Exception:
+        try:
+            QMessageBox.critical(parent, title, text)
+        except Exception:
+            pass
+
+
+def _popup_info(parent, text: str, title: str = "Информация"):
+    try:
+        app = QApplication.instance()
+        p = resolve_icon_path("alert", ICON_DIR, app=app)
+        pm = QPixmap(p) if p else QPixmap()
+        msg = QMessageBox(parent)
+        msg.setWindowTitle(title)
+        msg.setText(text)
+        if not pm.isNull():
+            msg.setIconPixmap(pm.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        else:
+            msg.setIcon(QMessageBox.Information)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec()
+    except Exception:
+        try:
+            QMessageBox.information(parent, title, text)
+        except Exception:
+            pass
+
+
 def _load_symbol_from_dir(module_dir: str, module_name: str, symbol_name: str):
     mod_dir = os.path.join(BASE_DIR, module_dir)
     if mod_dir not in sys.path:
@@ -912,7 +954,7 @@ class MainMenuWidget(QWidget):
         try:
             from Excel_template import export_common_excel
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить модуль шаблонов:\n{e}")
+            _popup_error(self, f"Не удалось загрузить модуль шаблонов:\n{e}")
             return
         fn, _ = QFileDialog.getSaveFileName(
             self,
@@ -926,9 +968,9 @@ class MainMenuWidget(QWidget):
             fn += ".xlsx"
         try:
             export_common_excel("", fn)
-            QMessageBox.information(self, "Готово", f"Шаблон Excel сохранён:\n{fn}")
+            _popup_info(self, f"Шаблон Excel сохранён:\n{fn}", "Готово")
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", str(e))
+            _popup_error(self, str(e))
 
 
 class BimSyncHostWidget(QWidget):
@@ -954,7 +996,7 @@ class BimSyncHostWidget(QWidget):
             mode_id = str(getattr(dialog, "selected_mode", "") or "").strip().lower()
             return self._load_mode(mode_id)
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось открыть выбор режима BIM Sync:\n{e}")
+            _popup_error(self, f"Не удалось открыть выбор режима BIM Sync:\n{e}")
             return False
 
     def _clear_embedded(self):
@@ -979,7 +1021,7 @@ class BimSyncHostWidget(QWidget):
                 WindowClass = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "BimSyncWindow")
                 win = WindowClass()
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить режим BIM Sync:\n{e}")
+            _popup_error(self, f"Не удалось загрузить режим BIM Sync:\n{e}")
             return False
 
         try:
@@ -1009,7 +1051,7 @@ class BimSyncHostWidget(QWidget):
             except Exception:
                 embedded = None
         if embedded is None:
-            QMessageBox.critical(self, "Ошибка", "Не удалось встроить интерфейс BIM Sync.")
+            _popup_error(self, "Не удалось встроить интерфейс BIM Sync.")
             return False
 
         self._clear_embedded()
@@ -1170,7 +1212,7 @@ class MainWindow(QMainWindow):
             self.resize(700, 500)
             self._center_on_screen()
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось открыть BIM Sync:\n{e}")
+            _popup_error(self, f"Не удалось открыть BIM Sync:\n{e}")
 
     def _on_bim_sync_mode_selected(self, mode_id):
         try:
@@ -1205,7 +1247,7 @@ class MainWindow(QMainWindow):
             if widget is None:
                 widget = win.centralWidget()
             if widget is None:
-                QMessageBox.critical(self, "Ошибка", "Не удалось загрузить интерфейс BIM Sync.")
+                _popup_error(self, "Не удалось загрузить интерфейс BIM Sync.")
                 return
             
             self._current_module_widget = widget
@@ -1219,7 +1261,7 @@ class MainWindow(QMainWindow):
                 pass
             self._center_on_screen()
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить режим BIM Sync:\n{e}")
+            _popup_error(self, f"Не удалось загрузить режим BIM Sync:\n{e}")
 
     def _on_bim_sync_back(self):
         self._open_bim_sync_dialog()
@@ -1250,7 +1292,7 @@ class MainWindow(QMainWindow):
                 win = BimSyncWindow()
                 return win.centralWidget(), win
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить модуль {mode_id}:\n{e}")
+            _popup_error(self, f"Не удалось загрузить модуль {mode_id}:\n{e}")
             return None, None
         return None, None
 

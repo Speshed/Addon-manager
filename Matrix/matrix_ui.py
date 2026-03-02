@@ -22,6 +22,7 @@ except Exception:
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.theme_toggle import ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu, resolve_icon_path, load_saved_theme, enable_theme_sync
+from shared.dialogs import show_warning
 
 import pandas as pd
 from collections import defaultdict, Counter
@@ -58,6 +59,7 @@ ARROW_LEFT_PATH = resolve_icon_path("arrow_left", ICON_DIR) or ""
 ARROW_RIGHT_PATH = resolve_icon_path("arrow_right", ICON_DIR) or ""
 SUN_ICON_CANDIDATES = [resolve_icon_path("sun", ICON_DIR) or ""]
 MOON_ICON_CANDIDATES = [resolve_icon_path("moon", ICON_DIR) or ""]
+_OPEN_RESULT_DIALOGS: set[QtWidgets.QDialog] = set()
 
 # Native Windows dark title bar helper (best-effort; safe on non-Windows)
 def _apply_native_dark_titlebar(widget: QtWidgets.QWidget, dark: bool) -> None:
@@ -115,46 +117,119 @@ def _apply_native_dark_titlebar(widget: QtWidgets.QWidget, dark: bool) -> None:
     except Exception:
         pass
 
-def _popup_error(parent, text: str, title: str = "Ошибка"):
-    try:
+class _ResultDialog(QtWidgets.QDialog):
+    def __init__(self, parent, text: str, title: str, icon_name: str):
+        super().__init__(parent)
+        self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        self.setWindowTitle(title)
+        self.setMinimumWidth(320)
+        flags = self.windowFlags()
+        flags &= ~QtCore.Qt.WindowType.WindowContextHelpButtonHint
+        flags |= QtCore.Qt.WindowType.WindowCloseButtonHint
+        self.setWindowFlags(flags)
+        self.setWindowModality(QtCore.Qt.WindowModality.WindowModal)
+
+        vlayout = QtWidgets.QVBoxLayout(self)
+        vlayout.setSpacing(16)
+        vlayout.setContentsMargins(20, 20, 20, 20)
+
+        hlayout = QtWidgets.QHBoxLayout()
+        icon_label = QtWidgets.QLabel()
         app = QtWidgets.QApplication.instance()
-        p = resolve_icon_path("error", ICON_DIR, app=app)
-        pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
-        msg = QtWidgets.QMessageBox(parent)
-        msg.setWindowTitle(title)
-        msg.setText(text)
-        if not pm.isNull():
-            msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation))
-        else:
-            msg.setIcon(QtWidgets.QMessageBox.Icon.Critical)
-        msg.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Ok)
-        msg.exec()
-    except Exception:
-        try:
-            QtWidgets.QMessageBox.critical(parent, title, text)
-        except Exception:
-            pass
+        icon_path = resolve_icon_path(icon_name, ICON_DIR, app=app)
+        if icon_path and os.path.exists(icon_path):
+            pm = QtGui.QPixmap(icon_path)
+            if not pm.isNull():
+                icon_label.setPixmap(pm.scaled(48, 48, QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation))
+        if icon_label.pixmap() is None or icon_label.pixmap().isNull():
+            style = QtWidgets.QApplication.style()
+            fallback = QtWidgets.QStyle.StandardPixmap.SP_MessageBoxInformation
+            if icon_name == "error":
+                fallback = QtWidgets.QStyle.StandardPixmap.SP_MessageBoxCritical
+            icon_label.setPixmap(style.standardIcon(fallback).pixmap(48, 48))
+        hlayout.addWidget(icon_label, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+
+        msg_label = QtWidgets.QLabel(text)
+        msg_label.setWordWrap(True)
+        msg_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        msg_label.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        hlayout.addWidget(msg_label, 1)
+        vlayout.addLayout(hlayout)
+
+        btn_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok, parent=self)
+        btn_box.accepted.connect(self.accept)
+        btn_box.rejected.connect(self.reject)
+        ok_button = btn_box.button(QtWidgets.QDialogButtonBox.StandardButton.Ok)
+        if ok_button is not None:
+            ok_button.clicked.connect(self.accept)
+            ok_button.setDefault(True)
+            ok_button.setAutoDefault(True)
+        vlayout.addWidget(btn_box, 0, QtCore.Qt.AlignmentFlag.AlignRight)
+
+    def closeEvent(self, event):
+        event.accept()
+        super().closeEvent(event)
+
+
+def _show_result_dialog(parent, text: str, title: str, icon_name: str):
+    print(f"[MATRIX] _show_result_dialog called: parent={parent}, title={title}", file=sys.stderr, flush=True)
+    dlg = _ResultDialog(parent, text, title, icon_name)
+    _OPEN_RESULT_DIALOGS.add(dlg)
+    dlg.finished.connect(lambda *_args, dialog=dlg: _OPEN_RESULT_DIALOGS.discard(dialog))
+    dlg.open()
+    dlg.raise_()
+    dlg.activateWindow()
+
+
+def _popup_error(parent, text: str, title: str = "Ошибка"):
+    print(f"[MATRIX] _popup_error called: parent={parent}, title={title}", file=sys.stderr, flush=True)
+    _show_result_dialog(parent, text, title, "error")
 
 
 def _popup_info(parent, text: str, title: str = "Информация"):
-    try:
+    print(f"[MATRIX] _popup_info called: parent={parent}, title={title}", file=sys.stderr, flush=True)
+    _show_result_dialog(parent, text, title, "alert")
+
+
+def _get_visible_parent(widget_or_window):
+    print(f"[MATRIX] _get_visible_parent called: widget={widget_or_window}", file=sys.stderr, flush=True)
+    
+    if widget_or_window is None:
         app = QtWidgets.QApplication.instance()
-        p = resolve_icon_path("alert", ICON_DIR, app=app)
-        pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
-        msg = QtWidgets.QMessageBox(parent)
-        msg.setWindowTitle(title)
-        msg.setText(text)
-        if not pm.isNull():
-            msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation))
-        else:
-            msg.setIcon(QtWidgets.QMessageBox.Icon.Information)
-        msg.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Ok)
-        msg.exec()
-    except Exception:
-        try:
-            QtWidgets.QMessageBox.information(parent, title, text)
-        except Exception:
-            pass
+        result = app.activeWindow() if app else None
+        print(f"[MATRIX] _get_visible_parent returning (null case): {result}", file=sys.stderr, flush=True)
+        return result
+    
+    # First try to find visible window through widget hierarchy
+    w = widget_or_window
+    while w is not None:
+        parent = w.parent()
+        if parent is None:
+            break
+        w = parent
+    
+    # Check if top-level parent is visible
+    if w is not None and w.isWindow() and w.isVisible():
+        print(f"[MATRIX] _get_visible_parent returning (visible parent): {w}", file=sys.stderr, flush=True)
+        return w
+    
+    # Fallback: find any visible top-level window
+    app = QtWidgets.QApplication.instance()
+    if app:
+        # Try activeWindow first
+        active = app.activeWindow()
+        if active and active.isVisible():
+            print(f"[MATRIX] _get_visible_parent returning (activeWindow): {active}", file=sys.stderr, flush=True)
+            return active
+        
+        # Find first visible top-level window
+        for tlw in app.topLevelWidgets():
+            if tlw.isWindow() and tlw.isVisible() and tlw is not widget_or_window:
+                print(f"[MATRIX] _get_visible_parent returning (topLevelWidget): {tlw}", file=sys.stderr, flush=True)
+                return tlw
+    
+    print(f"[MATRIX] _get_visible_parent returning (fallback): {widget_or_window}", file=sys.stderr, flush=True)
+    return widget_or_window
 
 
 # -----------------------------
@@ -953,7 +1028,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_theme_toggled(self, dark: bool):
         app = QtWidgets.QApplication.instance()
-        theme(app, dark, icon_dir=ICON_DIR)
+        if app is not None:
+            theme(app, dark, icon_dir=ICON_DIR)
         try:
             self._set_theme_palette(bool(dark))
         except Exception:
@@ -968,7 +1044,14 @@ class MainWindow(QtWidgets.QMainWindow):
         if app is None:
             return
         dark = is_dark_theme(app)
-        theme(app, dark, icon_dir=ICON_DIR, persist=False)
+        self._set_theme_palette(dark)
+        try:
+            if hasattr(self, "_theme_toggle") and self._theme_toggle is not None:
+                self._theme_toggle.blockSignals(True)
+                self._theme_toggle.setChecked(dark, animate=False)
+                self._theme_toggle.blockSignals(False)
+        except Exception:
+            pass
         try:
             _apply_native_dark_titlebar(self, dark)
         except Exception:
@@ -981,13 +1064,13 @@ class MainWindow(QtWidgets.QMainWindow):
     # File pickers
     # -------------------------
     def _pick_nabory(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Выберите файл наборов", "", "Excel (*.xlsx *.xls)")
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(_get_visible_parent(self), "Выберите файл наборов", "", "Excel (*.xlsx *.xls)")
         if path:
             self.ed_nabory.setText(path)
             self._populate_sheets(path, self.cb_sheet_nabory)
 
     def _pick_matrix(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Выберите файл матрицы", "", "Excel (*.xlsx *.xls)")
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(_get_visible_parent(self), "Выберите файл матрицы", "", "Excel (*.xlsx *.xls)")
         if path:
             self.ed_matrix.setText(path)
             self._populate_sheets(path, self.cb_sheet_matrix)
@@ -1016,24 +1099,27 @@ class MainWindow(QtWidgets.QMainWindow):
         sheet_matrix = self.cb_sheet_matrix.currentText().strip()
 
         if not os.path.exists(matrix):
-            QtWidgets.QMessageBox.warning(self, "Файл не найден", "Укажите корректный путь к файлу матрицы.")
+            show_warning(_get_visible_parent(self), "Укажите корректный путь к файлу матрицы.", "Файл не найден")
             return
         if nabory and not os.path.exists(nabory):
-            QtWidgets.QMessageBox.warning(self, "Файл не найден", "Укажите корректный путь к файлу наборов или оставьте поле пустым.")
+            show_warning(_get_visible_parent(self), "Укажите корректный путь к файлу наборов или оставьте поле пустым.", "Файл не найден")
             return
         if nabory and not sheet_nabory:
-            QtWidgets.QMessageBox.warning(self, "Не выбран лист", "Выберите лист в файле наборов или очистите путь к наборам.")
+            show_warning(_get_visible_parent(self), "Выберите лист в файле наборов или очистите путь к наборам.", "Не выбран лист")
             return
         if not sheet_matrix:
-            QtWidgets.QMessageBox.warning(self, "Не выбран лист", "Выберите лист в матрице.")
+            show_warning(_get_visible_parent(self), "Выберите лист в матрице.", "Не выбран лист")
             return
 
-        out, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Выберите выходной файл", "matrix.cv", "Профиль (*.cv *.xml)")
+        out, _ = QtWidgets.QFileDialog.getSaveFileName(_get_visible_parent(self), "Выберите выходной файл", "matrix.cv", "Профиль (*.cv *.xml)")
         if not out:
             return
         
         self.btn_generate.setEnabled(False)
         self.status.showMessage("Обработка...")
+
+        self._pending_success_path: str | None = None
+        self._pending_error_msg: str | None = None
 
         self.thread = QtCore.QThread(self)
         self.worker = GeneratorWorker(
@@ -1049,19 +1135,46 @@ class MainWindow(QtWidgets.QMainWindow):
         self.worker.failed.connect(self._on_failed)
         self.worker.done.connect(self.thread.quit)
         self.worker.failed.connect(self.thread.quit)
-        self.thread.finished.connect(lambda: self.btn_generate.setEnabled(True))
+        self.worker.done.connect(self.worker.deleteLater)
+        self.worker.failed.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self._on_thread_finished)
         self.thread.start()
 
-
     def _on_done(self, out_path: str):
-        
+        self._pending_success_path = out_path
         self.status.showMessage("Готово")
-        _popup_info(self, f"Файл создан:\n{out_path}", "Готово")
 
     def _on_failed(self, err: str):
-        
+        self._pending_error_msg = "Произошла ошибка при генерации. Подробности в журнале."
         self.status.showMessage("Ошибка")
-        _popup_error(self, "Произошла ошибка при генерации. Подробности в журнале.")
+
+    def _on_thread_finished(self):
+        print(f"[MATRIX] _on_thread_finished called", file=sys.stderr, flush=True)
+        self.btn_generate.setEnabled(True)
+        success_path = getattr(self, "_pending_success_path", None)
+        error_msg = getattr(self, "_pending_error_msg", None)
+        self._pending_success_path = None
+        self._pending_error_msg = None
+        
+        print(f"[MATRIX] success_path={success_path}, error_msg={error_msg}", file=sys.stderr, flush=True)
+        
+        if self.thread:
+            self.thread.deleteLater()
+            self.thread = None
+            self.worker = None
+        
+        if success_path:
+            QtCore.QTimer.singleShot(0, lambda path=success_path: self._show_generation_result(success_path=path))
+        elif error_msg:
+            QtCore.QTimer.singleShot(0, lambda message=error_msg: self._show_generation_result(error_message=message))
+
+    def _show_generation_result(self, success_path: str | None = None, error_message: str | None = None):
+        parent = _get_visible_parent(self)
+        print(f"[MATRIX] _show_generation_result called: parent={parent}", file=sys.stderr, flush=True)
+        if success_path:
+            _popup_info(parent, f"Файл создан:\n{success_path}", "Готово")
+        elif error_message:
+            _popup_error(parent, error_message)
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

@@ -57,6 +57,9 @@ _ICON_FILES: dict[str, list[str]] = {
     "sync": ["sync.png"],
     "warning": ["warning.png"],
     "error": ["error.png"],
+    "ok": ["ok.png", "check mark.png", "approve_circle.png"],
+    "alert": ["alert.png", "warning.png"],
+    "info": ["ok.png", "alert.png"],
 }
 
 

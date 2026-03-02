@@ -36,6 +36,7 @@ from shared.theme_toggle import (
     create_back_button, go_to_main_menu,
     register_icon_files, _ensure_white_copy, _ensure_black_copy, _tint_pixmap, _qss_url
 )
+from shared.dialogs import show_dialog, wire_message_box_buttons
 
 
 # --- Additional icon files specific to Viewer ---
@@ -170,10 +171,8 @@ def show_error_dialog(text: str, *, title: str = "Ошибка", icon_dir: str |
         msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
     except Exception:
         pass
-    if modal:
-        msg.exec()
-    else:
-        msg.open()
+    wire_message_box_buttons(msg)
+    show_dialog(msg, modal=modal)
 
 
 def show_info_dialog(text: str, *, title: str = "Информация", icon_dir: str | None = None, parent=None, modal: bool = True):
@@ -199,10 +198,8 @@ def show_info_dialog(text: str, *, title: str = "Информация", icon_dir
         msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
     except Exception:
         pass
-    if modal:
-        msg.exec()
-    else:
-        msg.open()
+    wire_message_box_buttons(msg)
+    show_dialog(msg, modal=modal)
 
 
 def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down: str,

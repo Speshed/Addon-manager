@@ -18,6 +18,7 @@ from shared.theme_toggle import (
     RowHoverDelegate, install_viewport_row_highlighter, setup_hover_tracking, PALETTE,
     _tint_pixmap,
 )
+from shared.dialogs import wire_dialog_button_box
 
 # ----------------- Тема и логотип -----------------
 BG = "#FFFFFF"
@@ -114,7 +115,7 @@ class ErrorDialog(QtWidgets.QDialog):
         hlayout.addWidget(msg_label, 1)
         vlayout.addLayout(hlayout)
         btn_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok)
-        btn_box.accepted.connect(self.accept)
+        wire_dialog_button_box(btn_box, self.accept)
         vlayout.addWidget(btn_box, 0, QtCore.Qt.AlignmentFlag.AlignRight)
 
 
@@ -151,7 +152,7 @@ class InfoDialog(QtWidgets.QDialog):
         hlayout.addWidget(msg_label, 1)
         vlayout.addLayout(hlayout)
         btn_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok)
-        btn_box.accepted.connect(self.accept)
+        wire_dialog_button_box(btn_box, self.accept)
         vlayout.addWidget(btn_box, 0, QtCore.Qt.AlignmentFlag.AlignRight)
 
 
@@ -716,8 +717,7 @@ class TransformDialog(QtWidgets.QDialog):
 
         self.btnAdd.clicked.connect(self.add_row)
         self.btnDel.clicked.connect(self.del_rows)
-        bb.accepted.connect(self.accept_and_save)
-        bb.rejected.connect(self.reject)
+        wire_dialog_button_box(bb, self.accept_and_save, self.reject)
 
         trim_map_rev = {"": "Без изменений", "Left":"Удалить слева", "Right":"Удалить справа", "Both":"Удалить с обеих сторон"}
         case_map_rev = {"": "Без изменений", "Upper":"Привести к верхнему", "Lower":"Привести к нижнему", "Title":"Заголовок"}
@@ -807,8 +807,7 @@ class ModelFilterDialog(QtWidgets.QDialog):
 
         bb = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
         v.addWidget(bb)
-        bb.accepted.connect(self.accept)
-        bb.rejected.connect(self.reject)
+        wire_dialog_button_box(bb, self.accept, self.reject)
 
     def _set_all(self, state):
         for i in range(self.list.count()):
@@ -2475,8 +2474,7 @@ class _ExcelSheetSelectDialog(QtWidgets.QDialog):
         btn_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         )
-        btn_box.accepted.connect(self.accept)
-        btn_box.rejected.connect(self.reject)
+        wire_dialog_button_box(btn_box, self.accept, self.reject)
         layout.addWidget(btn_box)
     
     def _on_item_changed(self, item: QtWidgets.QListWidgetItem):

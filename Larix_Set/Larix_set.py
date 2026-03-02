@@ -32,6 +32,7 @@ from shared.theme_toggle import (
     RowHoverDelegate, install_viewport_row_highlighter,
     nik_icon, PALETTE,
 )
+from shared.dialogs import show_dialog, wire_message_box_buttons
 
 # Third-party (optional)
 try:
@@ -685,10 +686,8 @@ def show_error_dialog(text: str,
     except Exception:
         pass
     msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
-    if modal:
-        msg.exec()
-    else:
-        msg.open()
+    wire_message_box_buttons(msg)
+    show_dialog(msg, modal=modal)
 
 
 def show_info_dialog(text: str,
@@ -717,10 +716,8 @@ def show_info_dialog(text: str,
     except Exception:
         pass
     msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
-    if modal:
-        msg.exec()
-    else:
-        msg.open()
+    wire_message_box_buttons(msg)
+    show_dialog(msg, modal=modal)
 
 
 def show_warning_dialog(text: str,
@@ -745,10 +742,8 @@ def show_warning_dialog(text: str,
     except Exception:
         pass
     msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
-    if modal:
-        msg.exec()
-    else:
-        msg.open()
+    wire_message_box_buttons(msg)
+    show_dialog(msg, modal=modal)
 
 
 def apply_themed_icon(widget: QtWidgets.QAbstractButton, name: str, icon_dir: str = DEFAULT_ICON_DIR) -> None:
@@ -2731,6 +2726,8 @@ class SheetPickerDialog(QtWidgets.QDialog):
         row_ok.addStretch(1)
         self.btn_cancel = QtWidgets.QPushButton("Отмена")
         self.btn_ok = QtWidgets.QPushButton("OK")
+        self.btn_ok.setDefault(True)
+        self.btn_ok.setAutoDefault(True)
         row_ok.addWidget(self.btn_cancel)
         row_ok.addWidget(self.btn_ok)
 

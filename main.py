@@ -14,6 +14,7 @@ from shared.theme_toggle import (
     load_saved_theme, enable_theme_sync, set_back_to_menu_callback,
     apply_dark_titlebar,
 )
+from shared.dialogs import show_dialog, wire_message_box_buttons
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ICON_DIR = os.path.join(BASE_DIR, "icon")
@@ -41,7 +42,8 @@ def _popup_error(parent, text: str, title: str = "Ошибка"):
         else:
             msg.setIcon(QMessageBox.Critical)
         msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec()
+        wire_message_box_buttons(msg)
+        show_dialog(msg, modal=True)
     except Exception:
         try:
             QMessageBox.critical(parent, title, text)
@@ -62,7 +64,8 @@ def _popup_info(parent, text: str, title: str = "Информация"):
         else:
             msg.setIcon(QMessageBox.Information)
         msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec()
+        wire_message_box_buttons(msg)
+        show_dialog(msg, modal=True)
     except Exception:
         try:
             QMessageBox.information(parent, title, text)
@@ -76,6 +79,25 @@ def _load_symbol_from_dir(module_dir: str, module_name: str, symbol_name: str):
         sys.path.insert(0, mod_dir)
     module = importlib.import_module(module_name)
     return getattr(module, symbol_name)
+
+
+def _extract_window_widget(window):
+    if window is None:
+        return None
+    widget = None
+    try:
+        if hasattr(window, "takeCentralWidget"):
+            widget = window.takeCentralWidget()
+    except Exception:
+        widget = None
+    if widget is None:
+        try:
+            widget = window.centralWidget()
+            if widget is not None:
+                widget.setParent(None)
+        except Exception:
+            widget = None
+    return widget
 
 
 def _track_api_check_thread(thread: QThread) -> None:
@@ -265,7 +287,8 @@ class ModeCard(QFrame):
         self._title_label.setStyleSheet("font-size: 10pt; font-weight: 600;")
         layout.addWidget(self._title_label)
 
-        self._update_style()
+        # Defer style update to next event loop iteration to avoid blocking modal dialogs
+        QTimer.singleShot(0, self._update_style)
 
     def set_selected(self, selected):
         self._selected = selected
@@ -1271,26 +1294,26 @@ class MainWindow(QMainWindow):
             if mode_id == "adapters":
                 MainWin = _load_symbol_from_dir("Adapters", "Adapter", "MainWin")
                 win = MainWin()
-                return win.centralWidget(), win
+                return _extract_window_widget(win), win
             elif mode_id == "larix_set":
                 ContentWidget = _load_symbol_from_dir("Larix_Set", "Larix_set", "ContentWidget")
                 return ContentWidget(), None
             elif mode_id == "matrix":
                 MainWindow = _load_symbol_from_dir("Matrix", "matrix_ui", "MainWindow")
                 win = MainWindow()
-                return win.centralWidget(), win
+                return _extract_window_widget(win), win
             elif mode_id == "parameters":
                 MainWindow = _load_symbol_from_dir("Parameter", "Parameters", "MainWindow")
                 win = MainWindow()
-                return win.centralWidget(), win
+                return _extract_window_widget(win), win
             elif mode_id == "viewer":
                 MainWindow = _load_symbol_from_dir("Viewer", "Viewer", "MainWindow")
                 win = MainWindow()
-                return win.centralWidget(), win
+                return _extract_window_widget(win), win
             elif mode_id == "bim_sync":
                 BimSyncWindow = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "BimSyncWindow")
                 win = BimSyncWindow()
-                return win.centralWidget(), win
+                return _extract_window_widget(win), win
         except Exception as e:
             _popup_error(self, f"Не удалось загрузить модуль {mode_id}:\n{e}")
             return None, None

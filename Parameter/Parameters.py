@@ -25,6 +25,7 @@ except Exception:
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.theme_toggle import ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu, load_saved_theme, enable_theme_sync
 import shared.theme_toggle as _theme
+from shared.dialogs import show_dialog, wire_dialog_button_box, wire_message_box_buttons
 
 # 3rd-party
 try:
@@ -390,10 +391,8 @@ def show_error_dialog(text: str, *, title: str = "Ошибка", icon_dir: str |
         msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
     except Exception:
         pass
-    if modal:
-        msg.exec()
-    else:
-        msg.open()
+    wire_message_box_buttons(msg)
+    show_dialog(msg, modal=modal)
 
 
 def show_info_dialog(text: str, *, title: str = "Информация", icon_dir: str | None = None, parent=None, modal: bool = True):
@@ -419,10 +418,8 @@ def show_info_dialog(text: str, *, title: str = "Информация", icon_dir
         msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
     except Exception:
         pass
-    if modal:
-        msg.exec()
-    else:
-        msg.open()
+    wire_message_box_buttons(msg)
+    show_dialog(msg, modal=modal)
 
 
 def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down: str,
@@ -1686,7 +1683,7 @@ class MappingDialog(QtWidgets.QDialog):
         # Ок/Отмена
         btns = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel, parent=self)
         v.addWidget(btns)
-        btns.accepted.connect(self._save_and_close); btns.rejected.connect(self.reject)
+        wire_dialog_button_box(btns, self._save_and_close, self.reject)
 
         mw = self.parent() if isinstance(self.parent(), (MainWindow, MainWindowMaster)) else None
         if mw:
@@ -1956,7 +1953,7 @@ class MappingDialogLarix(QtWidgets.QDialog):
 
         btns = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel, parent=self)
         v.addWidget(btns)
-        btns.accepted.connect(self._save_and_close); btns.rejected.connect(self.reject)
+        wire_dialog_button_box(btns, self._save_and_close, self.reject)
 
         mw = self.parent() if isinstance(self.parent(), (MainWindow, MainWindowMaster)) else None
         if mw:
@@ -2222,6 +2219,8 @@ class PairPickerDialog(QtWidgets.QDialog):
         row_ok.addStretch(1)
         self.btn_cancel = QtWidgets.QPushButton("Отмена")
         self.btn_ok = QtWidgets.QPushButton("OK")
+        self.btn_ok.setDefault(True)
+        self.btn_ok.setAutoDefault(True)
         row_ok.addWidget(self.btn_cancel); row_ok.addWidget(self.btn_ok)
 
         # Сигналы

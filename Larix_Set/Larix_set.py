@@ -1771,7 +1771,6 @@ class ApiSelectDialog(QtWidgets.QDialog):
         row1 = QtWidgets.QHBoxLayout(); root.addLayout(row1)
         row1.addWidget(QtWidgets.QLabel("Проект:"))
         self.cmb_projects = QtWidgets.QComboBox(); row1.addWidget(self.cmb_projects, 1)
-        self.btn_cont = QtWidgets.QPushButton("Загрузить модели"); row1.addWidget(self.btn_cont)
 
         split = QtWidgets.QSplitter(QtCore.Qt.Horizontal); root.addWidget(split, 1)
 
@@ -1841,7 +1840,7 @@ class ApiSelectDialog(QtWidgets.QDialog):
 
         # Signals
         self.btn_proj.clicked.connect(self._refresh_projects)
-        self.btn_cont.clicked.connect(self._refresh_containers)
+        self.cmb_projects.currentIndexChanged.connect(self._on_project_changed)
         self.btn_load_params.clicked.connect(self._load_parameters)
         self.ed_filter.textChanged.connect(self._apply_filter)
         self.btn_find.clicked.connect(self._apply_filter)
@@ -1932,11 +1931,16 @@ class ApiSelectDialog(QtWidgets.QDialog):
             self.cmb_projects.addItem(p["title"])
         if self._projects:
             self.cmb_projects.setCurrentIndex(0)
+            self._refresh_containers()
+
+    def _on_project_changed(self, index: int) -> None:
+        if index >= 0:
+            self._refresh_containers()
 
     def _refresh_containers(self) -> None:
         idx = self.cmb_projects.currentIndex()
         if idx < 0:
-            QtWidgets.QMessageBox.warning(self, "API", "Выберите проект."); return
+            return
         pid = int(self._projects[idx]["id"])
         try:
             data = self._load_containers(self._get_base_url(), pid) or []
@@ -2214,6 +2218,7 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
             continue
 
         is_root = bool(name_1st and not has_any_values)
+        is_razdel = "раздел" in name_1st.lower() and not has_any_values
 
         prefix = extract_prefix(name_1st)
         level = get_level(prefix)
@@ -2223,34 +2228,89 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
             "prefix": prefix,
             "level": level,
             "is_root": is_root,
+            "is_razdel": is_razdel,
             "condition_pairs": condition_pairs,
+            "orig_idx": len(rows_data),
         })
 
+    razdel_indices = [i for i, r in enumerate(rows_data) if r["is_razdel"]]
+    razdel_blocks: List[Tuple[int, int, int]] = []
+    for bi, ri in enumerate(razdel_indices):
+        start = ri
+        end = razdel_indices[bi + 1] if bi + 1 < len(razdel_indices) else len(rows_data)
+        razdel_blocks.append((ri, start + 1, end))
+
+    def get_razdel_parent_idx(row_idx: int) -> Optional[int]:
+        for razdel_idx, start, end in razdel_blocks:
+            if start <= row_idx < end:
+                return razdel_idx
+        return None
+
     rows_data.sort(key=lambda r: (r["prefix"] or "zzz", r["name"]))
+
+    razdel_rows = [r for r in rows_data if r["is_razdel"]]
+    other_rows = [r for r in rows_data if not r["is_razdel"]]
+
+    razdel_orig_idx_to_id: Dict[int, int] = {}
+    for ri, _, _ in razdel_blocks:
+        razdel_orig_idx_to_id[ri] = None
 
     prefix_to_id = {}
     group_idx = group_idx_start
     child_counters = {}
 
-    for rd in rows_data:
+    for rd in razdel_rows:
         name_1st = rd["name"]
-        prefix = rd["prefix"]
-        level = rd["level"]
+        orig_idx = rd["orig_idx"]
         condition_pairs = rd["condition_pairs"]
 
         item = ET.Element("BaseExportProfileItem", {"xsi:type": "SetExportProfileItem"})
         item_id = new_id()
         ET.SubElement(item, "Id").text = str(item_id)
         ET.SubElement(item, "IsFolder").text = "true"
+        ET.SubElement(item, "ParentId", {"xsi:nil": "true"})
+
+        clean_name = strip_prefix(name_1st)
+        group_idx += 1
+        code = f"{group_idx:02d}"
+        ET.SubElement(item, "Title").text = f"{code}_{clean_name}"
+
+        if build_filters:
+            item.append(build_multi_condition_block(condition_pairs))
+        else:
+            item.append(build_empty_item_block())
+
+        profile_items_el.append(item)
+        razdel_orig_idx_to_id[orig_idx] = item_id
+
+    for rd in other_rows:
+        name_1st = rd["name"]
+        prefix = rd["prefix"]
+        level = rd["level"]
+        condition_pairs = rd["condition_pairs"]
+        orig_idx = rd["orig_idx"]
+
+        item = ET.Element("BaseExportProfileItem", {"xsi:type": "SetExportProfileItem"})
+        item_id = new_id()
+        ET.SubElement(item, "Id").text = str(item_id)
+        ET.SubElement(item, "IsFolder").text = "true"
+
+        razdel_parent_orig_idx = get_razdel_parent_idx(orig_idx)
+        razdel_parent_id = razdel_orig_idx_to_id.get(razdel_parent_orig_idx) if razdel_parent_orig_idx is not None else None
 
         if prefix:
             parent_prefix = find_existing_parent(prefix, prefix_to_id)
             if parent_prefix:
                 ET.SubElement(item, "ParentId").text = str(prefix_to_id[parent_prefix])
+            elif razdel_parent_id is not None:
+                ET.SubElement(item, "ParentId").text = str(razdel_parent_id)
             else:
                 ET.SubElement(item, "ParentId", {"xsi:nil": "true"})
         else:
-            ET.SubElement(item, "ParentId", {"xsi:nil": "true"})
+            if razdel_parent_id is not None:
+                ET.SubElement(item, "ParentId").text = str(razdel_parent_id)
+            else:
+                ET.SubElement(item, "ParentId", {"xsi:nil": "true"})
 
         clean_name = strip_prefix(name_1st)
         if auto_number:
@@ -2428,7 +2488,9 @@ class _ParamMappingRow(QtWidgets.QWidget):
         layout.addWidget(self.cmb_field, 1)
 
         self.btn_pick_api = QtWidgets.QPushButton("Выбрать из API...")
-        self.btn_pick_api.setFixedWidth(110)
+        self.btn_pick_api.setMinimumWidth(140)
+        sp = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+        self.btn_pick_api.setSizePolicy(sp)
         layout.addWidget(self.btn_pick_api)
 
         self.chk_active.toggled.connect(self._refresh_active_style)

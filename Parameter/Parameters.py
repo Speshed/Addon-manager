@@ -12,6 +12,7 @@ Parameters_nik_ready_v2.py
 from __future__ import annotations
 import importlib.util
 import os, sys, tempfile, shutil, types, ctypes, math
+import re
 from typing import NamedTuple
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
@@ -26,6 +27,22 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.theme_toggle import ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu, load_saved_theme, enable_theme_sync
 import shared.theme_toggle as _theme
 from shared.dialogs import show_dialog, wire_dialog_button_box, wire_message_box_buttons
+from shared.excel_parameter_layout import read_parameter_sheet
+
+try:
+    from Larix_Set.Larix_set import (
+        SheetPickerDialog as _LarixSheetPickerDialog,
+        ApiSelectDialog as _LarixApiSelectDialog,
+        api_get_projects as _larix_api_get_projects,
+        api_get_containers as _larix_api_get_containers,
+        api_get_parameters as _larix_api_get_parameters,
+    )
+except Exception:
+    _LarixSheetPickerDialog = None
+    _LarixApiSelectDialog = None
+    _larix_api_get_projects = None
+    _larix_api_get_containers = None
+    _larix_api_get_parameters = None
 
 # 3rd-party
 try:
@@ -83,6 +100,90 @@ class _MappingRow(NamedTuple):
     combo: "QtWidgets.QComboBox"
     status: "QtWidgets.QLabel"
     container: "QtWidgets.QWidget"
+
+
+FILTER_FIELD_DEFAULT_CATEGORY = "Категория:\\"
+FILTER_FIELD_DEFAULT_CLASSIF = "Тип:\\Код по классификатору"
+FILTER_FIELD_DEFAULT_IFC = "IfcClass"
+FILTER_FIELD_SUGGESTIONS = [
+    FILTER_FIELD_DEFAULT_CATEGORY,
+    FILTER_FIELD_DEFAULT_CLASSIF,
+    FILTER_FIELD_DEFAULT_IFC,
+]
+
+
+class _FilterFieldRow(QtWidgets.QWidget):
+    def __init__(self, column_name: str, default_field: str = "", pick_api_callback=None, parent=None):
+        super().__init__(parent)
+        self.column_name = str(column_name or "").strip()
+        self._pick_api_callback = pick_api_callback
+
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        self.chk_active = QtWidgets.QCheckBox()
+        self.chk_active.setChecked(bool(default_field))
+        layout.addWidget(self.chk_active)
+
+        self.lbl_column = QtWidgets.QLabel(self.column_name)
+        self.lbl_column.setMinimumWidth(260)
+        layout.addWidget(self.lbl_column)
+
+        self.cmb_field = QtWidgets.QComboBox()
+        self.cmb_field.setEditable(True)
+        self.cmb_field.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
+        self.cmb_field.addItems(FILTER_FIELD_SUGGESTIONS)
+        self.cmb_field.setCurrentText(default_field or "")
+        line_edit = self.cmb_field.lineEdit()
+        if line_edit is not None:
+            line_edit.setPlaceholderText("FieldName для фильтра")
+        layout.addWidget(self.cmb_field, 1)
+
+        self.btn_pick_api = QtWidgets.QPushButton("Выбрать из API...")
+        self.btn_pick_api.setMinimumWidth(140)
+        layout.addWidget(self.btn_pick_api)
+
+        self.chk_active.toggled.connect(self._refresh_state)
+        self.btn_pick_api.clicked.connect(self._pick_api)
+        self._refresh_state(self.chk_active.isChecked())
+
+    def _refresh_state(self, active: bool):
+        self.cmb_field.setEnabled(active)
+        self.btn_pick_api.setEnabled(active)
+        self.lbl_column.setStyleSheet("" if active else "color: #8a8a8a;")
+
+    def _pick_api(self):
+        if callable(self._pick_api_callback):
+            self._pick_api_callback(self)
+
+    def mapping_value(self) -> str:
+        return str(self.cmb_field.currentText() or "").strip()
+
+    def is_active(self) -> bool:
+        return bool(self.chk_active.isChecked())
+
+
+class SingleSheetPickerDialog(_LarixSheetPickerDialog if _LarixSheetPickerDialog is not None else QtWidgets.QDialog):
+    def __init__(self, master: QtWidgets.QWidget, existing_path: str = "", existing_sheet: str = ""):
+        if _LarixSheetPickerDialog is None:
+            raise RuntimeError("Диалог выбора листа недоступен")
+        super().__init__(master, existing_path, [existing_sheet] if existing_sheet else [])
+
+    def _accept(self):
+        self._selected_sheets = []
+        for i in range(self.lst_sheets.count()):
+            it = self.lst_sheets.item(i)
+            if it.checkState() == QtCore.Qt.Checked:
+                self._selected_sheets.append(it.text())
+        if len(self._selected_sheets) != 1:
+            show_error_dialog("Выберите ровно один лист.", title="Внимание", parent=self, modal=True)
+            return
+        self.accept()
+
+    def result(self):
+        path, sheets = super().result()
+        return path, (sheets[0] if sheets else "")
 
 
 def _normalize_mapping_payload(raw: dict | None) -> dict[str, dict]:
@@ -381,6 +482,8 @@ def show_error_dialog(text: str, *, title: str = "Ошибка", icon_dir: str |
     msg.setText(text)
     app = QtWidgets.QApplication.instance()
     p = resolve_icon_path("error", icon_dir, app=app)
+    if p and is_dark_theme(app):
+        p = _ensure_white_copy(p, icon_dir)
     pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
     if not pm.isNull():
         msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
@@ -408,6 +511,8 @@ def show_info_dialog(text: str, *, title: str = "Информация", icon_dir
     msg.setText(text)
     app = QtWidgets.QApplication.instance()
     p = resolve_icon_path("alert", icon_dir, app=app)
+    if p and is_dark_theme(app):
+        p = _ensure_white_copy(p, icon_dir)
     pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
     if not pm.isNull():
         msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
@@ -1086,6 +1191,111 @@ def _info_message(text: str):
     ET.SubElement(sm, "Text").text = text
     return msg
 
+
+def _split_filter_values(raw_value) -> list[str]:
+    if raw_value is None:
+        return []
+    text = str(raw_value).strip()
+    if not text or text.lower() == "nan":
+        return []
+    text = re.sub(r"[;\n|/\\]+", ",", text)
+    values: list[str] = []
+    seen: set[str] = set()
+    for item in text.split(","):
+        value = item.strip()
+        if value and value not in seen:
+            seen.add(value)
+            values.append(value)
+    return values
+
+
+def _append_filter_conditions(parent_el, field_values_pairs: list[tuple[str, list[str]]]):
+    for field_name, values in field_values_pairs:
+        field = str(field_name or "").strip()
+        if not field:
+            continue
+        for value in values or []:
+            text = str(value or "").strip()
+            if not text:
+                continue
+            cond_block = ET.SubElement(parent_el, "ConditionsBlock", {
+                "Type": "Single", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
+            })
+            cond_signal = ET.SubElement(cond_block, "Signal")
+            cond_signal.append(_empty_messages())
+            cond = ET.SubElement(cond_block, "Condition", {
+                "FieldName": field,
+                "FieldIsNumeric": "false",
+                "Operator": "Equal",
+                "Value": text,
+                "TextCaseSensitive": "false",
+                "TextSpaceSensitive": "false",
+                "IsUndefinedFieldName": "false"
+            })
+            cond_signal = ET.SubElement(cond, "Signal")
+            cond_signal.append(_empty_messages())
+            ET.SubElement(cond_block, "ConditionsBlocks")
+
+
+def _append_grouped_filter_conditions(parent_el, field_values_pairs: list[tuple[str, list[str]]]):
+    for field_name, values in field_values_pairs:
+        field = str(field_name or "").strip()
+        unique_values = []
+        for value in values or []:
+            text = str(value or "").strip()
+            if text and text not in unique_values:
+                unique_values.append(text)
+        if not field or not unique_values:
+            continue
+        group_block = ET.SubElement(parent_el, "ConditionsBlock", {
+            "Type": "Block", "LogicalOperator": "Or", "IsNegative": "false", "IsEnabled": "true"
+        })
+        group_signal = ET.SubElement(group_block, "Signal")
+        group_signal.append(_empty_messages())
+        group_condition = ET.SubElement(group_block, "Condition", {
+            "FieldName": "",
+            "FieldIsNumeric": "false",
+            "Operator": "Equal",
+            "Value": "",
+            "TextCaseSensitive": "false",
+            "TextSpaceSensitive": "false",
+            "IsUndefinedFieldName": "false"
+        })
+        group_condition_signal = ET.SubElement(group_condition, "Signal")
+        group_condition_signal.append(_empty_messages())
+        inner = ET.SubElement(group_block, "ConditionsBlocks")
+        _append_filter_conditions(inner, [(field, unique_values)])
+
+
+def _configure_combo_popup(combo: QtWidgets.QComboBox):
+    combo.setMaxVisibleItems(18)
+    try:
+        view = combo.view()
+        view.setMinimumWidth(560)
+        view.setMinimumHeight(360)
+        view.setFrameShape(QtWidgets.QFrame.NoFrame)
+        view.setTextElideMode(QtCore.Qt.ElideNone)
+    except Exception:
+        pass
+
+
+def _open_api_picker(parent, apply_fn):
+    if _LarixApiSelectDialog is None:
+        _popup_error(parent, "Диалог выбора из API недоступен.")
+        return
+    dlg = _LarixApiSelectDialog(
+        parent,
+        get_api_base(),
+        _larix_api_get_projects,
+        _larix_api_get_containers,
+        _larix_api_get_parameters,
+        on_import=lambda rows: apply_fn(rows[0].get("code", "")) if rows else None,
+        state={},
+    )
+    exec_fn = getattr(dlg, "exec", None) or getattr(dlg, "exec_", None)
+    if exec_fn:
+        exec_fn()
+
 def save_session_mapping_json(excel_path: str, mapping: dict) -> bool:
     try:
         base_dir = os.path.dirname(excel_path) if excel_path else os.getcwd()
@@ -1123,12 +1333,39 @@ def fetch_global_component(gcid: int):
         pass
     return None
 
+
+def _load_parameter_sheet_layout(excel_path: str, sheet_name: str):
+    if pd is None:
+        raise RuntimeError("Требуется пакет pandas")
+    return read_parameter_sheet(excel_path, sheet_name, pd)
+
+
+def _default_filter_field_for_column(layout, column_name: str) -> str:
+    role_defaults = {
+        "category": FILTER_FIELD_DEFAULT_CATEGORY,
+        "classif_code": FILTER_FIELD_DEFAULT_CLASSIF,
+        "ifc": FILTER_FIELD_DEFAULT_IFC,
+    }
+    for role_name, default_field in role_defaults.items():
+        if layout.role_columns.get(role_name) == column_name:
+            return default_field
+    return ""
+
+
+def _has_numeric_title_prefix(value: str) -> bool:
+    text = str(value or "").strip()
+    return bool(re.match(r"^\d+(?:\.\d+)*_", text))
+
+def _strip_numeric_prefix(value: str) -> str:
+    text = str(value or "").strip()
+    return re.sub(r"^\d+(?:\.\d+)*_", "", text)
+
 def _import_adapter_mapping(parent, excel_path: str) -> dict:
     if pd is None:
         _popup_error(parent, "Требуется пакет pandas для импорта адаптера.")
         return {}
     if not excel_path:
-        QtWidgets.QMessageBox.warning(parent, "Внимание", "Сначала выберите файл LOIN.")
+        QtWidgets.QMessageBox.warning(parent, "Внимание", "Сначала выберите Excel-файл.")
         return {}
     path, _ = QtWidgets.QFileDialog.getOpenFileName(parent, "Выбор адаптера", "", "Excel (*.xlsx *.xls)")
     if not path:
@@ -1212,17 +1449,52 @@ def _import_adapter_mapping(parent, excel_path: str) -> dict:
     return mapping
 
 # ----------------- Генерация PV -----------------
-def excel_to_pv_profile(excel_path, output_pv_path, profile_title, sheet_name, use_classifier=False, classifier_path=None, mode="both"):
+def excel_to_pv_profile(
+    excel_path,
+    output_pv_path,
+    profile_title,
+    sheet_name,
+    use_classifier=False,
+    classifier_path=None,
+    mode="both",
+    filter_field_map=None,
+    auto_number=False,
+    build_filters=True,
+    grouped=False,
+):
     api_types = fetch_api_param_types()
     if pd is None:
         return False, "ERROR: Требуется пакет pandas"
     try:
-        df = pd.read_excel(excel_path, sheet_name=sheet_name, header=1)
+        layout = _load_parameter_sheet_layout(excel_path, sheet_name)
+        df = layout.dataframe.copy()
         if df.shape[1] < 3:
             return False, "ERROR: Недостаточно столбцов в файле"
-        df.columns = ['Раздел', 'Категория Revit', 'Пример Класса IFC'] + [str(col).strip() for col in df.columns[3:]]
-        df = df.dropna(subset=['Раздел']).reset_index(drop=True)
-        loi_cols = [c for c in df.columns[3:] if str(c).strip()]
+        section_col = layout.role_columns.get("section") or (str(df.columns[0]).strip() if len(df.columns) > 0 else "")
+        category_col = layout.role_columns.get("category") or (str(df.columns[1]).strip() if len(df.columns) > 1 else "")
+        ifc_col = layout.role_columns.get("ifc") or (str(df.columns[2]).strip() if len(df.columns) > 2 else "")
+        classif_col = layout.role_columns.get("classif_code") or ""
+        loi_cols = [c for c in layout.param_columns if str(c).strip()]
+        if not section_col or not loi_cols:
+            return False, "ERROR: Не удалось определить структуру Excel-шаблона."
+        df = df.dropna(subset=[section_col]).reset_index(drop=True)
+
+        selected_filter_map: dict[str, str] = {}
+        explicit_filter_selection = isinstance(filter_field_map, dict)
+        if explicit_filter_selection:
+            for col_name, field_name in filter_field_map.items():
+                col = str(col_name or "").strip()
+                field = str(field_name or "").strip()
+                if col and field and col in df.columns:
+                    selected_filter_map[col] = field
+
+        if not explicit_filter_selection:
+            if mode in ("category", "both") and category_col:
+                selected_filter_map[category_col] = FILTER_FIELD_DEFAULT_CATEGORY
+            if mode in ("classifier", "both") and classif_col:
+                selected_filter_map[classif_col] = FILTER_FIELD_DEFAULT_CLASSIF
+            if mode in ("category", "both") and ifc_col:
+                selected_filter_map.setdefault(ifc_col, FILTER_FIELD_DEFAULT_IFC)
 
         def _norm_code(text: str) -> str:
             s = (text or "").strip()
@@ -1259,14 +1531,33 @@ def excel_to_pv_profile(excel_path, output_pv_path, profile_title, sheet_name, u
         # Группируем по разделам и собираем категории Revit
         section_data = {}
         for _, row in df.iterrows():
-            section = str(row['Раздел']).strip()
-            revit_cat = str(row['Категория Revit']).strip() if pd.notna(row['Категория Revit']) else ""
+            section = str(row.get(section_col, "")).strip()
+            revit_cat = str(row.get(category_col, "")).strip() if category_col and pd.notna(row.get(category_col, "")) else ""
+            row_classifier_codes = []
+            if classif_col and classif_col in row and pd.notna(row[classif_col]):
+                row_classifier_codes = [c.strip() for c in str(row[classif_col]).split(",") if c.strip()]
             
             if section not in section_data:
                 section_data[section] = {
                     'revit_categories': set(),
+                    'classifier_codes': set(),
+                    'filter_values': {},
                     'params': {}
                 }
+            section_data[section]['classifier_codes'].update(row_classifier_codes)
+            section_data[section]['classifier_codes'].update(codes_map.get(section, []))
+            for col_name in selected_filter_map:
+                values = _split_filter_values(row.get(col_name, ""))
+                if col_name == classif_col and section in codes_map:
+                    for code in codes_map.get(section, []):
+                        if code and code not in values:
+                            values.append(code)
+                if not values:
+                    continue
+                bucket = section_data[section]['filter_values'].setdefault(col_name, [])
+                for value in values:
+                    if value not in bucket:
+                        bucket.append(value)
             
             # Разделяем категории по запятой
             if revit_cat:
@@ -1298,7 +1589,8 @@ def excel_to_pv_profile(excel_path, output_pv_path, profile_title, sheet_name, u
                 categories.append({
                     'title': section,
                     'revit_categories': sorted(list(data['revit_categories'])),
-                    'classifier_codes': codes_map.get(section, []),
+                    'classifier_codes': sorted(list(data['classifier_codes'])),
+                    'filter_values': dict(data['filter_values']),
                     'params': list(data['params'].values())
                 })
 
@@ -1314,13 +1606,21 @@ def excel_to_pv_profile(excel_path, output_pv_path, profile_title, sheet_name, u
         items = ET.SubElement(base_profile, "ProfileItems")
         item_id = 1838
 
+        folder_idx = 0
         for cat in categories:
             item_id += 1
             parent_id = item_id
             folder = ET.SubElement(items, "BaseExportProfileItem", {"xsi:type": "ParameterValidationExportProfileItem"})
             ET.SubElement(folder, "Id").text = str(parent_id)
             ET.SubElement(folder, "ParentId", {"xsi:nil": "true"})
-            ET.SubElement(folder, "Title").text = cat['title']
+            folder_idx += 1
+            folder_title = cat['title']
+            clean_title = _strip_numeric_prefix(folder_title)
+            if auto_number:
+                folder_title = f"{folder_idx:02d}_{clean_title}"
+            else:
+                folder_title = clean_title
+            ET.SubElement(folder, "Title").text = folder_title
             ET.SubElement(folder, "IsFolder").text = "true"
             ET.SubElement(folder, "ExtFieldParamCodes")
 
@@ -1337,97 +1637,16 @@ def excel_to_pv_profile(excel_path, output_pv_path, profile_title, sheet_name, u
             fcb_condition_signal.append(_info_message("Имя не указано"))
             cb = ET.SubElement(fcb, "ConditionsBlocks")
             
-            # Логика фильтров в зависимости от mode:
-            # "category" - только категории из LOIN
-            # "classifier" - только коды из файла Коды
-            # "both" - и категории, и коды (через Or)
-            
-            if mode == "category":
-                # Только фильтры по категориям Revit
-                for revit_cat in cat['revit_categories']:
-                    cat_cond_block = ET.SubElement(cb, "ConditionsBlock", {
-                        "Type": "Single", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
-                    })
-                    cat_cond_signal = ET.SubElement(cat_cond_block, "Signal")
-                    cat_cond_signal.append(_empty_messages())
-                    
-                    cat_condition = ET.SubElement(cat_cond_block, "Condition", {
-                        "FieldName": "Категория:\\", 
-                        "FieldIsNumeric": "false", 
-                        "Operator": "Equal", 
-                        "Value": revit_cat,
-                        "TextCaseSensitive": "false", 
-                        "TextSpaceSensitive": "false", 
-                        "IsUndefinedFieldName": "false"
-                    })
-                    cat_condition_signal = ET.SubElement(cat_condition, "Signal")
-                    cat_condition_signal.append(_empty_messages())
-                    ET.SubElement(cat_cond_block, "ConditionsBlocks")
-                    
-            elif mode == "classifier":
-                # Только фильтры по кодам классификатора
-                for code in cat['classifier_codes']:
-                    code_cond_block = ET.SubElement(cb, "ConditionsBlock", {
-                        "Type": "Single", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
-                    })
-                    code_cond_signal = ET.SubElement(code_cond_block, "Signal")
-                    code_cond_signal.append(_empty_messages())
-                    
-                    code_condition = ET.SubElement(code_cond_block, "Condition", {
-                        "FieldName": "Тип:\\Код по классификатору", 
-                        "FieldIsNumeric": "false", 
-                        "Operator": "Equal", 
-                        "Value": code,
-                        "TextCaseSensitive": "false", 
-                        "TextSpaceSensitive": "false", 
-                        "IsUndefinedFieldName": "false"
-                    })
-                    code_condition_signal = ET.SubElement(code_condition, "Signal")
-                    code_condition_signal.append(_empty_messages())
-                    ET.SubElement(code_cond_block, "ConditionsBlocks")
-                    
-            elif mode == "both":
-                # Сначала фильтры по категориям
-                for revit_cat in cat['revit_categories']:
-                    cat_cond_block = ET.SubElement(cb, "ConditionsBlock", {
-                        "Type": "Single", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
-                    })
-                    cat_cond_signal = ET.SubElement(cat_cond_block, "Signal")
-                    cat_cond_signal.append(_empty_messages())
-                    
-                    cat_condition = ET.SubElement(cat_cond_block, "Condition", {
-                        "FieldName": "Категория:\\", 
-                        "FieldIsNumeric": "false", 
-                        "Operator": "Equal", 
-                        "Value": revit_cat,
-                        "TextCaseSensitive": "false", 
-                        "TextSpaceSensitive": "false", 
-                        "IsUndefinedFieldName": "false"
-                    })
-                    cat_condition_signal = ET.SubElement(cat_condition, "Signal")
-                    cat_condition_signal.append(_empty_messages())
-                    ET.SubElement(cat_cond_block, "ConditionsBlocks")
-                
-                # Потом фильтры по кодам классификатора
-                for code in cat['classifier_codes']:
-                    code_cond_block = ET.SubElement(cb, "ConditionsBlock", {
-                        "Type": "Single", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
-                    })
-                    code_cond_signal = ET.SubElement(code_cond_block, "Signal")
-                    code_cond_signal.append(_empty_messages())
-                    
-                    code_condition = ET.SubElement(code_cond_block, "Condition", {
-                        "FieldName": "Тип:\\Код по классификатору", 
-                        "FieldIsNumeric": "false", 
-                        "Operator": "Equal", 
-                        "Value": code,
-                        "TextCaseSensitive": "false", 
-                        "TextSpaceSensitive": "false", 
-                        "IsUndefinedFieldName": "false"
-                    })
-                    code_condition_signal = ET.SubElement(code_condition, "Signal")
-                    code_condition_signal.append(_empty_messages())
-                    ET.SubElement(code_cond_block, "ConditionsBlocks")
+            if build_filters:
+                filter_pairs = []
+                for col_name, field_name in selected_filter_map.items():
+                    values = list((cat.get('filter_values') or {}).get(col_name, []) or [])
+                    if values:
+                        filter_pairs.append((field_name, values))
+                if grouped:
+                    _append_grouped_filter_conditions(cb, filter_pairs)
+                else:
+                    _append_filter_conditions(cb, filter_pairs)
 
             ET.SubElement(folder, "ParentFilteringProfileItemId", {"xsi:nil": "true"})
             vcb = ET.SubElement(folder, "ValidatingConditionBlock", {
@@ -1570,7 +1789,7 @@ class MappingDialog(QtWidgets.QDialog):
     def __init__(self, excel_path, sheet_name, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Сопоставление параметров")
-        self.resize(760, 780)
+        self.resize(980, 900)
         self.excel_path = excel_path
         self.sheet_name = sheet_name
         QtCore.QTimer.singleShot(0, lambda: _apply_titlebar_theme(self))
@@ -1626,13 +1845,7 @@ class MappingDialog(QtWidgets.QDialog):
         for name in self.excel_params:
             lbl = QtWidgets.QLabel(name, parent=wrap)
             cmb = QtWidgets.QComboBox(parent=wrap)
-            cmb.setStyleSheet(
-                "QComboBox QAbstractItemView { background-color: #FFFFFF; selection-background-color: #F4B183; selection-color: #000000; border: 1px solid #F4B183; border-radius: 8px; outline: none; }"
-                "QComboBox QAbstractItemView::item { border: none; }"
-                "QComboBox QAbstractItemView::item:hover { border: none; }"
-                "QComboBox QAbstractItemView::item:selected { border: none; }"
-                "QComboBox QAbstractItemView::item:focus { outline: none; border: none; }"
-            )
+            _configure_combo_popup(cmb)
             cmb.setEditable(False); cmb.addItem("- не выбрано -"); cmb.addItems(self.api_codes)
             if not hasattr(self, "_wf"): self._wf = _NoWheelFilter(self)
             cmb.installEventFilter(self._wf)
@@ -1757,8 +1970,8 @@ class MappingDialog(QtWidgets.QDialog):
     def _load_excel_params(self) -> list:
         if pd is None: return []
         try:
-            df = pd.read_excel(self.excel_path, sheet_name=self.sheet_name, header=1)
-            return [str(c).strip() for c in df.columns[3:] if str(c).strip()]
+            layout = _load_parameter_sheet_layout(self.excel_path, self.sheet_name)
+            return [str(c).strip() for c in layout.param_columns if str(c).strip()]
         except Exception:
             return []
 
@@ -1842,7 +2055,7 @@ class MappingDialogLarix(QtWidgets.QDialog):
         self.excel_path = excel_path
         self.sheet_name = sheet_name
         self.setWindowTitle("Сопоставление параметров")
-        self.resize(760, 780)
+        self.resize(980, 900)
 
         # Инициализируем глобальную карту из кеша книги
         global GLOBAL_PARAM_MAPPING
@@ -1855,10 +2068,12 @@ class MappingDialogLarix(QtWidgets.QDialog):
         icon_lbl.setFixedSize(24, 24)
         top.addWidget(icon_lbl)
         top.addWidget(QtWidgets.QLabel(""), 1)
+        self.btn_choose_models = QtWidgets.QPushButton("Выбрать модели")
+        top.addWidget(self.btn_choose_models)
         self.btn_import_adapter = QtWidgets.QPushButton("Импорт адаптера")
         top.addWidget(self.btn_import_adapter)
         self.theme_switch = ThemeSwitch(icon_dir=ICON_DIR); top.addWidget(self.theme_switch)
-        self.theme_switch.toggledTheme.connect(lambda _: _apply_titlebar_theme(self))
+        self.theme_switch.toggledTheme.connect(self._on_theme_changed)
         QtCore.QTimer.singleShot(0, lambda: _apply_titlebar_theme(self))
 
         search_row = QtWidgets.QHBoxLayout(); v.addLayout(search_row, 0)
@@ -1896,13 +2111,7 @@ class MappingDialogLarix(QtWidgets.QDialog):
         for name in self.excel_params:
             lbl = QtWidgets.QLabel(name, parent=wrap)
             cmb = QtWidgets.QComboBox(parent=wrap)
-            cmb.setStyleSheet(
-                "QComboBox QAbstractItemView { background-color: #FFFFFF; selection-background-color: #F4B183; selection-color: #000000; border: 1px solid #F4B183; border-radius: 8px; outline: none; }"
-                "QComboBox QAbstractItemView::item { border: none; }"
-                "QComboBox QAbstractItemView::item:hover { border: none; }"
-                "QComboBox QAbstractItemView::item:selected { border: none; }"
-                "QComboBox QAbstractItemView::item:focus { outline: none; border: none; }"
-            )
+            _configure_combo_popup(cmb)
             cmb.setEditable(False); cmb.addItem("- не выбрано -"); cmb.addItems(self.api_codes)
             if not hasattr(self, "_wf"): self._wf = _NoWheelFilter(self)
             cmb.installEventFilter(self._wf)
@@ -1938,6 +2147,7 @@ class MappingDialogLarix(QtWidgets.QDialog):
             self.rows.append(_MappingRow(lbl, cmb, st, row_widget))
 
         self.btn_import_adapter.clicked.connect(self.import_adapter)
+        self.btn_choose_models.clicked.connect(self._choose_models)
 
         # JSON действия
         json_row = QtWidgets.QHBoxLayout(); v.addLayout(json_row, 0)
@@ -1960,6 +2170,22 @@ class MappingDialogLarix(QtWidgets.QDialog):
             self.btn_json_save.clicked.connect(mw.save_json_master)
             self.btn_json_import.clicked.connect(lambda: self._on_import_from_parent(mw))
             self.btn_json_clear.clicked.connect(lambda: self._on_clear_from_parent(mw))
+
+    def _on_theme_changed(self, _theme_name: str):
+        _apply_titlebar_theme(self)
+        for row in self.rows:
+            _configure_combo_popup(row.combo)
+
+    def _choose_models(self):
+        dlg = ProjectSelectionWindow()
+        if dlg.exec() == QtWidgets.QDialog.Accepted:
+            self._refresh_api_params()
+
+    def _refresh_api_params(self):
+        self.api_params = self._load_api_params()
+        self.api_codes = [p['code'] for p in self.api_params]
+        self._apply_param_filter(self.search_edit.text())
+        self._apply_mapping_to_rows()
 
     def _on_import_from_parent(self, parent_window):
         """Обработчик импорта JSON из родительского окна с обновлением."""
@@ -2036,8 +2262,8 @@ class MappingDialogLarix(QtWidgets.QDialog):
     def _load_excel_params(self) -> list:
         if pd is None: return []
         try:
-            df = pd.read_excel(self.excel_path, sheet_name=self.sheet_name, header=1)
-            return [str(c).strip() for c in df.columns[3:] if str(c).strip()]
+            layout = _load_parameter_sheet_layout(self.excel_path, self.sheet_name)
+            return [str(c).strip() for c in layout.param_columns if str(c).strip()]
         except Exception:
             return []
 
@@ -2369,146 +2595,630 @@ class PairPickerDialog(QtWidgets.QDialog):
         return {"mode": mode, "cat": self._cat_list, "cls": self._cls_list}
 
 # --------- Окно выбора проекта/моделей ---------
-class MultiCheckListWidget(QtWidgets.QListWidget):
+class HeaderCheckBox(QtWidgets.QAbstractButton):
+    BOX = 18
+    stateChanged = QtCore.Signal(int) if hasattr(QtCore, "Signal") else QtCore.pyqtSignal(int)
+
+    def __init__(self, parent=None, icon_dir: str = ICON_DIR):
+        super().__init__(parent)
+        self.icon_dir = icon_dir
+        self._visual_checked = False
+        self._partial = False
+        self._setting_checked = False
+        self._pressed = False
+        self.setCheckable(True)
+        self.setCursor(QtCore.Qt.PointingHandCursor)
+        self.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.setMouseTracking(True)
+        self.setFixedSize(self.BOX, self.BOX)
+        self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, False)
+        self.setAttribute(QtCore.Qt.WA_Hover, True)
+        self._pm_cache: dict[str, QtGui.QPixmap] = {}
+
+    def sizeHint(self):
+        return QtCore.QSize(self.BOX, self.BOX)
+
+    def minimumSizeHint(self):
+        return QtCore.QSize(self.BOX, self.BOX)
+
+    def hitButton(self, pos: QtCore.QPoint) -> bool:
+        return self.rect().contains(pos)
+
+    def _get_pixmap(self, name: str) -> QtGui.QPixmap:
+        app = QtWidgets.QApplication.instance()
+        dark = bool(is_dark_theme(app))
+        key = f"{name}_{'dark' if dark else 'light'}"
+        if key in self._pm_cache:
+            return self._pm_cache[key]
+        path = resolve_icon_path(name, self.icon_dir, app=app)
+        if not path:
+            return QtGui.QPixmap()
+        pm = QtGui.QPixmap(path)
+        if pm.isNull():
+            return pm
+        if dark:
+            pm = _tint_pixmap(pm, QtGui.QColor("#FFFFFF"))
+        self._pm_cache[key] = pm
+        return pm
+
+    def setPartial(self, v: bool):
+        old = self._partial
+        self._partial = bool(v)
+        if old != self._partial:
+            self.stateChanged.emit(self._checkStateAsInt())
+        self.update()
+
+    def isPartial(self) -> bool:
+        return self._partial
+
+    def setCheckState(self, st: int):
+        if st == QtCore.Qt.Checked:
+            self._visual_checked = True
+            self._partial = False
+        elif st == QtCore.Qt.Unchecked:
+            self._visual_checked = False
+            self._partial = False
+        else:
+            self._visual_checked = False
+            self._partial = True
+        try:
+            if not self.signalsBlocked():
+                self.stateChanged.emit(self._checkStateAsInt())
+        except Exception:
+            pass
+        self.update()
+
+    def checkState(self) -> int:
+        if self._visual_checked:
+            return QtCore.Qt.Checked
+        return QtCore.Qt.PartiallyChecked if self._partial else QtCore.Qt.Unchecked
+
+    def _checkStateAsInt(self) -> int:
+        st = self.checkState()
+        return int(getattr(st, "value", st))
+
+    def setChecked(self, on: bool):
+        prev = self._visual_checked
+        self._setting_checked = True
+        try:
+            super().setChecked(on)
+        finally:
+            self._setting_checked = False
+        self._visual_checked = bool(on)
+        if prev != on:
+            self._partial = False
+            self.stateChanged.emit(self._checkStateAsInt())
+        self.update()
+
+    def mousePressEvent(self, e):
+        if e.button() == QtCore.Qt.LeftButton:
+            self._pressed = True
+            self.update()
+        super().mousePressEvent(e)
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == QtCore.Qt.LeftButton:
+            was_pressed = self._pressed
+            self._pressed = False
+            if was_pressed and self.rect().contains(e.pos()):
+                self._toggle_state()
+                self.update()
+                return
+        super().mouseReleaseEvent(e)
+
+    def _toggle_state(self):
+        if self._partial:
+            self._visual_checked = True
+            self._partial = False
+        else:
+            self._visual_checked = not self._visual_checked
+            self._partial = False
+        self.stateChanged.emit(self._checkStateAsInt())
+
+    def paintEvent(self, e):
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        size = min(self.BOX, min(self.width(), self.height()))
+        x = (self.width() - size) // 2
+        y = (self.height() - size) // 2
+
+        if self._visual_checked:
+            icon_name = "select"
+        elif self._partial:
+            icon_name = "poloska"
+        else:
+            icon_name = "check"
+
+        pm = self._get_pixmap(icon_name)
+        if not pm.isNull():
+            scaled = pm.scaled(size, size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+            px = int(x + (size - scaled.width()) // 2)
+            py = int(y + (size - scaled.height()) // 2)
+            painter.drawPixmap(px, py, scaled)
+        painter.end()
+
+
+class ModelTreeWidget(QtWidgets.QTreeWidget):
+    checkStateChanged = QtCore.Signal() if hasattr(QtCore, "Signal") else QtCore.pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.setHeaderLabels(["", "Наименование модели"])
+        self.header().setStretchLastSection(True)
+        self.header().setSectionResizeMode(0, QtWidgets.QHeaderView.Fixed)
+        self.header().setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+        self.setColumnWidth(0, 36)
+        self.setRootIsDecorated(False)
+        self.setIndentation(0)
+        self._bulk_checking = False
+        self._filter_text = ""
+        self._hover_row = -1
+        self._pressed_row = -1
+        self.setMouseTracking(True)
+        self.viewport().setMouseTracking(True)
+        self._row_delegate = None
+        self._checkbox_delegate = None
+
+    def rowBackgroundColor(self, row: int) -> QtGui.QColor | None:
+        hover_row = getattr(self, "_hover_row", -1)
+        pressed_row = getattr(self, "_pressed_row", -1)
+        item = self.topLevelItem(row)
+        is_selected = bool(item and item.isSelected())
+        if is_selected or row == pressed_row:
+            return QtGui.QColor(PALETTE.SELECTED)
+        if row == hover_row:
+            return QtGui.QColor(PALETTE.SOFT_HOVER)
+        return None
+
+    def setDelegates(self, checkbox_delegate, row_delegate):
+        self._checkbox_delegate = checkbox_delegate
+        self._row_delegate = row_delegate
+        self.setItemDelegateForColumn(0, checkbox_delegate)
+        self.setItemDelegateForColumn(1, row_delegate)
+
+    def setFilter(self, text: str):
+        self._filter_text = (text or "").strip().lower()
+        self._apply_filter()
+
+    def _apply_filter(self):
+        root = self.invisibleRootItem()
+        for i in range(root.childCount()):
+            item = root.child(i)
+            name = item.text(1).lower() if item.text(1) else ""
+            visible = not self._filter_text or self._filter_text in name
+            item.setHidden(not visible)
+
+    def visibleCheckedCount(self) -> tuple[int, int]:
+        checked = 0
+        total = 0
+        root = self.invisibleRootItem()
+        for i in range(root.childCount()):
+            item = root.child(i)
+            if item.isHidden():
+                continue
+            total += 1
+            if item.checkState(0) == QtCore.Qt.Checked:
+                checked += 1
+        return checked, total
+
+    def setAllVisibleChecked(self, on: bool):
+        root = self.invisibleRootItem()
+        for i in range(root.childCount()):
+            item = root.child(i)
+            if item.isHidden():
+                continue
+            item.setCheckState(0, QtCore.Qt.Checked if on else QtCore.Qt.Unchecked)
+
+    def _get_row_at(self, pos: QtCore.QPoint) -> int:
+        item = self.itemAt(pos)
+        if item:
+            root = self.invisibleRootItem()
+            for i in range(root.childCount()):
+                if root.child(i) is item:
+                    return i
+        return -1
+
+    def viewportEvent(self, event):
+        if event.type() == QtCore.QEvent.HoverMove:
+            row = self._get_row_at(event.pos())
+            if row != self._hover_row:
+                self._hover_row = row
+                self.viewport().update()
+        elif event.type() == QtCore.QEvent.HoverLeave:
+            if self._hover_row != -1:
+                self._hover_row = -1
+                self.viewport().update()
+        elif event.type() == QtCore.QEvent.MouseButtonPress:
+            if event.button() == QtCore.Qt.LeftButton:
+                self._pressed_row = self._get_row_at(event.pos())
+                self.viewport().update()
+        elif event.type() == QtCore.QEvent.MouseButtonRelease:
+            if self._pressed_row != -1:
+                self._pressed_row = -1
+                self.viewport().update()
+        return super().viewportEvent(event)
 
     def keyPressEvent(self, e):
         if e.key() in (QtCore.Qt.Key_Space, QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter):
             sel = self.selectedItems()
             if sel:
-                any_un = any(it.checkState() != QtCore.Qt.Checked for it in sel)
-                for it in sel: it.setCheckState(QtCore.Qt.Checked if any_un else QtCore.Qt.Unchecked)
+                any_un = any(it.checkState(0) != QtCore.Qt.Checked for it in sel)
+                state = QtCore.Qt.Checked if any_un else QtCore.Qt.Unchecked
+                self._bulk_checking = True
+                try:
+                    for it in sel:
+                        it.setCheckState(0, state)
+                finally:
+                    self._bulk_checking = False
+                self.checkStateChanged.emit()
                 return
         super().keyPressEvent(e)
+
+
+class _CheckboxDelegate(QtWidgets.QStyledItemDelegate):
+    _UNCHECKED_VALUE = getattr(QtCore.Qt.Unchecked, "value", 0)
+    _CHECKED_VALUE = getattr(QtCore.Qt.Checked, "value", 2)
+    BOX = 18
+
+    def __init__(self, tree: ModelTreeWidget, *, icon_dir: str = ICON_DIR):
+        super().__init__(tree)
+        self.tree = tree
+        self.icon_dir = icon_dir
+        self._cache: dict[str, QtGui.QPixmap] = {}
+
+    @classmethod
+    def _state_value(cls, state) -> int:
+        if state is None:
+            return cls._UNCHECKED_VALUE
+        return getattr(state, "value", state)
+
+    def _get_pixmap(self, name: str, mode: str) -> QtGui.QPixmap:
+        key = f"{name}_{mode}"
+        if key in self._cache:
+            return self._cache[key]
+        path = resolve_icon_path(name, self.icon_dir)
+        if not path:
+            return QtGui.QPixmap()
+        pm = QtGui.QPixmap(path)
+        if pm.isNull():
+            return pm
+        if mode == "white":
+            pm = _tint_pixmap(pm, QtGui.QColor("#FFFFFF"))
+        elif mode == "black":
+            pm = _tint_pixmap(pm, QtGui.QColor("#000000"))
+        self._cache[key] = pm
+        return pm
+
+    def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex) -> None:
+        app = QtWidgets.QApplication.instance()
+        dark = bool(is_dark_theme(app))
+        row = index.row()
+        bg = self.tree.rowBackgroundColor(row)
+        is_hover = row == getattr(self.tree, "_hover_row", -1)
+        is_pressed = row == getattr(self.tree, "_pressed_row", -1)
+        is_selected = bool(self.tree.topLevelItem(row) and self.tree.topLevelItem(row).isSelected())
+
+        check_state = index.data(QtCore.Qt.CheckStateRole)
+        is_checked = self._state_value(check_state) == self._CHECKED_VALUE
+        icon_name = "select" if is_checked else "check"
+        icon_mode = "black" if (is_hover or is_pressed or is_selected) else ("white" if dark else "normal")
+        pm = self._get_pixmap(icon_name, icon_mode)
+
+        painter.save()
+        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+
+        if bg:
+            painter.setPen(QtCore.Qt.NoPen)
+            painter.setBrush(bg)
+            cell_rect = option.rect.adjusted(2, 1, 0, -1)
+            path = QtGui.QPainterPath()
+            path.addRoundedRect(QtCore.QRectF(cell_rect), 8, 8)
+            painter.drawPath(path)
+            if cell_rect.width() > 8:
+                painter.fillRect(cell_rect.adjusted(cell_rect.width() // 2, 0, 0, 0), bg)
+
+        painter.restore()
+
+        if not pm.isNull():
+            sz = min(pm.width(), pm.height(), self.BOX, option.rect.width() - 4, option.rect.height() - 4)
+            if sz > 0:
+                scaled = pm.scaled(sz, sz, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                x = option.rect.x() + (option.rect.width() - scaled.width()) // 2
+                y = option.rect.y() + (option.rect.height() - scaled.height()) // 2
+                painter.drawPixmap(x, y, scaled)
+
+    def editorEvent(self, event: QtCore.QEvent, model: QtCore.QAbstractItemModel, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex) -> bool:
+        if event.type() == QtCore.QEvent.MouseButtonRelease:
+            if event.button() == QtCore.Qt.LeftButton:
+                if option.rect.contains(event.pos()):
+                    current = self._state_value(index.data(QtCore.Qt.CheckStateRole))
+                    new_state = self._UNCHECKED_VALUE if current == self._CHECKED_VALUE else self._CHECKED_VALUE
+                    selected_rows = set()
+                    sm = self.tree.selectionModel()
+                    if sm:
+                        for idx in sm.selectedIndexes():
+                            if idx.column() == 0:
+                                selected_rows.add(idx.row())
+                    selected_rows.add(index.row())
+                    for row in selected_rows:
+                        idx0 = model.index(row, 0)
+                        model.setData(idx0, new_state, QtCore.Qt.CheckStateRole)
+                    self.tree.checkStateChanged.emit()
+                    return True
+        elif event.type() == QtCore.QEvent.KeyPress:
+            if event.key() in (QtCore.Qt.Key_Space, QtCore.Qt.Key_Select):
+                current = self._state_value(index.data(QtCore.Qt.CheckStateRole))
+                new_state = self._UNCHECKED_VALUE if current == self._CHECKED_VALUE else self._CHECKED_VALUE
+                model.setData(index, new_state, QtCore.Qt.CheckStateRole)
+                self.tree.checkStateChanged.emit()
+                return True
+        return super().editorEvent(event, model, option, index)
+
+
+class _RowBgDelegate(QtWidgets.QStyledItemDelegate):
+    def __init__(self, tree: ModelTreeWidget, checkbox_delegate: _CheckboxDelegate):
+        super().__init__(tree)
+        self.tree = tree
+        self.checkbox_delegate = checkbox_delegate
+
+    def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex) -> None:
+        bg = self.tree.rowBackgroundColor(index.row())
+        if bg:
+            painter.save()
+            painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+            painter.setPen(QtCore.Qt.NoPen)
+            painter.setBrush(bg)
+            cell_rect = option.rect.adjusted(0, 1, -2, -1)
+            path = QtGui.QPainterPath()
+            path.addRoundedRect(QtCore.QRectF(cell_rect), 8, 8)
+            painter.drawPath(path)
+            if cell_rect.width() > 8:
+                painter.fillRect(cell_rect.adjusted(0, 0, -(cell_rect.width() // 2), 0), bg)
+            painter.restore()
+
+        opt = QtWidgets.QStyleOptionViewItem(option)
+        opt.state &= ~QtWidgets.QStyle.State_Selected
+        opt.state &= ~QtWidgets.QStyle.State_MouseOver
+        opt.state &= ~QtWidgets.QStyle.State_HasFocus
+        transparent = QtGui.QColor(0, 0, 0, 0)
+        for group in (QtGui.QPalette.Active, QtGui.QPalette.Inactive, QtGui.QPalette.Disabled):
+            opt.palette.setColor(group, QtGui.QPalette.Highlight, transparent)
+            opt.palette.setColor(group, QtGui.QPalette.HighlightedText, opt.palette.color(group, QtGui.QPalette.Text))
+            opt.palette.setColor(group, QtGui.QPalette.Base, transparent)
+            opt.palette.setColor(group, QtGui.QPalette.AlternateBase, transparent)
+        if bg:
+            text_color = QtGui.QColor("#000000")
+            for group in (QtGui.QPalette.Active, QtGui.QPalette.Inactive, QtGui.QPalette.Disabled):
+                opt.palette.setColor(group, QtGui.QPalette.Text, text_color)
+                opt.palette.setColor(group, QtGui.QPalette.WindowText, text_color)
+        opt.backgroundBrush = QtGui.QBrush(transparent)
+        opt.showDecorationSelected = False
+        super().paint(painter, opt, index)
+
 
 class ProjectSelectionWindow(QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
+        try:
+            self.setProperty("noCheckHoverRecolor", True)
+            self.style().unpolish(self)
+            self.style().polish(self)
+        except Exception:
+            pass
         self.setWindowTitle("Larix.Manager - Выбор проекта и моделей")
         self.resize(640, 520)
         self.project_list = []
         self._bulk_checking = False
+
         v = QtWidgets.QVBoxLayout(self)
-        # Настройка адреса API
-        api_row = QtWidgets.QHBoxLayout(); v.addLayout(api_row)
-        api_row.addWidget(QtWidgets.QLabel("API:"))
-        self.ed_api_base = QtWidgets.QLineEdit(get_api_base()); api_row.addWidget(self.ed_api_base, 1)
-        self.btn_save_api = QtWidgets.QPushButton("Сменить"); api_row.addWidget(self.btn_save_api)
-        self.btn_save_api.clicked.connect(self._save_api_base)
+        v.setSpacing(8)
 
-
-        form = QtWidgets.QGridLayout(); v.addLayout(form)
+        form = QtWidgets.QGridLayout()
+        v.addLayout(form)
         form.addWidget(QtWidgets.QLabel("Проект:"), 0, 0)
-        self.cmb_project = QtWidgets.QComboBox(); form.addWidget(self.cmb_project, 0, 1, 1, 2)
-        self.btn_load_containers = QtWidgets.QPushButton("Загрузить модели"); form.addWidget(self.btn_load_containers, 1, 0, 1, 3)
+        self.cmb_project = QtWidgets.QComboBox()
+        form.addWidget(self.cmb_project, 0, 1)
 
-        self.list_containers = MultiCheckListWidget(self); v.addWidget(self.list_containers, 1)
-        btn_row = QtWidgets.QHBoxLayout(); v.addLayout(btn_row)
-        self.btn_select_all = QtWidgets.QPushButton("Выбрать всё")
-        self.btn_clear_selection = QtWidgets.QPushButton("Снять выделение")
-        btn_row.addWidget(self.btn_select_all)
-        btn_row.addWidget(self.btn_clear_selection)
-        btn_row.addStretch(1)
-        self.log_lbl = QtWidgets.QLabel("Готов к работе"); v.addWidget(self.log_lbl)
-        self.btn_next = QtWidgets.QPushButton("Далее"); v.addWidget(self.btn_next)
+        search_row = QtWidgets.QHBoxLayout()
+        v.addLayout(search_row)
+        search_row.addWidget(QtWidgets.QLabel("Поиск:"))
+        self.ed_search = QtWidgets.QLineEdit()
+        self.ed_search.setPlaceholderText("Фильтр по наименованию модели...")
+        try:
+            self.ed_search.setClearButtonEnabled(True)
+        except Exception:
+            pass
+        search_row.addWidget(self.ed_search, 1)
 
-        self.btn_load_containers.clicked.connect(self.load_containers)
+        self.tree_containers = ModelTreeWidget(self)
+        v.addWidget(self.tree_containers, 1)
+        try:
+            self.tree_containers.setProperty("noCheckHoverRecolor", False)
+            self.tree_containers.setFrameShape(QtWidgets.QFrame.NoFrame)
+            self.tree_containers.setStyleSheet(
+                "border: none;"
+                "background: transparent;"
+                "QTreeView::item { background: transparent; }"
+                "QTreeView::item:hover { background: transparent; }"
+                "QTreeView::item:selected { background: transparent; }"
+                "QTreeView::item:selected:active { background: transparent; }"
+            )
+            checkbox_delegate = _CheckboxDelegate(self.tree_containers, icon_dir=ICON_DIR)
+            row_delegate = _RowBgDelegate(self.tree_containers, checkbox_delegate)
+            self.tree_containers.setDelegates(checkbox_delegate, row_delegate)
+            self.tree_containers.setColumnWidth(0, 36)
+            self.tree_containers.style().unpolish(self.tree_containers)
+            self.tree_containers.style().polish(self.tree_containers)
+        except Exception:
+            pass
+
+        self._setup_header_checkbox()
+
+        self.log_lbl = QtWidgets.QLabel("Готов к работе")
+        v.addWidget(self.log_lbl)
+        self.btn_next = QtWidgets.QPushButton("Далее")
+        v.addWidget(self.btn_next)
+
         self.btn_next.clicked.connect(self.on_next)
-        self.list_containers.itemChanged.connect(self._on_container_item_changed)
-        self.btn_select_all.clicked.connect(lambda: self._set_all_containers_checked(True))
-        self.btn_clear_selection.clicked.connect(lambda: self._set_all_containers_checked(False))
-        self.list_containers.itemSelectionChanged.connect(self._on_container_selection_changed)
+        self.tree_containers.itemChanged.connect(self._on_container_item_changed)
+        self.tree_containers.checkStateChanged.connect(self._update_header_checkbox_state)
+        self.ed_search.textChanged.connect(self._on_search_changed)
+        self.header_checkbox.stateChanged.connect(self._on_header_checkbox_changed)
+        self.cmb_project.currentIndexChanged.connect(lambda _index: self.load_containers())
+
         QtCore.QTimer.singleShot(0, lambda: _apply_titlebar_theme(self))
         self.load_projects()
 
-    def log(self, t): self.log_lbl.setText(t); QtWidgets.QApplication.processEvents()
-    
-    def _save_api_base(self):
-        url = (self.ed_api_base.text() or "").strip().rstrip("/")
-        if not url:
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Адрес API пустой"); return
-        set_api_base(url)
-        self.log(f"API изменен: {url}")
-        self.load_projects()
-
-    def _set_all_containers_checked(self, checked: bool):
-        self._bulk_checking = True
+    def _setup_header_checkbox(self):
+        header = self.tree_containers.header()
+        self.header_checkbox = HeaderCheckBox(header.viewport(), icon_dir=ICON_DIR)
+        self.header_checkbox.setToolTip("Выбрать / снять все видимые")
+        self.header_checkbox.setStyleSheet("background: transparent; border: 0; margin: 0; padding: 0;")
+        self.header_checkbox.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, False)
+        self._update_header_checkbox_pos()
+        self.header_checkbox.show()
+        self.header_checkbox.raise_()
         try:
-            state = QtCore.Qt.Checked if checked else QtCore.Qt.Unchecked
-            for i in range(self.list_containers.count()):
-                it = self.list_containers.item(i)
-                if it is not None:
-                    it.setCheckState(state)
-            if not checked:
-                self.list_containers.clearSelection()
-        finally:
-            self._bulk_checking = False
+            header.geometriesChanged.connect(self._update_header_checkbox_pos)
+            header.sectionResized.connect(self._update_header_checkbox_pos)
+            header.viewport().installEventFilter(self)
+        except Exception:
+            pass
 
-    def _on_container_item_changed(self, item: QtWidgets.QListWidgetItem):
-        if self._bulk_checking:
-            return
-        if item is None:
-            return
-        if not item.isSelected():
-            item.setSelected(True)
-        sel = self.list_containers.selectedItems()
-        if len(sel) <= 1:
-            return
-        self._bulk_checking = True
+    def eventFilter(self, obj, event):
+        if obj is self.tree_containers.header().viewport():
+            if event.type() == QtCore.QEvent.MouseButtonPress or event.type() == QtCore.QEvent.MouseButtonRelease:
+                cb_rect = self.header_checkbox.geometry()
+                if cb_rect.contains(event.pos()):
+                    if event.type() == QtCore.QEvent.MouseButtonRelease:
+                        self.header_checkbox._toggle_state()
+                    return True
+        return super().eventFilter(obj, event)
+
+    def _update_header_checkbox_pos(self):
         try:
-            state = item.checkState()
-            for it in sel:
-                if it is not item:
-                    it.setCheckState(state)
+            header = self.tree_containers.header()
+            col_width = header.sectionSize(0)
+            x = (col_width - self.header_checkbox.BOX) // 2
+            y = (header.height() - self.header_checkbox.BOX) // 2
+            self.header_checkbox.move(max(0, x), max(0, y))
+            self.header_checkbox.raise_()
+        except Exception:
+            pass
+
+    def _on_search_changed(self, text: str):
+        self.tree_containers.setFilter(text)
+        self._update_header_checkbox_state()
+
+    def _on_header_checkbox_changed(self, state: int):
+        state_value = int(getattr(state, "value", state))
+        checked_value = int(getattr(QtCore.Qt.Checked, "value", QtCore.Qt.Checked))
+        partial_value = int(getattr(QtCore.Qt.PartiallyChecked, "value", QtCore.Qt.PartiallyChecked))
+
+        target_checked = state_value in (checked_value, partial_value)
+
+        self.tree_containers._bulk_checking = True
+        try:
+            self.tree_containers.setAllVisibleChecked(target_checked)
         finally:
-            self._bulk_checking = False
+            self.tree_containers._bulk_checking = False
 
-    def _on_container_selection_changed(self):
-        if self._bulk_checking:
+        self.tree_containers.viewport().update()
+        self._update_header_checkbox_state()
+
+    def _update_header_checkbox_state(self):
+        checked, total = self.tree_containers.visibleCheckedCount()
+        if total == 0:
+            new_state = QtCore.Qt.Unchecked
+        elif checked == 0:
+            new_state = QtCore.Qt.Unchecked
+        elif checked == total:
+            new_state = QtCore.Qt.Checked
+        else:
+            new_state = QtCore.Qt.PartiallyChecked
+        self.header_checkbox.blockSignals(True)
+        self.header_checkbox.setCheckState(new_state)
+        self.header_checkbox.blockSignals(False)
+
+    def log(self, t):
+        self.log_lbl.setText(t)
+        QtWidgets.QApplication.processEvents()
+
+    def event(self, ev):
+        try:
+            if ev and getattr(ev, "type", lambda: None)() in (QtCore.QEvent.PaletteChange, QtCore.QEvent.StyleChange):
+                try:
+                    self.tree_containers.viewport().update()
+                    self.header_checkbox.update()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return super().event(ev)
+
+    def _on_container_item_changed(self, item: QtWidgets.QTreeWidgetItem, column: int):
+        if self.tree_containers._bulk_checking:
             return
-        if self.list_containers.selectedItems():
-            self._bulk_checking = True
-            try:
-                self.list_containers.clearSelection()
-            finally:
-                self._bulk_checking = False
-
+        if item is None or column != 0:
+            return
+        self._update_header_checkbox_state()
 
     def load_projects(self):
-        if requests is None: self.log("requests не установлен"); return
+        if requests is None:
+            self.log("requests не установлен")
+            return
         url = f"{get_api_base()}/api/project/projects"
         try:
-            r = requests.get(url, headers={"accept":"application/json"}); r.raise_for_status()
+            r = requests.get(url, headers={"accept": "application/json"})
+            r.raise_for_status()
             data = r.json()
             if isinstance(data, list):
                 self.project_list = [(p.get("id"), p.get("title")) for p in data]
-                self.cmb_project.clear(); self.cmb_project.addItems([t for _, t in self.project_list])
-                self.log("Проекты загружены")
+                self.project_list.sort(key=lambda x: str(x[1] or "").lower())
+                self.cmb_project.blockSignals(True)
+                self.cmb_project.clear()
+                self.cmb_project.addItems([t for _, t in self.project_list])
+                self.cmb_project.blockSignals(False)
+                if self.project_list:
+                    self.cmb_project.setCurrentIndex(0)
+                    self.log("Проекты загружены, модели обновляются...")
+                    self.load_containers()
+                else:
+                    self.log("Проекты не найдены")
             else:
                 self.log("Ответ API не список")
         except Exception as e:
             self.log(f"Ошибка: {e}")
 
     def load_containers(self):
-        self.list_containers.clear()
+        self.tree_containers.clear()
+        self._update_header_checkbox_state()
         pid = None
         for _pid, title in self.project_list:
             if title == self.cmb_project.currentText():
-                pid = _pid; break
-        if not pid: self.log("Не выбран проект"); return
-        if requests is None: self.log("requests не установлен"); return
+                pid = _pid
+                break
+        if not pid:
+            self.log("Не выбран проект")
+            return
+        if requests is None:
+            self.log("requests не установлен")
+            return
         url = f"{get_api_base()}/api/imcContainer/getProjectImcContainers/{pid}"
         try:
-            r = requests.get(url, headers={"accept":"application/json"})
+            r = requests.get(url, headers={"accept": "application/json"})
             if r.status_code == 200:
                 data = r.json()
                 containers = [(it.get("id"), it.get("title")) for it in (data if isinstance(data, list) else [data])]
                 for cid, title in containers:
-                    it = QtWidgets.QListWidgetItem(title, self.list_containers)
-                    it.setFlags(it.flags() | QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
-                    it.setCheckState(QtCore.Qt.Unchecked); it.setData(QtCore.Qt.UserRole, cid)
+                    item = QtWidgets.QTreeWidgetItem(self.tree_containers)
+                    item.setText(1, title)
+                    item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
+                    item.setCheckState(0, QtCore.Qt.Unchecked)
+                    item.setData(0, QtCore.Qt.UserRole, cid)
+                self.tree_containers.setFilter(self.ed_search.text())
+                self._update_header_checkbox_state()
                 self.log(f"Загружено {len(containers)} моделей")
             else:
                 self.log(f"Ошибка: {r.status_code}")
@@ -2517,16 +3227,21 @@ class ProjectSelectionWindow(QtWidgets.QDialog):
 
     def on_next(self):
         sel = []
-        for i in range(self.list_containers.count()):
-            it = self.list_containers.item(i)
-            if it.checkState() == QtCore.Qt.Checked: sel.append(it.data(QtCore.Qt.UserRole))
+        root = self.tree_containers.invisibleRootItem()
+        for i in range(root.childCount()):
+            item = root.child(i)
+            if item.checkState(0) == QtCore.Qt.Checked:
+                cid = item.data(0, QtCore.Qt.UserRole)
+                sel.append(cid)
         if not sel:
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Выберите хотя бы одну модель."); return
+            QtWidgets.QMessageBox.warning(self, "Внимание", "Выберите хотя бы одну модель.")
+            return
         global SELECTED_CONTAINER_IDS, SELECTED_PROJECT_ID, SELECTED_PROJECT_TITLE
         SELECTED_CONTAINER_IDS = sel
         for pid, title in self.project_list:
             if title == self.cmb_project.currentText():
-                SELECTED_PROJECT_ID, SELECTED_PROJECT_TITLE = pid, title; break
+                SELECTED_PROJECT_ID, SELECTED_PROJECT_TITLE = pid, title
+                break
         self.accept()
 
 # --------- Главное окно ---------
@@ -2541,7 +3256,7 @@ class MainWindow(QtWidgets.QMainWindow):
         except Exception:
             pass
         self.setWindowTitle("Larix.Manager - Создание профилей проверок")
-        self.resize(920, 640)
+        self.resize(1120, 860)
 
         # state
         self.input_file = ""
@@ -2550,6 +3265,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.last_output_dir = ""
         self.profile_title = "Профиль проверки параметров"
         self.classifier_file = ""
+        self._current_sheet_layout = None
+        self._filter_rows: list[_FilterFieldRow] = []
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -2577,7 +3294,7 @@ class MainWindow(QtWidgets.QMainWindow):
         form.addWidget(QtWidgets.QLabel("Наименование профиля:"), 0, 0)
         self.edit_title = QtWidgets.QLineEdit(self.profile_title); form.addWidget(self.edit_title, 0, 1, 1, 2)
 
-        # --- Источник данных (радио + выбор файлов Excel) ---
+        # --- Источник данных ---
         grp_source = QtWidgets.QGroupBox("Источник данных"); v.addWidget(grp_source)
         sbox = QtWidgets.QVBoxLayout(grp_source); sbox.setContentsMargins(10,6,10,8)
         sbox.setSpacing(6)
@@ -2610,34 +3327,46 @@ class MainWindow(QtWidgets.QMainWindow):
         self._hide_source_mode_indicators()
         self._refresh_source_mode_icons()
 
+        src_row = QtWidgets.QHBoxLayout(); sbox.addLayout(src_row)
+        src_row.addWidget(QtWidgets.QLabel("Excel:"))
+        self.ed_excel_summary = QtWidgets.QLineEdit("Не выбрано")
+        self.ed_excel_summary.setReadOnly(True)
+        src_row.addWidget(self.ed_excel_summary, 1)
+        self.btn_pick_excel = QtWidgets.QPushButton("Выбрать...")
+        src_row.addWidget(self.btn_pick_excel)
+
         # Таблица выбора Excel файлов (4 строки x 3 столбца)
         excel_grid = QtWidgets.QGridLayout(); sbox.addLayout(excel_grid)
         excel_grid.setContentsMargins(0, 8, 0, 0)
         excel_grid.setHorizontalSpacing(12)
         excel_grid.setVerticalSpacing(8)
 
-        # Строка 1: LOIN - файл
-        excel_grid.addWidget(QtWidgets.QLabel("LOIN (файл):"), 0, 0)
+        # Строка 1: Excel - файл
+        self.lbl_loin_file = QtWidgets.QLabel("Excel (файл):")
+        excel_grid.addWidget(self.lbl_loin_file, 0, 0)
         self.ed_loin_file = QtWidgets.QLineEdit(); self.ed_loin_file.setReadOnly(True)
-        self.ed_loin_file.setPlaceholderText("Выберите файл Excel для LOIN")
+        self.ed_loin_file.setPlaceholderText("Выберите файл Excel с шаблоном проверок")
         excel_grid.addWidget(self.ed_loin_file, 0, 1)
         self.btn_loin_file = QtWidgets.QPushButton("Выбрать файл"); excel_grid.addWidget(self.btn_loin_file, 0, 2)
 
-        # Строка 2: LOIN - лист
-        excel_grid.addWidget(QtWidgets.QLabel("LOIN (лист):"), 1, 0)
+        # Строка 2: Excel - лист
+        self.lbl_loin_sheet = QtWidgets.QLabel("Excel (лист):")
+        excel_grid.addWidget(self.lbl_loin_sheet, 1, 0)
         self.cmb_loin_sheet = QtWidgets.QComboBox()
         self.cmb_loin_sheet.setPlaceholderText("Выберите лист")
         excel_grid.addWidget(self.cmb_loin_sheet, 1, 1, 1, 2)
 
         # Строка 3: Коды - файл
-        excel_grid.addWidget(QtWidgets.QLabel("Коды (файл):"), 2, 0)
+        self.lbl_codes_file = QtWidgets.QLabel("Коды (файл):")
+        excel_grid.addWidget(self.lbl_codes_file, 2, 0)
         self.ed_codes_file = QtWidgets.QLineEdit(); self.ed_codes_file.setReadOnly(True)
         self.ed_codes_file.setPlaceholderText("Выберите файл Excel для Кодов")
         excel_grid.addWidget(self.ed_codes_file, 2, 1)
         self.btn_codes_file = QtWidgets.QPushButton("Выбрать файл"); excel_grid.addWidget(self.btn_codes_file, 2, 2)
 
         # Строка 4: Коды - лист
-        excel_grid.addWidget(QtWidgets.QLabel("Коды (лист):"), 3, 0)
+        self.lbl_codes_sheet = QtWidgets.QLabel("Коды (лист):")
+        excel_grid.addWidget(self.lbl_codes_sheet, 3, 0)
         self.cmb_codes_sheet = QtWidgets.QComboBox()
         self.cmb_codes_sheet.setPlaceholderText("Выберите лист")
         excel_grid.addWidget(self.cmb_codes_sheet, 3, 1, 1, 2)
@@ -2647,7 +3376,66 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_codes_file.clicked.connect(self.select_codes_file)
         self.cmb_loin_sheet.currentTextChanged.connect(self.on_loin_sheet_changed)
         self.cmb_codes_sheet.currentTextChanged.connect(self.on_codes_sheet_changed)
+        self.btn_pick_excel.clicked.connect(self._open_sheet_dialog)
         _set_mode()
+
+        for widget in (
+            self.rb_cat, self.rb_cls, self.rb_both,
+            self.lbl_loin_file, self.ed_loin_file, self.btn_loin_file,
+            self.lbl_loin_sheet, self.cmb_loin_sheet,
+            self.lbl_codes_file, self.ed_codes_file, self.btn_codes_file,
+            self.lbl_codes_sheet, self.cmb_codes_sheet,
+        ):
+            widget.hide()
+        globals()["MODE_SELECTED"] = MODE_BOTH
+
+        grp_filter = QtWidgets.QGroupBox("Поля фильтрации"); v.addWidget(grp_filter)
+        filter_box = QtWidgets.QVBoxLayout(grp_filter)
+        filter_box.setContentsMargins(10, 6, 10, 8)
+        filter_box.setSpacing(6)
+        self.lbl_filter_help = QtWidgets.QLabel("Отметьте колонки Excel, которые нужно использовать в фильтрации профиля.")
+        self.lbl_filter_help.setStyleSheet("color: gray;")
+        filter_box.addWidget(self.lbl_filter_help)
+        self.filter_scroll = QtWidgets.QScrollArea()
+        self.filter_scroll.setWidgetResizable(True)
+        self.filter_scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.filter_scroll.setMinimumHeight(260)
+        filter_box.addWidget(self.filter_scroll)
+        self.filter_wrap = QtWidgets.QWidget()
+        self.filter_inner = QtWidgets.QVBoxLayout(self.filter_wrap)
+        self.filter_inner.setContentsMargins(0, 0, 0, 0)
+        self.filter_inner.setSpacing(4)
+        self.filter_inner.setAlignment(QtCore.Qt.AlignTop)
+        self.filter_scroll.setWidget(self.filter_wrap)
+        self.lbl_no_filter_fields = QtWidgets.QLabel("Сначала выберите Excel-файл и лист.")
+        self.lbl_no_filter_fields.setStyleSheet("color: gray; font-style: italic;")
+        self.filter_inner.addWidget(self.lbl_no_filter_fields)
+
+        grp_settings = QtWidgets.QGroupBox("Настройки"); v.addWidget(grp_settings)
+        settings_box = QtWidgets.QHBoxLayout(grp_settings)
+        settings_box.setContentsMargins(10, 6, 10, 8)
+        settings_box.setSpacing(12)
+        self.cb_auto = QtWidgets.QCheckBox("Автонумерация")
+        self.cb_auto.setChecked(False)
+        self.cb_auto.setEnabled(False)
+        self.cb_auto.setToolTip("Добавляет числовые префиксы к названиям разделов профиля.")
+        settings_box.addWidget(self.cb_auto)
+        self.cb_filter = QtWidgets.QCheckBox("Фильтры")
+        self.cb_filter.setChecked(False)
+        self.cb_filter.setEnabled(False)
+        self.cb_filter.setToolTip("Создаёт условия отбора по отмеченным полям Excel.")
+        settings_box.addWidget(self.cb_filter)
+        self.cb_grouped = QtWidgets.QCheckBox("Группировать фильтры")
+        self.cb_grouped.setChecked(False)
+        self.cb_grouped.setEnabled(False)
+        self._cb_grouped_tooltip = "Собирает значения одного FieldName в отдельные блоки условий."
+        self._cb_grouped_tooltip_disabled = "Сначала включите «Фильтры» для активации этой опции."
+        self.cb_grouped.setToolTip(self._cb_grouped_tooltip_disabled)
+        settings_box.addWidget(self.cb_grouped)
+        settings_box.addStretch(1)
+        self._setup_checkbox_disabled_style()
+        self.cb_filter.toggled.connect(self._on_filter_toggle)
+        self._enable_settings_checkboxes(False)
 
         # --- Выбор моделей (как такая же полоса) ---
         grp_models = QtWidgets.QGroupBox("Выбор моделей"); v.addWidget(grp_models)
@@ -2659,6 +3447,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_choose_models = QtWidgets.QPushButton("Выбрать")
         mbox.addWidget(self.btn_choose_models)
         self.btn_choose_models.clicked.connect(self.choose_models)
+        grp_models.hide()
 
         # --- Сопоставление параметров ---
         grp_map = QtWidgets.QGroupBox("Сопоставление параметров"); v.addWidget(grp_map)
@@ -2676,8 +3465,9 @@ class MainWindow(QtWidgets.QMainWindow):
         f = self.btn_generate.font(); f.setPointSize(f.pointSize()+10); f.setBold(True); self.btn_generate.setFont(f)
         self.btn_generate.setMinimumHeight(48)
         v.addWidget(self.btn_generate, 0, QtCore.Qt.AlignHCenter)
-        for grp in (grp_source, grp_models, grp_map):
+        for grp in (grp_source, grp_settings, grp_map):
             grp.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
+        grp_filter.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
         v.addStretch(1)
         self.btn_generate.clicked.connect(self._on_generate_click)
 
@@ -2696,6 +3486,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.setStyleSheet(current_style + extra_button_style)
         except Exception:
             pass
+        self._update_excel_summary()
 
     def _hide_source_mode_indicators(self):
         try:
@@ -2763,15 +3554,137 @@ class MainWindow(QtWidgets.QMainWindow):
             return f"Проект: {SELECTED_PROJECT_TITLE} • моделей выбрано: {len(SELECTED_CONTAINER_IDS)}"
         return "Не выбрано"
 
+    def _update_excel_summary(self):
+        if self.input_file and self.sheet_name:
+            self.ed_excel_summary.setText(f"{os.path.basename(self.input_file)}: {self.sheet_name}")
+        else:
+            self.ed_excel_summary.setText("Не выбрано")
+
+    def _on_filter_toggle(self, checked: bool):
+        self.cb_grouped.setEnabled(checked)
+        if checked:
+            self.cb_grouped.setToolTip(self._cb_grouped_tooltip)
+        else:
+            self.cb_grouped.setChecked(False)
+            self.cb_grouped.setToolTip(self._cb_grouped_tooltip_disabled)
+
+    def _setup_checkbox_disabled_style(self):
+        app = QtWidgets.QApplication.instance()
+        chk_off = resolve_icon_path("check", ICON_DIR, app=app)
+        chk_on = resolve_icon_path("select", ICON_DIR, app=app)
+        chk_mid = resolve_icon_path("poloska", ICON_DIR, app=app)
+        chk_off_dis = _ensure_color_copy(chk_off, ICON_DIR, QtGui.QColor("#7A7A7A"), "gray") if chk_off else ""
+        chk_on_dis = _ensure_color_copy(chk_on, ICON_DIR, QtGui.QColor("#7A7A7A"), "gray") if chk_on else ""
+        chk_mid_dis = _ensure_color_copy(chk_mid, ICON_DIR, QtGui.QColor("#7A7A7A"), "gray") if chk_mid else ""
+        dis_qss = f"""
+        QCheckBox:disabled {{ color: #8f8f8f; }}
+        QCheckBox::indicator:unchecked:disabled {{ image: url('{_qss_url(chk_off_dis) if chk_off_dis else ''}'); }}
+        QCheckBox::indicator:checked:disabled {{ image: url('{_qss_url(chk_on_dis) if chk_on_dis else ''}'); }}
+        QCheckBox::indicator:indeterminate:disabled {{ image: url('{_qss_url(chk_mid_dis) if chk_mid_dis else ''}'); }}
+        """
+        self.cb_auto.setStyleSheet(dis_qss)
+        self.cb_filter.setStyleSheet(dis_qss)
+        self.cb_grouped.setStyleSheet(dis_qss)
+
+    def _enable_settings_checkboxes(self, enable: bool):
+        self.cb_auto.setEnabled(enable)
+        self.cb_filter.setEnabled(enable)
+        if enable:
+            self.cb_auto.setChecked(True)
+            self.cb_filter.setChecked(True)
+            self.cb_grouped.setEnabled(True)
+            self.cb_grouped.setChecked(True)
+            self.cb_grouped.setToolTip(self._cb_grouped_tooltip)
+        else:
+            self.cb_auto.setChecked(False)
+            self.cb_filter.setChecked(False)
+            self.cb_grouped.setChecked(False)
+            self.cb_grouped.setEnabled(False)
+            self.cb_grouped.setToolTip(self._cb_grouped_tooltip_disabled)
+
     def choose_models(self):
         dlg = ProjectSelectionWindow()
         if dlg.exec() == QtWidgets.QDialog.Accepted:
-            self.ed_models_summary.setText(self._models_summary_text())
+            summary = self._models_summary_text()
+            self.ed_models_summary.setText(summary)
             self.setWindowTitle(f"Larix.Manager - Профиль: {SELECTED_PROJECT_TITLE or ''}")
 
+    def _open_sheet_dialog(self):
+        if _LarixSheetPickerDialog is None:
+            self.select_loin_file()
+            return
+        dlg = SingleSheetPickerDialog(self, self.input_file, self.sheet_name)
+        exec_fn = getattr(dlg, "exec", None) or getattr(dlg, "exec_", None)
+        ok = exec_fn() if exec_fn else False
+        if ok:
+            self.input_file, self.sheet_name = dlg.result()
+            self._update_excel_summary()
+            self._reload_filter_fields()
+
+    def _clear_filter_rows(self):
+        for row in self._filter_rows:
+            try:
+                row.setParent(None)
+                row.deleteLater()
+            except Exception:
+                pass
+        self._filter_rows = []
+
+    def _selected_filter_field_map(self) -> dict[str, str]:
+        result: dict[str, str] = {}
+        for row in self._filter_rows:
+            if not row.is_active():
+                continue
+            field_name = row.mapping_value()
+            if field_name:
+                result[row.column_name] = field_name
+        return result
+
+    def _open_api_select_for_filter_row(self, row: _FilterFieldRow):
+        if row is None:
+            return
+        _open_api_picker(self, lambda code: row.cmb_field.setCurrentText(code))
+
+    def _reload_filter_fields(self):
+        self._clear_filter_rows()
+        self._current_sheet_layout = None
+        self.lbl_no_filter_fields.show()
+        self.lbl_no_filter_fields.setText("Загрузка колонок Excel...")
+        self._update_excel_summary()
+        if not self.input_file or not self.sheet_name:
+            self._enable_settings_checkboxes(False)
+            self.lbl_no_filter_fields.setText("Сначала выберите Excel-файл и лист.")
+            return
+        try:
+            layout = _load_parameter_sheet_layout(self.input_file, self.sheet_name)
+            self._current_sheet_layout = layout
+            filter_columns = [
+                col for col in layout.filter_columns
+                if col and col != layout.role_columns.get("section")
+            ]
+            if not filter_columns:
+                self._enable_settings_checkboxes(False)
+                self.lbl_no_filter_fields.setText("Не найдены колонки для фильтрации до блока LOI.")
+                return
+            self.lbl_no_filter_fields.hide()
+            self._enable_settings_checkboxes(True)
+            for column_name in filter_columns:
+                row = _FilterFieldRow(
+                    column_name,
+                    _default_filter_field_for_column(layout, column_name),
+                    self._open_api_select_for_filter_row,
+                    self.filter_wrap,
+                )
+                _configure_combo_popup(row.cmb_field)
+                self._filter_rows.append(row)
+                self.filter_inner.addWidget(row)
+        except Exception as e:
+            self._enable_settings_checkboxes(False)
+            self.lbl_no_filter_fields.setText(f"Ошибка чтения Excel: {e}")
+
     def select_loin_file(self):
-        """Выбор Excel файла для LOIN (категорий)."""
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Выбор файла LOIN", "", "Excel (*.xlsx *.xls)")
+        """Выбор основного Excel файла."""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Выбор Excel-файла", "", "Excel (*.xlsx *.xls)")
         if path:
             self.input_file = path
             self.ed_loin_file.setText(os.path.basename(path))
@@ -2784,6 +3697,8 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.cmb_loin_sheet.addItems(sheets)
                         self.cmb_loin_sheet.setCurrentIndex(0)
                         self.sheet_name = sheets[0]
+                        self._reload_filter_fields()
+                        self._update_excel_summary()
             except Exception as e:
                 QtWidgets.QMessageBox.warning(self, "Ошибка", f"Не удалось загрузить листы из файла:\n{e}")
 
@@ -2805,9 +3720,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtWidgets.QMessageBox.warning(self, "Ошибка", f"Не удалось загрузить листы из файла:\n{e}")
 
     def on_loin_sheet_changed(self, sheet_name: str):
-        """Обработчик изменения выбранного листа LOIN."""
+        """Обработчик изменения выбранного листа Excel."""
         if sheet_name:
             self.sheet_name = sheet_name
+            self._reload_filter_fields()
 
     def on_codes_sheet_changed(self, sheet_name: str):
         """Обработчик изменения выбранного листа Кодов."""
@@ -2834,6 +3750,8 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.cmb_loin_sheet.addItems(sheets)
                         self.cmb_loin_sheet.setCurrentIndex(0)
                         self.sheet_name = sheets[0]
+                        self._reload_filter_fields()
+                        self._update_excel_summary()
             except Exception:
                 pass
         except Exception as e:
@@ -2866,11 +3784,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def open_mapping(self):
         """Открыть диалог сопоставления параметров."""
-        if not (SELECTED_CONTAINER_IDS and SELECTED_CONTAINER_IDS != [0]):
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Сначала нажмите 'Выбрать' в разделе 'Выбор моделей' и отметьте нужные модели.")
-            return
         if not self.input_file or not self.sheet_name:
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Сначала выберите файл LOIN.")
+            QtWidgets.QMessageBox.warning(self, "Внимание", "Сначала выберите Excel-файл и лист.")
             return
         dlg = MappingDialogLarix(self.input_file, self.sheet_name, self)
         if dlg.exec():
@@ -2916,13 +3831,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_generate_click(self):
         """Генерация профиля без сопоставления параметров."""
         if not self.input_file or not self.sheet_name:
-            QtWidgets.QMessageBox.warning(self, "Ошибка", "Сначала выберите файл LOIN и убедитесь, что выбран лист.")
+            QtWidgets.QMessageBox.warning(self, "Ошибка", "Сначала выберите Excel-файл и убедитесь, что выбран лист.")
             return
-        title = (self.edit_title.text() or "Шаблон проверки по LOIN").strip()
+        title = (self.edit_title.text() or "Профиль проверки параметров").strip()
         sheet = (self.sheet_name or "").strip()
-        mode = globals().get("MODE_SELECTED", "both")
-        use_cls = True if mode in ("classifier","both") else False
-        cls_path = self.classifier_file if use_cls else None
+        filter_field_map = self._selected_filter_field_map()
         base_dir = self.last_output_dir or os.path.dirname(self.input_file or "") or os.getcwd()
         filename = os.path.basename(self.output_file or "ExportProfile.pv")
         suggested = os.path.join(base_dir, filename)
@@ -2933,7 +3846,19 @@ class MainWindow(QtWidgets.QMainWindow):
             output_path += ".pv"
         self.last_output_dir = os.path.dirname(output_path)
         self.output_file = os.path.basename(output_path)
-        ok, msg = excel_to_pv_profile(self.input_file, output_path, title, sheet, use_cls, cls_path, mode)
+        ok, msg = excel_to_pv_profile(
+            self.input_file,
+            output_path,
+            title,
+            sheet,
+            use_classifier=False,
+            classifier_path=None,
+            mode=MODE_BOTH,
+            filter_field_map=filter_field_map,
+            auto_number=self.cb_auto.isChecked(),
+            build_filters=self.cb_filter.isChecked(),
+            grouped=self.cb_grouped.isChecked(),
+        )
         show_info_dialog(msg, title="Готово" if ok else "Ошибка", parent=self)
 
 class MainWindowMaster(MainWindow):

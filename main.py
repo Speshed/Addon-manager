@@ -26,6 +26,11 @@ TITLEBAR_ICON_REL = os.path.join("icon", "logo.ico")
 DEFAULT_API_BASE_URL = "http://localhost:5000"
 MANAGER_LOGO_HEIGHT = 64
 VIEWER_LOGO_HEIGHT = 64
+APP_VERSION = "1.0.0"
+APP_VERSION_DATE = "03.03.2026"
+APP_VERSION_CHANGES = [
+    "Все приложения объединил в одно приложение.",
+]
 _ACTIVE_API_CHECK_THREADS = set()
 
 
@@ -747,6 +752,19 @@ class MainMenuWidget(QWidget):
         api_row.addStretch(1)
         main_layout.addLayout(api_row)
 
+        version_row = QHBoxLayout()
+        version_row.setContentsMargins(0, 0, 0, 0)
+        version_row.addStretch(1)
+        self._version_link = QLabel(f"<a href='version'>Версия {APP_VERSION}</a>")
+        self._version_link.setTextFormat(Qt.RichText)
+        self._version_link.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self._version_link.setOpenExternalLinks(False)
+        self._version_link.setCursor(QCursor(Qt.PointingHandCursor))
+        self._version_link.linkActivated.connect(lambda _link: self._download_version_info())
+        version_row.addWidget(self._version_link, 0, Qt.AlignRight | Qt.AlignBottom)
+        main_layout.addLayout(version_row)
+        self._update_version_link_style()
+
     def _build_cards_page(self, cards_data):
         page = QWidget(self)
         page_layout = QVBoxLayout(page)
@@ -935,6 +953,7 @@ class MainMenuWidget(QWidget):
             pass
         self._update_logo()
         self._update_template_link_style()
+        self._update_version_link_style()
         try:
             self._set_connect_button_icon()
             self._set_api_status_icon(self._api_is_connected)
@@ -946,6 +965,13 @@ class MainMenuWidget(QWidget):
         self._download_template_link.setStyleSheet("QLabel { font-size: 11pt; background: transparent; }")
         self._download_template_link.setText(
             f"<a href='download' style='color: {color}; text-decoration: underline;'>Скачать шаблон Excel</a>"
+        )
+
+    def _update_version_link_style(self):
+        color = "#a8a8a8" if self._is_dark else "#606060"
+        self._version_link.setStyleSheet("QLabel { font-size: 8pt; background: transparent; }")
+        self._version_link.setText(
+            f"<a href='version' style='color: {color}; text-decoration: none;'>Версия {APP_VERSION}</a>"
         )
 
     def _update_logo(self):
@@ -994,6 +1020,30 @@ class MainMenuWidget(QWidget):
             _popup_info(self, f"Шаблон Excel сохранён:\n{fn}", "Готово")
         except Exception as e:
             _popup_error(self, str(e))
+
+    def _build_version_info_text(self) -> str:
+        lines = [f"Версия {APP_VERSION} от {APP_VERSION_DATE}"]
+        lines.extend(f"- {item}" for item in APP_VERSION_CHANGES)
+        return "\n".join(lines) + "\n"
+
+    def _download_version_info(self):
+        default_name = f"Версия {APP_VERSION}.txt"
+        fn, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить описание обновления",
+            default_name,
+            "Текстовые файлы (*.txt)",
+        )
+        if not fn:
+            return
+        if not fn.lower().endswith(".txt"):
+            fn += ".txt"
+        try:
+            with open(fn, "w", encoding="utf-8") as f:
+                f.write(self._build_version_info_text())
+            _popup_info(self, f"Описание обновления сохранено:\n{fn}", "Готово")
+        except Exception as e:
+            _popup_error(self, f"Не удалось сохранить описание обновления:\n{e}")
 
 
 class BimSyncHostWidget(QWidget):

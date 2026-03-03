@@ -22,6 +22,47 @@ _OPEN_DIALOG_REFS: set[QtWidgets.QDialog] = set()
 _DEFAULT_ICON_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "icon")
 _CACHE_SUBDIR = "larix_dialog_icons"
 
+_APP_ICON_PATH = None
+_APP_ICON_CACHE = None
+
+
+def set_app_icon_path(path: str) -> None:
+    global _APP_ICON_PATH, _APP_ICON_CACHE
+    _APP_ICON_PATH = path
+    _APP_ICON_CACHE = None
+
+
+def get_app_icon_path() -> str:
+    global _APP_ICON_PATH
+    if _APP_ICON_PATH and os.path.exists(_APP_ICON_PATH):
+        return _APP_ICON_PATH
+    candidates = [
+        os.path.join(_DEFAULT_ICON_DIR, "logo.ico"),
+        os.path.join(_DEFAULT_ICON_DIR, "logo.png"),
+        os.path.join(_DEFAULT_ICON_DIR, "Manager-scaled.png"),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return ""
+
+
+def get_app_icon() -> QtGui.QIcon:
+    global _APP_ICON_CACHE
+    if _APP_ICON_CACHE is not None:
+        return _APP_ICON_CACHE
+    path = get_app_icon_path()
+    if path:
+        _APP_ICON_CACHE = QtGui.QIcon(path)
+        return _APP_ICON_CACHE
+    return QtGui.QIcon()
+
+
+def apply_dialog_icon(dialog: QtWidgets.QWidget) -> None:
+    icon = get_app_icon()
+    if not icon.isNull():
+        dialog.setWindowIcon(icon)
+
 
 def _is_dark_theme() -> bool:
     try:
@@ -95,6 +136,8 @@ def _show_message_box(
     dlg.setWindowTitle(title)
     dlg.setWindowFlags(dlg.windowFlags() & ~QtCore.Qt.WindowType.WindowContextHelpButtonHint)
     dlg.setMinimumWidth(320)
+    
+    apply_dialog_icon(dlg)
     
     vlayout = QtWidgets.QVBoxLayout(dlg)
     vlayout.setSpacing(16)
@@ -251,6 +294,7 @@ def wire_dialog_button_box(
 
 
 def show_dialog(dialog: QtWidgets.QDialog, *, modal: bool = True):
+    apply_dialog_icon(dialog)
     try:
         dialog.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
     except Exception:
@@ -275,3 +319,97 @@ def show_dialog(dialog: QtWidgets.QDialog, *, modal: bool = True):
     else:
         dialog.show()
     return 0
+
+
+def message_box(
+    parent,
+    text: str,
+    title: str = "Сообщение",
+    icon: QtWidgets.QMessageBox.Icon = QtWidgets.QMessageBox.Icon.Information,
+    buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.StandardButton.Ok,
+) -> QtWidgets.QMessageBox.StandardButton:
+    mb = QtWidgets.QMessageBox(parent)
+    mb.setWindowTitle(title)
+    mb.setText(text)
+    mb.setIcon(icon)
+    mb.setStandardButtons(buttons)
+    mb.setWindowFlags(mb.windowFlags() & ~QtCore.Qt.WindowType.WindowContextHelpButtonHint)
+    apply_dialog_icon(mb)
+    wire_message_box_buttons(mb)
+    return mb.exec()
+
+
+def information_box(parent, text: str, title: str = "Информация") -> QtWidgets.QMessageBox.StandardButton:
+    return message_box(parent, text, title, QtWidgets.QMessageBox.Icon.Information)
+
+
+def warning_box(parent, text: str, title: str = "Внимание") -> QtWidgets.QMessageBox.StandardButton:
+    return message_box(parent, text, title, QtWidgets.QMessageBox.Icon.Warning)
+
+
+def critical_box(parent, text: str, title: str = "Ошибка") -> QtWidgets.QMessageBox.StandardButton:
+    return message_box(parent, text, title, QtWidgets.QMessageBox.Icon.Critical)
+
+
+def question_box(
+    parent,
+    text: str,
+    title: str = "Вопрос",
+    buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+) -> QtWidgets.QMessageBox.StandardButton:
+    return message_box(parent, text, title, QtWidgets.QMessageBox.Icon.Question, buttons)
+
+
+_original_QMessageBox_exec = None
+_original_QMessageBox_show = None
+_original_QDialog_exec = None
+_original_QDialog_show = None
+_original_QDialog_open = None
+
+
+def _patched_message_box_exec(self):
+    apply_dialog_icon(self)
+    return _original_QMessageBox_exec(self)
+
+
+def _patched_message_box_show(self):
+    apply_dialog_icon(self)
+    return _original_QMessageBox_show(self)
+
+
+def _patched_dialog_exec(self):
+    apply_dialog_icon(self)
+    return _original_QDialog_exec(self)
+
+
+def _patched_dialog_show(self):
+    apply_dialog_icon(self)
+    return _original_QDialog_show(self)
+
+
+def _patched_dialog_open(self):
+    apply_dialog_icon(self)
+    return _original_QDialog_open(self)
+
+
+def install_dialog_icon_patch():
+    global _original_QMessageBox_exec, _original_QMessageBox_show
+    global _original_QDialog_exec, _original_QDialog_show, _original_QDialog_open
+    
+    if _original_QMessageBox_exec is not None:
+        return
+    
+    _original_QMessageBox_exec = QtWidgets.QMessageBox.exec
+    _original_QMessageBox_show = QtWidgets.QMessageBox.show
+    QtWidgets.QMessageBox.exec = _patched_message_box_exec
+    QtWidgets.QMessageBox.show = _patched_message_box_show
+    
+    _original_QDialog_exec = QtWidgets.QDialog.exec
+    _original_QDialog_show = QtWidgets.QDialog.show
+    _original_QDialog_open = QtWidgets.QDialog.open
+    QtWidgets.QDialog.exec = _patched_dialog_exec
+    QtWidgets.QDialog.show = _patched_dialog_show
+    QtWidgets.QDialog.open = _patched_dialog_open
+
+
+install_dialog_icon_patch()

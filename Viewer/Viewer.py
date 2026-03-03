@@ -429,14 +429,14 @@ def _qss_common(ar_down: str, ar_up: str, ar_left: str, ar_right: str, cmb_down:
         background: {BG};
         border: 1px solid {BORDER};
         border-radius: 12px;
-        margin-top: 16px;
-        padding-top: 8px;
+        margin-top: 22px;
+        padding-top: 12px;
     }}
     QGroupBox::title {{
         subcontrol-origin: margin;
         subcontrol-position: top left;
         left: 12px;
-        padding: 0 8px;
+        padding: 0 8px 2px 8px;
         background-color: {BG};
         color: {FG};
     }}
@@ -699,7 +699,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Создание статусов")
-        self.resize(980, 720)
+        self.setMinimumSize(1160, 700)
+        self.resize(1240, 760)
         apply_window_icon(self, icon_dir=ICON_DIR)
 
         self.schema_data = {}
@@ -737,12 +738,14 @@ class MainWindow(QMainWindow):
         # --- 0. Token (top section) ---
         token_group = QGroupBox("Доступ к внешнему API (введите токен)")
         tlayout = QVBoxLayout(token_group)
+        self._configure_section_layout(tlayout)
         try:
             token_group.setFlat(True)
         except Exception:
             pass
 
         trow = QHBoxLayout()
+        self._configure_row_layout(trow)
         self.token_edit = QLineEdit()
         self.token_edit.setPlaceholderText("Bearer xxxxx...")
         self.auth_status = QLabel("Не подключено")
@@ -767,16 +770,19 @@ class MainWindow(QMainWindow):
         trow.addWidget(self.auth_status_icon)
         trow.addWidget(self.auth_status)
         tlayout.addLayout(trow)
+        self._lock_control_heights(self.token_edit, token_btn)
 
         # --- 1. Viewer Projects/Models ---
         viewer_group = QGroupBox("Модели во вьювере")
         vlayout = QVBoxLayout(viewer_group)
+        self._configure_section_layout(vlayout)
         try:
             viewer_group.setFlat(True)
         except Exception:
             pass
 
         proj_row = QHBoxLayout()
+        self._configure_row_layout(proj_row)
         proj_row.addWidget(QLabel("Проект:"))
         self.proj_combo = QComboBox()
         self.proj_combo.setMinimumWidth(360)
@@ -786,6 +792,7 @@ class MainWindow(QMainWindow):
         proj_row.addWidget(self.load_projects_btn)
         # Icons removed per request
         vlayout.addLayout(proj_row)
+        self._lock_control_heights(self.proj_combo, self.load_projects_btn)
 
         self.models_scroll = QScrollArea()
         self.models_scroll.setWidgetResizable(True)
@@ -804,12 +811,14 @@ class MainWindow(QMainWindow):
         # --- 2. Schemas/Attributes ---
         attr_group = QGroupBox("Атрибут")
         alayout = QVBoxLayout(attr_group)
+        self._configure_section_layout(alayout)
         try:
             attr_group.setFlat(True)
         except Exception:
             pass
 
         srow = QHBoxLayout()
+        self._configure_row_layout(srow)
         srow.addWidget(QLabel("Схема:"))
         self.schema_combo = QComboBox()
         self.schema_combo.setMinimumWidth(360)
@@ -820,35 +829,44 @@ class MainWindow(QMainWindow):
         srow.addWidget(self.load_schemas_btn)
         # Icons removed per request
         alayout.addLayout(srow)
+        self._lock_control_heights(self.schema_combo, self.load_schemas_btn)
 
         arow = QHBoxLayout()
+        self._configure_row_layout(arow)
         arow.addWidget(QLabel("Атрибут:"))
         self.attr_combo = QComboBox()
         self.attr_combo.setMinimumWidth(360)
         arow.addWidget(self.attr_combo, stretch=1)
         alayout.addLayout(arow)
+        self._lock_control_heights(self.attr_combo)
 
         # --- 3. Local Containers ---
         local_group = QGroupBox("Локальные контейнеры")
         llayout = QVBoxLayout(local_group)
+        self._configure_section_layout(llayout)
         try:
             local_group.setFlat(True)
         except Exception:
             pass
 
         code_row = QHBoxLayout()
+        self._configure_row_layout(code_row)
         code_row.addWidget(QLabel("Код параметра:"))
         self.param_code = QLineEdit()  # пусто
         code_row.addWidget(self.param_code, stretch=1)
         llayout.addLayout(code_row)
+        self._lock_control_heights(self.param_code)
 
         val_row = QHBoxLayout()
+        self._configure_row_layout(val_row)
         val_row.addWidget(QLabel("Устанавливаемое значение:"))
         self.value_entry = QLineEdit()  # пусто
         val_row.addWidget(self.value_entry, stretch=1)
         llayout.addLayout(val_row)
+        self._lock_control_heights(self.value_entry)
 
         lproj_row = QHBoxLayout()
+        self._configure_row_layout(lproj_row)
         lproj_row.addWidget(QLabel("Проект:"))
         self.local_proj_combo = QComboBox()
         self.local_proj_combo.setMinimumWidth(360)
@@ -859,6 +877,7 @@ class MainWindow(QMainWindow):
         lproj_row.addWidget(self.load_local_btn)
         # Icons removed per request
         llayout.addLayout(lproj_row)
+        self._lock_control_heights(self.local_proj_combo, self.load_local_btn)
 
         self.container_scroll = QScrollArea()
         self.container_scroll.setWidgetResizable(True)
@@ -875,6 +894,7 @@ class MainWindow(QMainWindow):
         # --- Start button ---
         self.start_btn = QPushButton("Запустить синхронизацию")
         self.start_btn.clicked.connect(self.start_sync)
+        self._lock_control_heights(self.start_btn, minimum=40)
         # Icons removed per request
 
         # place in grid
@@ -891,6 +911,29 @@ class MainWindow(QMainWindow):
         grid.setColumnStretch(1, 1)
 
         self.setCentralWidget(central)
+
+    def _configure_section_layout(self, layout):
+        try:
+            layout.setContentsMargins(12, 18, 12, 12)
+            layout.setSpacing(10)
+        except Exception:
+            pass
+
+    def _configure_row_layout(self, layout):
+        try:
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(10)
+        except Exception:
+            pass
+
+    def _lock_control_heights(self, *widgets, minimum=34):
+        for widget in widgets:
+            if widget is None:
+                continue
+            try:
+                widget.setFixedHeight(max(int(minimum), int(widget.sizeHint().height())))
+            except Exception:
+                pass
 
     # --- UI helpers ---
     def _on_theme_toggled(self, dark: bool) -> None:

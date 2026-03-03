@@ -74,15 +74,6 @@ def _fallback_icon_dirs(primary: str) -> list[str]:
     if common not in dirs:
         dirs.append(common)
 
-    module_dirs = [
-        os.path.join(root, "Matrix", "icon"),
-        os.path.join(root, "Parameter", "icon"),
-        os.path.join(root, "Larix_Set", "icon"),
-        os.path.join(root, "Adapters", "icon"),
-    ]
-    for d in module_dirs:
-        if d not in dirs:
-            dirs.append(d)
     return dirs
 
 

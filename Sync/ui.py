@@ -29,7 +29,7 @@ from shared.dialogs import show_dialog, wire_dialog_button_box, wire_message_box
 set_window_title_bar_dark = apply_dark_titlebar
 ThemeToggle = SharedThemeToggle
 
-from odbc_manager import (
+from odbc import (
     ODBCConnectionManager,
     ODBCConfig,
     ODBCError,
@@ -40,7 +40,7 @@ from odbc_manager import (
     ODBCDriver,
 )
 
-from tls_manager import (
+from tls import (
     TLSManager,
     TLSConfig,
     TLSError,
@@ -444,7 +444,7 @@ class HeaderSelectAllCheckBox(QCheckBox):
 def init_log():
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open(LOG_FILE, "w", encoding="utf-8") as f:
-        f.write(f"=== Larix BIM Sync Log ===\n")
+        f.write(f"=== Larix — Синхронизация Log ===\n")
         f.write(f"Запуск: {timestamp}\n")
         f.write("=" * 60 + "\n")
     
@@ -3286,7 +3286,7 @@ class BimSyncWindow(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Larix BIM Sync — Выгрузка в БД")
+        self.setWindowTitle("Larix — Синхронизация — Выгрузка в БД")
         self.setMinimumSize(900, 700)
         
         icon_path = app_window_icon_path()
@@ -4500,7 +4500,7 @@ class ModeSelectWidget(QWidget):
 class ModeSelectDialog(QDialog):
     def __init__(self, is_dark=False, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Larix BIM Sync")
+        self.setWindowTitle("Larix — Синхронизация")
         self.setMinimumSize(600, 400)
         self.setModal(True)
         self.selected_mode = None
@@ -4626,7 +4626,7 @@ class PowerBiExportWindow(QMainWindow):
         self.format_type = format_type
         format_names = {"csv": "CSV", "parquet": "Parquet", "sqlite": "SQLite"}
         format_name = format_names.get(format_type, "CSV")
-        self.setWindowTitle(f"Larix BIM Sync — Выгрузка в файлы ({format_name})")
+        self.setWindowTitle(f"Larix — Синхронизация — Выгрузка в файлы ({format_name})")
         self.setMinimumSize(900, 700)
         
         icon_path = app_window_icon_path()

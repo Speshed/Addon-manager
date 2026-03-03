@@ -698,7 +698,7 @@ def normalize_name(name: str) -> str:
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Создание статусов")
+        self.setWindowTitle("Larix — Статусы")
         self.setMinimumSize(1160, 700)
         self.resize(1240, 760)
         apply_window_icon(self, icon_dir=ICON_DIR)

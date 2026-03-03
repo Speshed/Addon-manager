@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Larix_set_nik.py
-Standalone: embedded nik_style; uses external icon/ and Excel_template.py.
+Sets/ui.py
+Standalone: embedded nik_style; uses external icon/ and shared/excel_template.py.
 Интеграция: функциональный файл использует nik_style как единственный источник дизайна.
 
 Допущения:
@@ -1902,7 +1902,7 @@ class ApiSelectDialog(QtWidgets.QDialog):
         bottom = QtWidgets.QHBoxLayout(); root.addLayout(bottom)
         bottom.addStretch(1)
         self.btn_cancel = QtWidgets.QPushButton("Отмена")
-        self.btn_import = QtWidgets.QPushButton("Импортировать")
+        self.btn_import = QtWidgets.QPushButton("Выбрать")
         bottom.addWidget(self.btn_cancel); bottom.addWidget(self.btn_import)
 
         # Signals
@@ -2127,15 +2127,12 @@ class ApiSelectDialog(QtWidgets.QDialog):
         self._do_import()
 
     def _do_import(self) -> None:
-        result: List[Dict[str, Any]] = []
-        sels = self.tbl.selectionModel().selectedRows() if self.tbl.selectionModel() else []
-        if sels:
-            for mi in sels:
-                r = self._params_shown[mi.row()]
-                result.append({"code": r.get("code",""), "isNumeric": bool(r.get("isNumeric")), "name": r.get("name","")})
-        else:
-            for r in self._params_shown:
-                result.append({"code": r.get("code",""), "isNumeric": bool(r.get("isNumeric")), "name": r.get("name","")})
+        row = self.tbl.currentRow()
+        if row < 0 or row >= len(self._params_shown):
+            show_warning_dialog("Выберите параметр из списка.", title="API", parent=self, modal=True)
+            return
+        r = self._params_shown[row]
+        result = [{"code": r.get("code",""), "isNumeric": bool(r.get("isNumeric")), "name": r.get("name","")}]
         try:
             self._on_import(result)
         finally:
@@ -3289,7 +3286,7 @@ class ContentWidget(QtWidgets.QWidget):
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Larix.Manager - Создание профиля наборов")
+        self.setWindowTitle("Larix — Наборы")
         try:
             self.setWindowIcon(QtGui.QIcon(APP_ICON_PATH))
         except Exception:

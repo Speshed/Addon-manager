@@ -27,10 +27,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.theme_toggle import ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu, load_saved_theme, enable_theme_sync
 import shared.theme_toggle as _theme
 from shared.dialogs import show_dialog, wire_dialog_button_box, wire_message_box_buttons
-from shared.excel_parameter_layout import read_parameter_sheet
+from shared.excel_parser import read_parameter_sheet
 
 try:
-    from Larix_Set.Larix_set import (
+    from Sets.ui import (
         SheetPickerDialog as _LarixSheetPickerDialog,
         ApiSelectDialog as _LarixApiSelectDialog,
         api_get_projects as _larix_api_get_projects,
@@ -56,7 +56,7 @@ except Exception:
     requests = None
 
 try:
-    from Excel_template import export_common_excel
+    from shared.excel_template import export_common_excel
     EXCEL_TEMPLATE_AVAILABLE = True
 except Exception:
     export_common_excel = None
@@ -2096,7 +2096,7 @@ class MappingDialogMaster(MappingDialog):
             _popup_error(self, f"Не удалось сохранить сопоставление:\n{e}")
         
 class MappingDialogLarix(QtWidgets.QDialog):
-    """Диалог сопоставления параметров в стиле Larix_Set.
+    """Диалог сопоставления параметров в стиле Sets.
     C нуля собирает форму, но использует ту же бизнес-логику.
     """
     def __init__(self, excel_path, sheet_name, parent=None):
@@ -3050,7 +3050,7 @@ class ProjectSelectionWindow(QtWidgets.QDialog):
             self.style().polish(self)
         except Exception:
             pass
-        self.setWindowTitle("Larix.Manager - Выбор проекта и моделей")
+        self.setWindowTitle("Larix — Выбор проекта и моделей")
         self.resize(640, 520)
         self.project_list = []
         self._bulk_checking = False
@@ -3299,7 +3299,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.style().unpolish(self); self.style().polish(self)
         except Exception:
             pass
-        self.setWindowTitle("Larix.Manager - Создание профилей проверок")
+        self.setWindowTitle("Larix — Параметры")
         self.resize(1120, 860)
 
         # state
@@ -3651,7 +3651,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if dlg.exec() == QtWidgets.QDialog.Accepted:
             summary = self._models_summary_text()
             self.ed_models_summary.setText(summary)
-            self.setWindowTitle(f"Larix.Manager - Профиль: {SELECTED_PROJECT_TITLE or ''}")
+            self.setWindowTitle(f"Larix — Параметры: {SELECTED_PROJECT_TITLE or ''}")
 
     def _open_sheet_dialog(self):
         if _LarixSheetPickerDialog is None:
@@ -3907,7 +3907,7 @@ class MainWindowMaster(MainWindow):
 
 """
 Auto-injected helpers: Excel template builders for LOI and Classifier.
-Mirrors the implementation used in Larix_set.py to build Excel templates
+Mirrors the implementation used in Sets/ui.py to build Excel templates
 via sidecar scripts: "Add category.py" and "Add class.py".
 """
 

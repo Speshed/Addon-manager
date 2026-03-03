@@ -1,6 +1,7 @@
-﻿import sys
+import sys
 import os
 import importlib
+import importlib.util
 import urllib.request
 import urllib.error
 from PySide6.QtWidgets import (
@@ -80,9 +81,21 @@ def _popup_info(parent, text: str, title: str = "Информация"):
 
 def _load_symbol_from_dir(module_dir: str, module_name: str, symbol_name: str):
     mod_dir = os.path.join(BASE_DIR, module_dir)
+    module_path = os.path.join(mod_dir, f"{module_name}.py")
+    unique_name = f"_larix_{module_dir}_{module_name}"
+    
     if mod_dir not in sys.path:
         sys.path.insert(0, mod_dir)
-    module = importlib.import_module(module_name)
+    
+    if unique_name in sys.modules:
+        del sys.modules[unique_name]
+    
+    spec = importlib.util.spec_from_file_location(unique_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot find module {module_name} in {mod_dir}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[unique_name] = module
+    spec.loader.exec_module(module)
     return getattr(module, symbol_name)
 
 
@@ -1001,7 +1014,7 @@ class MainMenuWidget(QWidget):
 
     def _download_template(self):
         try:
-            from Excel_template import export_common_excel
+            from shared.excel_template import export_common_excel
         except Exception as e:
             _popup_error(self, f"Не удалось загрузить модуль шаблонов:\n{e}")
             return
@@ -1061,7 +1074,7 @@ class BimSyncHostWidget(QWidget):
 
     def _open_mode_dialog(self, initial: bool = False) -> bool:
         try:
-            ModeSelectDialog = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "ModeSelectDialog")
+            ModeSelectDialog = _load_symbol_from_dir("Sync", "ui", "ModeSelectDialog")
             dialog = ModeSelectDialog(is_dark=self._is_dark, parent=self.window())
             if dialog.exec() != dialog.DialogCode.Accepted:
                 return False
@@ -1082,16 +1095,16 @@ class BimSyncHostWidget(QWidget):
     def _load_mode(self, mode_id: str) -> bool:
         try:
             if mode_id == "powerbi":
-                WindowClass = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "PowerBiExportWindow")
+                WindowClass = _load_symbol_from_dir("Sync", "ui", "PowerBiExportWindow")
                 win = WindowClass("csv")
             elif mode_id == "parquet":
-                WindowClass = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "PowerBiExportWindow")
+                WindowClass = _load_symbol_from_dir("Sync", "ui", "PowerBiExportWindow")
                 win = WindowClass("parquet")
             elif mode_id == "sqlite":
-                WindowClass = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "PowerBiExportWindow")
+                WindowClass = _load_symbol_from_dir("Sync", "ui", "PowerBiExportWindow")
                 win = WindowClass("sqlite")
             else:
-                WindowClass = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "BimSyncWindow")
+                WindowClass = _load_symbol_from_dir("Sync", "ui", "BimSyncWindow")
                 win = WindowClass()
         except Exception as e:
             _popup_error(self, f"Не удалось загрузить режим BIM Sync:\n{e}")
@@ -1152,7 +1165,7 @@ class BimSyncHostWidget(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Larix Plugin")
+        self.setWindowTitle("Larix")
         self.setMinimumSize(860, 640)
         self.resize(920, 700)
         self._is_dark = load_saved_theme(False)
@@ -1190,7 +1203,7 @@ class MainWindow(QMainWindow):
         if self._current_module_widget is not None:
             self._current_module_widget = None
         self._current_module_window = None
-        self.setWindowTitle("Larix Plugin")
+        self.setWindowTitle("Larix")
 
         menu = MainMenuWidget(self._is_dark, self._api_base_url, self)
         menu.mode_selected.connect(self._on_mode_selected)
@@ -1227,14 +1240,14 @@ class MainWindow(QMainWindow):
             self._current_module_window = window
             self.setCentralWidget(widget)
             module_titles = {
-                "adapters": "Larix Plugin - Редактор адаптера",
-                "larix_set": "Larix Plugin - Создание наборов",
-                "matrix": "Larix Plugin - Матрица коллизий",
-                "parameters": "Larix Plugin - Профиль проверок параметров",
-                "viewer": "Larix Plugin - Создание статусов",
-                "bim_sync": "Larix Plugin - BIM Sync",
+                "adapters": "Larix — Адаптеры",
+                "larix_set": "Larix — Наборы",
+                "matrix": "Larix — Матрицы",
+                "parameters": "Larix — Параметры",
+                "viewer": "Larix — Статусы",
+                "bim_sync": "Larix — Синхронизация",
             }
-            title = module_titles.get(mode_id, "Larix Plugin")
+            title = module_titles.get(mode_id, "Larix")
             try:
                 if window is not None:
                     wt = (window.windowTitle() or "").strip()
@@ -1272,7 +1285,7 @@ class MainWindow(QMainWindow):
 
     def _open_bim_sync_dialog(self):
         try:
-            ModeSelectWidget = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "ModeSelectWidget")
+            ModeSelectWidget = _load_symbol_from_dir("Sync", "ui", "ModeSelectWidget")
             widget = ModeSelectWidget(is_dark=self._is_dark, parent=self)
             widget.mode_selected.connect(self._on_bim_sync_mode_selected)
             widget.back_requested.connect(self._show_main_menu)
@@ -1280,7 +1293,7 @@ class MainWindow(QMainWindow):
             self._current_module_widget = widget
             self._current_module_window = None
             self.setCentralWidget(widget)
-            self.setWindowTitle("Larix Plugin - BIM Sync")
+            self.setWindowTitle("Larix — Синхронизация")
             self.setMinimumSize(600, 400)
             self.resize(700, 500)
             self._center_on_screen()
@@ -1296,16 +1309,16 @@ class MainWindow(QMainWindow):
             self._is_dark = bool(getattr(self._current_module_widget, "is_dark", self._is_dark))
             
             if mode_id == "powerbi":
-                WindowClass = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "PowerBiExportWindow")
+                WindowClass = _load_symbol_from_dir("Sync", "ui", "PowerBiExportWindow")
                 win = WindowClass("csv")
             elif mode_id == "parquet":
-                WindowClass = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "PowerBiExportWindow")
+                WindowClass = _load_symbol_from_dir("Sync", "ui", "PowerBiExportWindow")
                 win = WindowClass("parquet")
             elif mode_id == "sqlite":
-                WindowClass = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "PowerBiExportWindow")
+                WindowClass = _load_symbol_from_dir("Sync", "ui", "PowerBiExportWindow")
                 win = WindowClass("sqlite")
             else:
-                WindowClass = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "BimSyncWindow")
+                WindowClass = _load_symbol_from_dir("Sync", "ui", "BimSyncWindow")
                 win = WindowClass()
             
             if self._is_dark and hasattr(win, "_toggle_theme"):
@@ -1326,7 +1339,7 @@ class MainWindow(QMainWindow):
             self._current_module_widget = widget
             self._current_module_window = win
             self.setCentralWidget(widget)
-            self.setWindowTitle((win.windowTitle() or "Larix Plugin - BIM Sync").strip())
+            self.setWindowTitle((win.windowTitle() or "Larix — Синхронизация").strip())
             try:
                 self.setMinimumSize(win.minimumSize())
                 self.resize(win.size())
@@ -1342,26 +1355,26 @@ class MainWindow(QMainWindow):
     def _create_module_widget(self, mode_id: str):
         try:
             if mode_id == "adapters":
-                MainWin = _load_symbol_from_dir("Adapters", "Adapter", "MainWin")
+                MainWin = _load_symbol_from_dir("Adapters", "ui", "MainWin")
                 win = MainWin()
                 return _extract_window_widget(win), win
             elif mode_id == "larix_set":
-                ContentWidget = _load_symbol_from_dir("Larix_Set", "Larix_set", "ContentWidget")
+                ContentWidget = _load_symbol_from_dir("Sets", "ui", "ContentWidget")
                 return ContentWidget(), None
             elif mode_id == "matrix":
-                MainWindow = _load_symbol_from_dir("Matrix", "matrix_ui", "MainWindow")
+                MainWindow = _load_symbol_from_dir("Matrix", "ui", "MainWindow")
                 win = MainWindow()
                 return _extract_window_widget(win), win
             elif mode_id == "parameters":
-                MainWindow = _load_symbol_from_dir("Parameter", "Parameters", "MainWindow")
+                MainWindow = _load_symbol_from_dir("Validator", "ui", "MainWindow")
                 win = MainWindow()
                 return _extract_window_widget(win), win
             elif mode_id == "viewer":
-                MainWindow = _load_symbol_from_dir("Viewer", "Viewer", "MainWindow")
+                MainWindow = _load_symbol_from_dir("Viewer", "ui", "MainWindow")
                 win = MainWindow()
                 return _extract_window_widget(win), win
             elif mode_id == "bim_sync":
-                BimSyncWindow = _load_symbol_from_dir("viewer subd", "bim_sync_gui", "BimSyncWindow")
+                BimSyncWindow = _load_symbol_from_dir("Sync", "ui", "BimSyncWindow")
                 win = BimSyncWindow()
                 return _extract_window_widget(win), win
         except Exception as e:

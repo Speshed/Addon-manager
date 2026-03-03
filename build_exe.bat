@@ -74,19 +74,21 @@ py -3 -m PyInstaller ^
  --workpath "%BUILD_DIR%" ^
  --specpath "%SPEC_DIR%" ^
  --paths "%PROJECT_DIR%\Adapters" ^
- --paths "%PROJECT_DIR%\Larix_Set" ^
+ --paths "%PROJECT_DIR%\Sets" ^
  --paths "%PROJECT_DIR%\Matrix" ^
- --paths "%PROJECT_DIR%\Parameter" ^
+ --paths "%PROJECT_DIR%\Validator" ^
  --paths "%PROJECT_DIR%\Viewer" ^
- --paths "%PROJECT_DIR%\viewer subd" ^
- --hidden-import Adapter ^
- --hidden-import Larix_set ^
- --hidden-import matrix_ui ^
- --hidden-import Parameters ^
- --hidden-import Viewer ^
- --hidden-import bim_sync_gui ^
- --hidden-import odbc_manager ^
- --hidden-import tls_manager ^
+ --paths "%PROJECT_DIR%\Sync" ^
+ --paths "%PROJECT_DIR%\shared" ^
+ --hidden-import Adapters.ui ^
+ --hidden-import Sets.ui ^
+ --hidden-import Matrix.ui ^
+ --hidden-import Validator.ui ^
+ --hidden-import Viewer.ui ^
+ --hidden-import Sync.ui ^
+ --hidden-import Sync.odbc ^
+ --hidden-import Sync.tls ^
+ --hidden-import shared.excel_template ^
  --add-data "%PROJECT_DIR%\icon;icon" ^
  --collect-data certifi ^
  %PYARROW_ARGS% ^

@@ -13,15 +13,14 @@ Addon Manager - десктопное приложение на Python/PySide6 д
 ```
 Addon manager/
 ├── main.py                       # Точка входа, главное меню с выбором режима
-├── Excel_template.py             # Экспорт шаблонов в Excel
 ├── ARCHITECTURE.md               # Этот файл
 ├── .gitignore                    # Исключения Git
 ├── build_exe.bat                 # Скрипт сборки exe (PyInstaller)
 ├── Шаблон Excel.xlsx             # Шаблон Excel для экспорта
 │
 ├── icon/                         # Иконки приложения (единая папка)
-│   ├── Manager-scaled.png        # Логотип Larix Plugin (светлый)
-│   ├── Manager-scaled_white.png  # Логотип Larix Plugin (тёмный)
+│   ├── Manager-scaled.png        # Логотип Larix (светлый)
+│   ├── Manager-scaled_white.png  # Логотип Larix (тёмный)
 │   ├── Larix Viewer_black.png    # Логотип Viewer (светлый)
 │   ├── Larix Viewer_white.png    # Логотип Viewer (тёмный)
 │   ├── logo.ico / logo.png       # Иконка приложения
@@ -37,32 +36,33 @@ Addon manager/
 │   ├── __init__.py
 │   ├── theme_toggle.py           # Переключатель темы, иконки, стили
 │   ├── dialogs.py                # Диалоговые окна (ошибка, предупреждение)
-│   └── excel_parameter_layout.py # Парсинг Excel-листов параметров
+│   ├── excel_parser.py           # Парсинг Excel-листов параметров
+│   └── excel_template.py         # Экспорт шаблонов в Excel
 │
 ├── Adapters/                     # Модуль адаптеров
 │   ├── __init__.py
-│   └── Adapter.py                # Редактор адаптеров
+│   └── ui.py                     # Редактор адаптеров
 │
-├── Parameter/                    # Модуль параметров
+├── Validator/                    # Модуль валидации параметров
 │   ├── __init__.py
-│   └── Parameters.py             # Генерация профилей валидации
+│   └── ui.py                     # Генерация профилей валидации
 │
 ├── Matrix/                       # Модуль матриц
 │   ├── __init__.py
-│   └── matrix_ui.py              # Генератор матриц коллизий
+│   └── ui.py                     # Генератор матриц коллизий
 │
-├── Larix_Set/                    # Модуль наборов
+├── Sets/                         # Модуль наборов
 │   ├── __init__.py
-│   └── Larix_set.py              # Управление профилями Larix
+│   └── ui.py                     # Управление профилями Larix
 │
 ├── Viewer/                       # Модуль статусов
-│   └── Viewer.py                 # Создание статусов
+│   └── ui.py                     # Создание статусов
 │
-└── viewer subd/                  # Модуль BIM Sync
-    ├── bim_sync_gui.py           # GUI для синхронизации с БД
-    ├── odbc_manager.py           # Управление ODBC-драйверами SQL Server
-    ├── tls_manager.py            # Управление TLS/SSL сертификатами
-    └── check_rows.py             # Утилита проверки parquet-файлов
+└── Sync/                         # Модуль синхронизации
+    ├── ui.py                     # GUI для синхронизации с БД
+    ├── odbc.py                   # Управление ODBC-драйверами SQL Server
+    ├── tls.py                    # Управление TLS/SSL сертификатами
+    └── check.py                  # Утилита проверки parquet-файлов
 ```
 
 ---
@@ -82,14 +82,14 @@ Addon manager/
 
 **Режимы:**
 
-| Страница | ID | Название | Модуль |
-|----------|----|---------|---------|
-| Manager | `adapters` | Адаптеры | `Adapters/Adapter.py` |
-| Manager | `larix_set` | Наборы | `Larix_Set/Larix_set.py` |
-| Manager | `matrix` | Матрицы | `Matrix/matrix_ui.py` |
-| Manager | `parameters` | Параметры | `Parameter/Parameters.py` |
-| Viewer | `viewer` | Статусы | `Viewer/Viewer.py` |
-| Viewer | `bim_sync` | BIM Sync | `viewer subd/bim_sync_gui.py` |
+| Страница | ID | Название | Title Bar | Модуль |
+|----------|----|---------|-----------|--------|
+| Manager | `adapters` | Адаптеры | Larix — Адаптеры | `Adapters/ui.py` |
+| Manager | `sets` | Наборы | Larix — Наборы | `Sets/ui.py` |
+| Manager | `matrix` | Матрицы | Larix — Матрицы | `Matrix/ui.py` |
+| Manager | `validator` | Параметры | Larix — Параметры | `Validator/ui.py` |
+| Viewer | `viewer` | Статусы | Larix — Статусы | `Viewer/ui.py` |
+| Viewer | `sync` | BIM Sync | Larix — Синхронизация | `Sync/ui.py` |
 
 **Функции:**
 - `_popup_error()` / `_popup_info()` — Диалоги ошибок и информации
@@ -152,7 +152,7 @@ Addon manager/
 
 ---
 
-### 4. shared/excel_parameter_layout.py — Парсинг Excel
+### 4. shared/excel_parser.py — Парсинг Excel
 
 **Назначение:** Чтение и анализ листов параметров из Excel
 
@@ -173,7 +173,7 @@ Addon manager/
 
 ---
 
-### 5. Excel_template.py — Экспорт в Excel
+### 5. shared/excel_template.py — Экспорт в Excel
 
 **Назначение:** Генерация форматированных Excel-файлов
 
@@ -194,9 +194,11 @@ Addon manager/
 
 ---
 
-### 6. Adapters/Adapter.py — Редактор адаптеров
+### 6. Adapters/ui.py — Редактор адаптеров
 
 **Назначение:** Создание и редактирование адаптеров для связи атрибутов с параметрами моделей
+
+**Title Bar:** `Larix — Адаптеры`
 
 **Классы:**
 - `MainWin` — Главное окно редактора
@@ -219,9 +221,11 @@ Addon manager/
 
 ---
 
-### 7. Parameter/Parameters.py — Управление параметрами
+### 7. Validator/ui.py — Валидация параметров
 
 **Назначение:** Генерация профилей валидации параметров из Excel
+
+**Title Bar:** `Larix — Параметры`
 
 **Классы:**
 - `MainWindow` — Главное окно
@@ -240,9 +244,11 @@ Addon manager/
 
 ---
 
-### 8. Matrix/matrix_ui.py — Генератор матриц коллизий
+### 8. Matrix/ui.py — Генератор матриц коллизий
 
 **Назначение:** Создание профилей коллизий из Excel-матриц
+
+**Title Bar:** `Larix — Матрицы`
 
 **Классы:**
 - `MainWindow` — Главное окно
@@ -260,9 +266,11 @@ Addon manager/
 
 ---
 
-### 9. Larix_Set/Larix_set.py — Настройка профилей
+### 9. Sets/ui.py — Настройка профилей
 
 **Назначение:** Управление профилями и наборами Larix
+
+**Title Bar:** `Larix — Наборы`
 
 **Классы:**
 - `MainWindow` — Главное окно
@@ -279,9 +287,11 @@ Addon manager/
 
 ---
 
-### 10. Viewer/Viewer.py — Создание статусов
+### 10. Viewer/ui.py — Создание статусов
 
 **Назначение:** Создание и управление статусами элементов модели
+
+**Title Bar:** `Larix — Статусы`
 
 **Функции:**
 - `api_get()` — Универсальный GET-запрос с обработкой ошибок
@@ -292,9 +302,11 @@ Addon manager/
 
 ---
 
-### 11. viewer subd/bim_sync_gui.py — BIM Sync
+### 11. Sync/ui.py — BIM Sync
 
 **Назначение:** Синхронизация данных между BIM-моделями и базой данных
+
+**Title Bar:** `Larix — Синхронизация`
 
 **Классы:**
 - `ModeSelectDialog` / `ModeSelectWidget` — Выбор режима синхронизации
@@ -314,7 +326,7 @@ Addon manager/
 
 ---
 
-### 12. viewer subd/odbc_manager.py — Управление ODBC
+### 12. Sync/odbc.py — Управление ODBC
 
 **Назначение:** Управление ODBC-драйверами для SQL Server
 
@@ -333,7 +345,7 @@ Addon manager/
 
 ---
 
-### 13. viewer subd/tls_manager.py — Управление TLS
+### 13. Sync/tls.py — Управление TLS
 
 **Назначение:** Управление TLS/SSL сертификатами для HTTPS-запросов
 
@@ -351,7 +363,7 @@ Addon manager/
 
 ---
 
-### 14. viewer subd/check_rows.py — Утилита проверки
+### 14. Sync/check.py — Утилита проверки
 
 **Назначение:** Проверка целостности parquet-файлов
 
@@ -383,13 +395,13 @@ Addon manager/
         │                               │
    ┌────┼────┬────┬────┐          ┌────┴────┐
    ▼    ▼    ▼    ▼    ▼          ▼         ▼
-┌─────┐┌─────┐┌─────┐┌─────┐  ┌─────┐  ┌────────┐
-│Adapt││Matrix││Param││Larix│  │Viewr│  │BIM Sync│
-│ ers ││     ││ eter││ Set │  │     │  │        │
-│[←]  ││[←]  ││[←]  ││[←]  │  │[←]  │  │[←]     │
-└──┬──┘└──┬──┘└──┬──┘└──┬──┘  └──┬──┘  └───┬────┘
-   │      │      │      │        │         │
-   └──────┴──────┴──────┴────────┴─────────┘
+┌─────┐┌─────┐┌─────┐┌────────┐┌──────┐┌──────┐
+│Adapt││Matrix││Valid││  Sets  ││Viewer││ Sync │
+│ ers ││     ││ator ││        ││      ││      │
+│[←]  ││[←]  ││[←]  ││[←]     ││[←]   ││[←]   │
+└──┬──┘└──┬──┘└──┬──┘└───┬────┘└──┬───┘└──┬───┘
+   │      │      │        │        │       │
+   └──────┴──────┴────────┴────────┴───────┘
                      │
                      ▼
             go_to_main_menu()
@@ -462,6 +474,7 @@ GET /api/attribute-value/jimcid-attributeid  — Значения атрибут
 6. **Сопоставление имён:** `normalize_name()` для нечёткого сравнения
 7. **Диалоги:** Единый стиль через `shared/dialogs.py`
 8. **Иконки:** Единая папка `icon/` с автотонированием под тему
+9. **Title Bar:** Единый формат `Larix — %s` для всех модулей
 
 ---
 

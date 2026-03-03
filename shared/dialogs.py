@@ -131,7 +131,7 @@ def _show_message_box(
 ) -> int:
     _dialog_log(f"_show_message_box called: parent={parent}, title={title}")
     
-    # Use custom QDialog like in Adapters/Adapter.py - it works there
+    # Use custom QDialog like in Adapters/ui.py - it works there
     dlg = QtWidgets.QDialog(parent)
     dlg.setWindowTitle(title)
     dlg.setWindowFlags(dlg.windowFlags() & ~QtCore.Qt.WindowType.WindowContextHelpButtonHint)
@@ -167,7 +167,7 @@ def _show_message_box(
     hlayout.addWidget(msg_label, 1)
     vlayout.addLayout(hlayout)
     
-    # Button box - exactly like in Adapter.py
+    # Button box - exactly like in Adapters/ui.py
     btn_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok)
     wire_dialog_button_box(btn_box, dlg.accept)
     vlayout.addWidget(btn_box, 0, QtCore.Qt.AlignmentFlag.AlignRight)

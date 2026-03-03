@@ -7,16 +7,15 @@
 # tracked source folders
 !Adapters/
 !Matrix/
-!Parameter/
-!Larix_Set/
+!Validator/
+!Sets/
 !Viewer/
+!Sync/
 !shared/
 !icon/
-!viewer subd/
 
 # tracked files
 !main.py
-!Excel_template.py
 !ARCHITECTURE.md
 !build_exe.bat
 !Шаблон Excel.xlsx
@@ -24,12 +23,12 @@
 # keep nested source files in tracked folders
 !Adapters/**
 !Matrix/**
-!Parameter/**
-!Larix_Set/**
+!Validator/**
+!Sets/**
 !Viewer/**
+!Sync/**
 !shared/**
 !icon/**
-!viewer subd/**
 
 # never track caches/artifacts
 **/__pycache__/

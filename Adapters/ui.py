@@ -30,7 +30,7 @@ BTN_GRAY_HOVER = "#C9C9C9"
 BIND_CHECKBOX_ICON_SIZE = 16
 
 def _plugins_dir() -> str:
-    # ...\Plugins\Manager_Adapter\Adapters\Adapter.py -> ...\Plugins
+    # ...\Plugins\Manager_Adapter\Adapters\ui.py -> ...\Plugins
     return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
@@ -1107,7 +1107,7 @@ class MainWin(QtWidgets.QMainWindow):
         self._pending_theme_apply = False
         self._build_ui()
 
-        self.setWindowTitle("Редактор адаптера")
+        self.setWindowTitle("Larix — Адаптеры")
         self.resize(1500, 860)
         self.setMinimumSize(1160, 720)
 

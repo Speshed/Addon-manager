@@ -4,7 +4,7 @@
 # keep top-level dirs traversable
 !*/
 
-# tracked source folders (real names)
+# tracked source folders
 !Adapters/
 !Matrix/
 !Parameter/
@@ -12,11 +12,14 @@
 !Viewer/
 !shared/
 !icon/
+!viewer subd/
 
 # tracked files
 !main.py
 !Excel_template.py
 !ARCHITECTURE.md
+!build_exe.bat
+!Шаблон Excel.xlsx
 
 # keep nested source files in tracked folders
 !Adapters/**
@@ -26,6 +29,7 @@
 !Viewer/**
 !shared/**
 !icon/**
+!viewer subd/**
 
 # never track caches/artifacts
 **/__pycache__/

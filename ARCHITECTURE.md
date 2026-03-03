@@ -2,7 +2,9 @@
 
 ## Обзор
 
-Addon Manager - десктопное приложение на Python/PySide6 для управления адаптерами, параметрами, профилями BIM-моделирования и синхронизацией nativeId. Приложение поддерживает светлую/тёмную тему и предоставляет модульную структуру для различных задач.
+Addon Manager - десктопное приложение на Python/PySide6 для управления адаптерами, параметрами, профилями BIM-моделирования и синхронизацией данных. Приложение поддерживает светлую/тёмную тему и предоставляет модульную структуру для различных задач.
+
+**Версия:** 1.0.0 (03.03.2026)
 
 ---
 
@@ -10,38 +12,57 @@ Addon Manager - десктопное приложение на Python/PySide6 д
 
 ```
 Addon manager/
-├── main.py                    # Точка входа, диалог выбора режима
-├── theme_toggle.py            # Компоненты темы и навигации
-├── Excel_template.py          # Экспорт данных в Excel
-├── ARCHITECTURE.md            # Этот файл
+├── main.py                       # Точка входа, главное меню с выбором режима
+├── Excel_template.py             # Экспорт шаблонов в Excel
+├── ARCHITECTURE.md               # Этот файл
+├── .gitignore                    # Исключения Git
+├── build_exe.bat                 # Скрипт сборки exe (PyInstaller)
+├── Шаблон Excel.xlsx             # Шаблон Excel для экспорта
 │
-├── icon/                      # Иконки приложения (общие)
-│   ├── Manager-scaled.png     # Логотип (светлый)
-│   ├── Manager-scaled_white.png # Логотип (тёмный)
-│   ├── sun.png / moon.png     # Иконки переключателя темы
-│   └── ...                    # Прочие иконки UI
+├── icon/                         # Иконки приложения (единая папка)
+│   ├── Manager-scaled.png        # Логотип Larix Plugin (светлый)
+│   ├── Manager-scaled_white.png  # Логотип Larix Plugin (тёмный)
+│   ├── Larix Viewer_black.png    # Логотип Viewer (светлый)
+│   ├── Larix Viewer_white.png    # Логотип Viewer (тёмный)
+│   ├── logo.ico / logo.png       # Иконка приложения
+│   ├── sun.png / moon.png        # Иконки переключателя темы
+│   ├── white/                    # Иконки для тёмной темы (белые)
+│   │   ├── arrow-*.png
+│   │   ├── check.png
+│   │   ├── select.png
+│   │   └── poloska.png
+│   └── ...                       # Прочие иконки UI (~100 файлов)
 │
-├── Adapters/
+├── shared/                       # Общие компоненты
 │   ├── __init__.py
-│   └── Adapter.py             # Редактор адаптеров
+│   ├── theme_toggle.py           # Переключатель темы, иконки, стили
+│   ├── dialogs.py                # Диалоговые окна (ошибка, предупреждение)
+│   └── excel_parameter_layout.py # Парсинг Excel-листов параметров
 │
-├── Parameter/
+├── Adapters/                     # Модуль адаптеров
 │   ├── __init__.py
-│   ├── Parameters.py          # Управление параметрами
-│   └── icon/                  # Иконки модуля параметров
+│   └── Adapter.py                # Редактор адаптеров
 │
-├── Matrix/
+├── Parameter/                    # Модуль параметров
 │   ├── __init__.py
-│   └── matrix_ui.py           # Генератор матриц коллизий
+│   └── Parameters.py             # Генерация профилей валидации
 │
-├── Larix_Set/
+├── Matrix/                       # Модуль матриц
 │   ├── __init__.py
-│   └── Larix_set.py           # Настройка профилей Larix
+│   └── matrix_ui.py              # Генератор матриц коллизий
 │
-└── Viewer/
-    ├── __init__.py
-    ├── Viewer.py              # BIM Sync Tool (синхронизация nativeId)
-    └── icon/                  # Иконки модуля Viewer
+├── Larix_Set/                    # Модуль наборов
+│   ├── __init__.py
+│   └── Larix_set.py              # Управление профилями Larix
+│
+├── Viewer/                       # Модуль статусов
+│   └── Viewer.py                 # Создание статусов
+│
+└── viewer subd/                  # Модуль BIM Sync
+    ├── bim_sync_gui.py           # GUI для синхронизации с БД
+    ├── odbc_manager.py           # Управление ODBC-драйверами SQL Server
+    ├── tls_manager.py            # Управление TLS/SSL сертификатами
+    └── check_rows.py             # Утилита проверки parquet-файлов
 ```
 
 ---
@@ -49,68 +70,132 @@ Addon manager/
 ## Модули
 
 ### 1. main.py — Точка входа
-**Назначение:** Диалог выбора режима работы
+
+**Назначение:** Главное меню с выбором режима работы
 
 **Классы:**
 - `ModeCard` — Карточка режима с анимацией hover/selection
 - `AnimatableShadowEffect` — Анимированная тень для карточек
-- `ModeSelectDialog` — Диалог с 5 режимами работы
-- `run_module()` — Запуск выбранного модуля через subprocess
+- `PageSwitchSlider` — Переключатель страниц Manager/Viewer
+- `MainMenuWidget` — Виджет главного меню
+- `MainWindow` — Главное окно приложения
 
 **Режимы:**
-| ID | Название | Модуль |
-|----|----------|--------|
-| `adapters` | Адаптеры | `Adapters/Adapter.py` |
-| `larix_set` | Larix Set | `Larix_Set/Larix_set.py` |
-| `matrix` | Matrix | `Matrix/matrix_ui.py` |
-| `parameters` | Параметры | `Parameter/Parameters.py` |
-| `viewer` | Viewer | `Viewer/Viewer.py` |
+
+| Страница | ID | Название | Модуль |
+|----------|----|---------|---------|
+| Manager | `adapters` | Адаптеры | `Adapters/Adapter.py` |
+| Manager | `larix_set` | Наборы | `Larix_Set/Larix_set.py` |
+| Manager | `matrix` | Матрицы | `Matrix/matrix_ui.py` |
+| Manager | `parameters` | Параметры | `Parameter/Parameters.py` |
+| Viewer | `viewer` | Статусы | `Viewer/Viewer.py` |
+| Viewer | `bim_sync` | BIM Sync | `viewer subd/bim_sync_gui.py` |
+
+**Функции:**
+- `_popup_error()` / `_popup_info()` — Диалоги ошибок и информации
+- `_load_symbol_from_dir()` — Динамическая загрузка модулей
+- `_check_api_connection()` — Проверка подключения к API
+- `get_logo_path()` / `get_viewer_logo_path()` — Пути к логотипам
 
 ---
 
-### 2. theme_toggle.py — Общие компоненты
-**Назначение:** Переиспользуемые UI-компоненты для всех модулей
+### 2. shared/theme_toggle.py — Тема и иконки
 
-**Компоненты:**
+**Назначение:** Единая система темы и иконок для всех модулей
+
+**Классы:**
+- `Palette` — Цветовая палитра (dataclass)
 - `ThemeToggle` — Анимированный переключатель светлая/тёмная тема
+- `RowHoverDelegate` — Делегат подсветки строк в таблицах
+
+**Функции:**
+- `theme()` — Применение темы к приложению
+- `is_dark_theme()` — Проверка текущей темы
+- `load_saved_theme()` / `save_theme()` — Сохранение/загрузка темы
+- `resolve_icon_path()` — Разрешение пути к иконке
+- `nik_icon()` — Получение иконки с авто-тонированием
 - `create_back_button()` — Кнопка возврата в главное меню
 - `go_to_main_menu()` — Навигация обратно в main.py
-- `apply_theme()` — Применение темы к приложению
-- `is_dark_theme()` — Проверка текущей темы
-- `LIGHT_QSS` / `get_dark_qss()` — Стили для тем
-- `resolve_icon_path()` — Разрешение пути к иконке с учётом темы
-- `nik_icon()` — Получение иконки с авто-тонированием
-- `_ensure_white_copy()` / `_ensure_black_copy()` — Создание тонированных копий иконок
+- `apply_dark_titlebar()` — Тёмный заголовок окна (Windows)
 - `_tint_pixmap()` — Тонирование QPixmap указанным цветом
+- `_ensure_white_copy()` / `_ensure_black_copy()` — Создание тонированных копий
 
 **Цветовая палитра (PALETTE):**
-- Акцент: `#F7921E` (оранжевый)
-- Hover: `#FFA74B`
-- Selected: `#FFC37A`
-- Soft hover: `#FFE3C2`
+| Константа | Значение | Описание |
+|-----------|----------|----------|
+| ACCENT | `#F7921E` | Оранжевый акцент |
+| ACCENT_HOVER | `#FFA74B` | Акцент при наведении |
+| ACCENT_PRESSED | `#E07E12` | Акцент при нажатии |
+| SELECTED | `#FFC37A` | Выбранный элемент |
+| SOFT_HOVER | `#FFE3C2` | Мягкая подсветка |
+| BG_LIGHT / BG_DARK | `#FFFFFF` / `#1E1E1E` | Фон |
+| FG_LIGHT / FG_DARK | `#222222` / `#FFFFFF` | Текст |
 
 **Поведение иконок:**
-- Иконки автоматически тонируются под тему (белый для тёмной, чёрный для светлой)
+- Иконки автоматически тонируются под тему
 - Исключения (не тонируются): logo, ok, none, warning, refresh, gear, folder
 
 ---
 
-### 3. Excel_template.py — Экспорт в Excel
-**Назначение:** Генерация Excel-файлов с форматированием
+### 3. shared/dialogs.py — Диалоговые окна
+
+**Назначение:** Переиспользуемые диалоговые компоненты
 
 **Функции:**
-- `export_common_excel()` — Экспорт данных в формат Excel
-- Встроенные JSON-шаблоны для наборов матриц и параметров
-
-**Данные:**
-- Наборы для матриц (АР, КР, ВИС, ГП, НИС)
-- Матрица коллизий
-- Коды классификатора
-- Параметры LOI
+- `show_dialog()` — Показ диалога с иконкой приложения
+- `show_success()` / `show_error()` / `show_warning()` — Диалоги сообщений
+- `message_box()` / `information_box()` / `warning_box()` / `critical_box()` — MessageBox
+- `question_box()` — Диалог вопроса
+- `wire_dialog_button_box()` — Подключение кнопок диалога
+- `wire_message_box_buttons()` — Подключение кнопок QMessageBox
+- `install_dialog_icon_patch()` — Патч для автоматической установки иконки
 
 ---
 
-### 4. Adapters/Adapter.py — Редактор адаптеров
+### 4. shared/excel_parameter_layout.py — Парсинг Excel
+
+**Назначение:** Чтение и анализ листов параметров из Excel
+
+**Классы:**
+- `ParameterSheetLayout` — Структура листа параметров (dataclass)
+  - `header_row` — Номер строки заголовка
+  - `subheader_row` — Номер строки подзаголовка (LOI)
+  - `data_start_row` — Номер первой строки данных
+  - `columns` — Список имён колонок
+  - `filter_columns` — Колонки для фильтрации
+  - `param_columns` — Колонки параметров
+  - `role_columns` — Ролевые колонки (section, category, ifc, classif_code, classif_desc)
+  - `dataframe` — DataFrame с данными
+
+**Функции:**
+- `read_parameter_sheet()` — Чтение листа параметров
+- `normalize_excel_label()` — Нормализация меток Excel
+
+---
+
+### 5. Excel_template.py — Экспорт в Excel
+
+**Назначение:** Генерация форматированных Excel-файлов
+
+**Функции:**
+- `export_common_excel(json_path, output_path)` — Экспорт данных в Excel
+
+**Встроенные шаблоны (COMMON_JSON):**
+- Наборы для матриц (АР, КР, ВИС, ГП, НИС)
+- Матрица коллизий
+- Параметры LOI с классификатором
+- Адаптер (маппинг параметров)
+
+**Форматирование:**
+- Шрифт Tahoma 11pt
+- Цветовые заливки для заголовков
+- Границы ячеек
+- Автоперенос текста
+
+---
+
+### 6. Adapters/Adapter.py — Редактор адаптеров
+
 **Назначение:** Создание и редактирование адаптеров для связи атрибутов с параметрами моделей
 
 **Классы:**
@@ -122,6 +207,7 @@ Addon manager/
 - `TransformDialog` — Диалог настройки преобразований
 - `ModelFilterDialog` — Фильтр по моделям
 - `RowDragTable` — Таблица с drag&drop строк
+- `ErrorDialog` — Диалог ошибки
 
 **API функции:**
 - `api_get_projects()` — Получение списка проектов
@@ -133,11 +219,12 @@ Addon manager/
 
 ---
 
-### 5. Parameter/Parameters.py — Управление параметрами
+### 7. Parameter/Parameters.py — Управление параметрами
+
 **Назначение:** Генерация профилей валидации параметров из Excel
 
 **Классы:**
-- `ThemeSwitch` — Переключатель темы (локальный)
+- `MainWindow` — Главное окно
 - `_MappingRow` — Строка сопоставления параметров
 
 **Функции:**
@@ -153,7 +240,8 @@ Addon manager/
 
 ---
 
-### 6. Matrix/matrix_ui.py — Генератор матриц коллизий
+### 8. Matrix/matrix_ui.py — Генератор матриц коллизий
+
 **Назначение:** Создание профилей коллизий из Excel-матриц
 
 **Классы:**
@@ -172,56 +260,111 @@ Addon manager/
 
 ---
 
-### 7. Larix_Set/Larix_set.py — Настройка профилей
-**Назначение:** Управление профилями и синхронизация
+### 9. Larix_Set/Larix_set.py — Настройка профилей
 
-**Встроенные компоненты стиля (nik_style):**
-- `Palette` — Цветовая палитра
+**Назначение:** Управление профилями и наборами Larix
+
+**Классы:**
+- `MainWindow` — Главное окно
+- `Palette` — Цветовая палитра (встроенная)
 - `SyncBadgeTreeDelegate` — Делегат с badge синхронизации
 - `TreeBranchProxyStyle` — Стиль веток дерева
 - `StatusIndicator` — Индикатор статуса
-- `compose_badged_icon()` — Создание иконки с badge
 
-**Иконки:**
-- Полный реестр PNG-иконок из Dekstop-manager
-- Автоматическое перекрашивание под тему
+**Функции:**
+- `api_get_projects()` / `api_get_containers()` / `api_get_parameters()` — API запросы
+- `compose_badged_icon()` — Создание иконки с badge
+- `SheetPickerDialog` — Диалог выбора листа Excel
+- `ApiSelectDialog` — Диалог выбора из API
 
 ---
 
-### 8. Viewer/Viewer.py — BIM Sync Tool
-**Назначение:** Синхронизация nativeId между внешним Viewer API и локальным сервером
+### 10. Viewer/Viewer.py — Создание статусов
 
-**Классы:**
-- `MainWindow` — Главное окно синхронизации
-- `ThemeSwitch` — Локальный переключатель темы (наследует QAbstractButton)
+**Назначение:** Создание и управление статусами элементов модели
 
 **Функции:**
 - `api_get()` — Универсальный GET-запрос с обработкой ошибок
-- `normalize_name()` — Нормализация имени для сопоставления (удаление расширений, регистра, спецсимволов)
+- `normalize_name()` — Нормализация имени для сопоставления
 - `apply_themed_icon()` — Применение тонированной иконки к виджету
-- `apply_themed_icon_with_arrow()` — Иконка с hover-эффектом
 - `set_header_logo()` — Установка логотипа в заголовок
 - `show_error_dialog()` — Диалог ошибки
 
-**Алгоритм синхронизации (start_sync):**
-1. Получение nativeId из внешнего Viewer API по выбранному атрибуту
-2. Загрузка элементов из локальных контейнеров
-3. Сопоставление элементов по nativeId
-4. Создание параметра (если не существует)
-5. Обновление значений параметров через batch-запросы (по 50 элементов)
+---
 
-**UI компоненты:**
-- Секция авторизации (токен Bearer)
-- Секция моделей вьювера (проект → модели с чекбоксами)
-- Секция атрибутов (схема → атрибут)
-- Секция локальных контейнеров с подсветкой совпадений
-- Автоматическая сортировка контейнеров по совпадению имён
+### 11. viewer subd/bim_sync_gui.py — BIM Sync
 
-**Специфичные иконки Viewer:**
-- `1.png`, `2.png` — Нумерация
-- `extend.png` — Расширение
-- `arrow-oba.png` — Стрелка
-- `navigation.png`, `move.png`, `compare.png` — Навигация
+**Назначение:** Синхронизация данных между BIM-моделями и базой данных
+
+**Классы:**
+- `ModeSelectDialog` / `ModeSelectWidget` — Выбор режима синхронизации
+- `BimSyncWindow` — Окно синхронизации с SQL Server
+- `PowerBiExportWindow` — Экспорт в CSV/Parquet/SQLite
+
+**Режимы:**
+- SQL Server — синхронизация с базой данных
+- Power BI (CSV) — экспорт в CSV
+- Parquet — экспорт в Apache Parquet
+- SQLite — экспорт в SQLite базу
+
+**Функции:**
+- Подключение к SQL Server через ODBC
+- Экспорт элементов и свойств модели
+- Диагностика подключений
+
+---
+
+### 12. viewer subd/odbc_manager.py — Управление ODBC
+
+**Назначение:** Управление ODBC-драйверами для SQL Server
+
+**Классы:**
+- `ODBCDriver` — Enum драйверов (ODBC 18, ODBC 17, SQL Server Legacy)
+- `ODBCConfig` — Конфигурация подключения (dataclass)
+- `ODBCDiagnostics` — Диагностика подключения (dataclass)
+- `ODBCConnectionManager` — Менеджер подключений
+- `ODBCErrors` — Исключения ODBC
+
+**Функции:**
+- `classify_odbc_error()` — Классификация ошибок ODBC
+- `check_odbc_environment()` — Проверка окружения ODBC
+- `get_process_bitness()` — Определение разрядности процесса
+- `run_diagnostics()` — Запуск диагностики
+
+---
+
+### 13. viewer subd/tls_manager.py — Управление TLS
+
+**Назначение:** Управление TLS/SSL сертификатами для HTTPS-запросов
+
+**Классы:**
+- `TLSErrorType` — Enum типов TLS-ошибок
+- `TLSConfig` — Конфигурация TLS (dataclass)
+- `TLSDiagnostics` — Диагностика TLS (dataclass)
+- `TLSManager` — Менеджер TLS
+- `TLSErrors` — Исключения TLS
+
+**Функции:**
+- `classify_ssl_error()` — Классификация SSL-ошибок
+- `get_tls_manager()` — Получение менеджера TLS
+- `is_production_environment()` — Проверка production-окружения
+
+---
+
+### 14. viewer subd/check_rows.py — Утилита проверки
+
+**Назначение:** Проверка целостности parquet-файлов
+
+**Проверяет:**
+- elements.parquet
+- properties_wide.parquet
+- projects.parquet
+- models.parquet
+- properties_eav.parquet
+
+**Выводит:**
+- Количество строк и колонок в каждом файле
+- Сравнение количества элементов и свойств
 
 ---
 
@@ -230,23 +373,27 @@ Addon manager/
 ```
 ┌─────────────────────────────────────────────────────┐
 │                    main.py                          │
-│              (ModeSelectDialog)                     │
+│                  (MainWindow)                       │
+│   [Manager] ←── PageSwitchSlider ──→ [Viewer]      │
 └───────────────────────┬─────────────────────────────┘
                         │
-        ┌───────┬───────┼───────┬───────┐
-        │       │       │       │       │
-        ▼       ▼       ▼       ▼       ▼
-┌───────────┐┌───────────┐┌───────────┐┌───────────┐┌───────────┐
-│ Adapters  ││  Matrix   ││ Parameter ││ Larix_Set ││  Viewer   │
-│           ││           ││           ││           ││           │
-│ [← Back]  ││ [← Back]  ││ [← Back]  ││ [← Back]  ││ [← Back]  │
-└─────┬─────┘└─────┬─────┘└─────┬─────┘└─────┬─────┘└─────┬─────┘
-      │            │            │            │            │
-      └────────────┴────────────┴────────────┴────────────┘
-                              │
-                              ▼
-                      go_to_main_menu()
-                      → main.py
+        ┌───────────────┴───────────────┐
+        │                               │
+   Manager                         Viewer
+        │                               │
+   ┌────┼────┬────┬────┐          ┌────┴────┐
+   ▼    ▼    ▼    ▼    ▼          ▼         ▼
+┌─────┐┌─────┐┌─────┐┌─────┐  ┌─────┐  ┌────────┐
+│Adapt││Matrix││Param││Larix│  │Viewr│  │BIM Sync│
+│ ers ││     ││ eter││ Set │  │     │  │        │
+│[←]  ││[←]  ││[←]  ││[←]  │  │[←]  │  │[←]     │
+└──┬──┘└──┬──┘└──┬──┘└──┬──┘  └──┬──┘  └───┬────┘
+   │      │      │      │        │         │
+   └──────┴──────┴──────┴────────┴─────────┘
+                     │
+                     ▼
+            go_to_main_menu()
+                  → main.py
 ```
 
 ---
@@ -258,9 +405,10 @@ Addon manager/
 - PySide6 (или PyQt5 как fallback)
 
 ### Опциональные:
-- `pandas` — Работа с Excel
+- `pandas` — Работа с Excel и данными
 - `openpyxl` — Экспорт в Excel
 - `requests` — HTTP-запросы к API
+- `pyodbc` — Подключение к SQL Server (BIM Sync)
 
 ---
 
@@ -295,16 +443,32 @@ GET /api/attribute-value/jimcid-attributeid  — Значения атрибут
 |------------|----------|
 | `.xml` | Адаптеры, профили валидации |
 | `.cv` | Профили коллизий (XML-формат) |
+| `.set` | Профили Larix |
+| `.pv` | Профили экспорта |
 | `.xlsx/.xls` | Исходные данные Excel |
 | `.json` | Маппинги параметров |
+| `.parquet` | Экспорт данных (Apache Parquet) |
+| `.sqlite` | Экспорт данных (SQLite) |
 
 ---
 
 ## Ключевые паттерны
 
-1. **Тема:** Все модули используют `theme_toggle.py` для единообразного UI
+1. **Тема:** Все модули используют `shared/theme_toggle.py` для единообразного UI
 2. **Навигация:** Кнопка "Назад" через `create_back_button()` + `go_to_main_menu()`
 3. **Сериализация:** XML для адаптеров и профилей
-4. **Асинхронность:** `QThread` + `GeneratorWorker` для длительных операций
+4. **Асинхронность:** `QThread` + Worker для длительных операций
 5. **Стилизация:** QSS с PNG-иконками, адаптивными под тему
-6. **Сопоставление имён:** `normalize_name()` для нечёткого сравнения названий моделей и контейнеров
+6. **Сопоставление имён:** `normalize_name()` для нечёткого сравнения
+7. **Диалоги:** Единый стиль через `shared/dialogs.py`
+8. **Иконки:** Единая папка `icon/` с автотонированием под тему
+
+---
+
+## Сборка
+
+```batch
+build_exe.bat
+```
+
+Создаёт `dist/Larix_Plugin_Manager.exe` с помощью PyInstaller.

@@ -117,7 +117,7 @@ def _resolve_dialog_icon(name: str) -> str:
     for n in names:
         p = os.path.join(_DEFAULT_ICON_DIR, n)
         if os.path.exists(p):
-            if _is_dark_theme():
+            if _is_dark_theme() and name != "warning":
                 return _get_white_icon_path(p)
             return p
     return ""

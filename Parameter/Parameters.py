@@ -487,8 +487,6 @@ def show_error_dialog(text: str, *, title: str = "Ошибка", icon_dir: str |
     pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
     if not pm.isNull():
         msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
-    else:
-        msg.setIcon(QtWidgets.QMessageBox.Critical)
     msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
     try:
         msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
@@ -516,8 +514,31 @@ def show_info_dialog(text: str, *, title: str = "Информация", icon_dir
     pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
     if not pm.isNull():
         msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
-    else:
-        msg.setIcon(QtWidgets.QMessageBox.Information)
+    msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+    try:
+        msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
+    except Exception:
+        pass
+    wire_message_box_buttons(msg)
+    show_dialog(msg, modal=modal)
+
+
+def show_warning_dialog(text: str, *, title: str = "Внимание", icon_dir: str | None = None, parent=None, modal: bool = True):
+    if icon_dir is None:
+        icon_dir = ICON_DIR
+    if parent is None:
+        try:
+            parent = QtWidgets.QApplication.activeWindow()
+        except Exception:
+            parent = None
+    msg = QtWidgets.QMessageBox(parent)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    app = QtWidgets.QApplication.instance()
+    p = resolve_icon_path("warning", icon_dir, app=app)
+    pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
+    if not pm.isNull():
+        msg.setIconPixmap(pm.scaled(48, 48, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
     msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
     try:
         msg.setStyleSheet("QLabel#qt_msgbox_label{margin-top:10px;} QLabel#qt_msgbox_informativelabel{margin-top:10px;}")
@@ -1048,10 +1069,7 @@ def _popup_error(parent, text: str, title: str = "Ошибка"):
     try:
         show_error_dialog(text, title=title, icon_dir=ICON_DIR, parent=parent, modal=True)
     except Exception:
-        try:
-            QtWidgets.QMessageBox.critical(parent, title, text)
-        except Exception:
-            pass
+        pass
 
 # --- Режимы ---
 MODE_CATEGORY   = "category"
@@ -1267,7 +1285,7 @@ def _append_grouped_filter_conditions(parent_el, field_values_pairs: list[tuple[
         _append_filter_conditions(inner, [(field, unique_values)])
 
 
-def _configure_combo_popup(combo: QtWidgets.QComboBox):
+def _configure_combo_popup(combo: QtWidgets.QComboBox, *, accent_border: bool = False):
     combo.setMaxVisibleItems(18)
     try:
         view = combo.view()
@@ -1275,6 +1293,41 @@ def _configure_combo_popup(combo: QtWidgets.QComboBox):
         view.setMinimumHeight(360)
         view.setFrameShape(QtWidgets.QFrame.NoFrame)
         view.setTextElideMode(QtCore.Qt.ElideNone)
+        if accent_border:
+            app = QtWidgets.QApplication.instance()
+            dark = bool(is_dark_theme(app))
+            bg = PALETTE.BG_DARK if dark else PALETTE.BG_LIGHT
+            fg = PALETTE.FG_DARK if dark else PALETTE.FG_LIGHT
+            view.setStyleSheet(f"""
+                QAbstractItemView {{
+                    background: {bg};
+                    color: {fg};
+                    border: 2px solid {PALETTE.ACCENT};
+                    border-radius: 12px;
+                    outline: none;
+                    padding: 4px;
+                    selection-background-color: {PALETTE.SELECTED};
+                    selection-color: #000000;
+                }}
+                QAbstractItemView::item {{
+                    padding: 4px 8px;
+                    border-radius: 8px;
+                    margin: 1px 4px;
+                    border: none;
+                }}
+                QAbstractItemView::item:hover {{
+                    background: {PALETTE.SOFT_HOVER};
+                    color: #000000;
+                }}
+                QAbstractItemView::item:selected {{
+                    background: {PALETTE.SELECTED};
+                    color: #000000;
+                }}
+            """)
+            combo.setStyleSheet("")
+        else:
+            view.setStyleSheet("")
+            combo.setStyleSheet("")
     except Exception:
         pass
 
@@ -1365,7 +1418,7 @@ def _import_adapter_mapping(parent, excel_path: str) -> dict:
         _popup_error(parent, "Требуется пакет pandas для импорта адаптера.")
         return {}
     if not excel_path:
-        QtWidgets.QMessageBox.warning(parent, "Внимание", "Сначала выберите Excel-файл.")
+        show_warning_dialog("Сначала выберите Excel-файл.", title="Внимание", parent=parent)
         return {}
     path, _ = QtWidgets.QFileDialog.getOpenFileName(parent, "Выбор адаптера", "", "Excel (*.xlsx *.xls)")
     if not path:
@@ -1806,7 +1859,7 @@ class MappingDialog(QtWidgets.QDialog):
         self.btn_import_adapter = QtWidgets.QPushButton("Импорт адаптера")
         top.addWidget(self.btn_import_adapter)
         self.theme_switch = ThemeSwitch(icon_dir=ICON_DIR); top.addWidget(self.theme_switch)
-        self.theme_switch.toggledTheme.connect(lambda _: _apply_titlebar_theme(self))
+        self.theme_switch.toggledTheme.connect(self._on_theme_changed)
 
         search_row = QtWidgets.QHBoxLayout(); v.addLayout(search_row, 0)
         search_row.addWidget(QtWidgets.QLabel("Поиск:"), 0)
@@ -1845,7 +1898,7 @@ class MappingDialog(QtWidgets.QDialog):
         for name in self.excel_params:
             lbl = QtWidgets.QLabel(name, parent=wrap)
             cmb = QtWidgets.QComboBox(parent=wrap)
-            _configure_combo_popup(cmb)
+            _configure_combo_popup(cmb, accent_border=True)
             cmb.setEditable(False); cmb.addItem("- не выбрано -"); cmb.addItems(self.api_codes)
             if not hasattr(self, "_wf"): self._wf = _NoWheelFilter(self)
             cmb.installEventFilter(self._wf)
@@ -1927,12 +1980,13 @@ class MappingDialog(QtWidgets.QDialog):
         MASTER_MAP_CACHE[wb] = _deepcopy_dict(mapping)
         global GLOBAL_PARAM_MAPPING
         GLOBAL_PARAM_MAPPING = _deepcopy_dict(mapping)
-        try:
-            save_session_mapping_json(self.excel_path, mapping)
-        except Exception:
-            pass
         self._apply_mapping_to_rows()
         show_info_dialog(f"Импортировано: {len(mapping)} параметров.", title="Готово", parent=self)
+
+    def _on_theme_changed(self, _theme_name: str):
+        _apply_titlebar_theme(self)
+        for row in self.rows:
+            _configure_combo_popup(row.combo, accent_border=True)
 
     def _apply_param_filter(self, text: str):
         pattern = (text or "").strip().lower()
@@ -2012,10 +2066,6 @@ class MappingDialog(QtWidgets.QDialog):
                 else:
                     new_map[name] = {'code': txt, 'isNumeric': False}
         GLOBAL_PARAM_MAPPING = new_map
-        try:
-            save_session_mapping_json(self.excel_path, new_map)
-        except Exception:
-            pass
         self.accept()
 
 class MappingDialogMaster(MappingDialog):
@@ -2111,7 +2161,7 @@ class MappingDialogLarix(QtWidgets.QDialog):
         for name in self.excel_params:
             lbl = QtWidgets.QLabel(name, parent=wrap)
             cmb = QtWidgets.QComboBox(parent=wrap)
-            _configure_combo_popup(cmb)
+            _configure_combo_popup(cmb, accent_border=True)
             cmb.setEditable(False); cmb.addItem("- не выбрано -"); cmb.addItems(self.api_codes)
             if not hasattr(self, "_wf"): self._wf = _NoWheelFilter(self)
             cmb.installEventFilter(self._wf)
@@ -2174,7 +2224,7 @@ class MappingDialogLarix(QtWidgets.QDialog):
     def _on_theme_changed(self, _theme_name: str):
         _apply_titlebar_theme(self)
         for row in self.rows:
-            _configure_combo_popup(row.combo)
+            _configure_combo_popup(row.combo, accent_border=True)
 
     def _choose_models(self):
         dlg = ProjectSelectionWindow()
@@ -2305,10 +2355,6 @@ class MappingDialogLarix(QtWidgets.QDialog):
             MASTER_MAP_CACHE[self._wb_id] = _deepcopy_dict(new_map)
             global GLOBAL_PARAM_MAPPING
             GLOBAL_PARAM_MAPPING = _deepcopy_dict(new_map)
-            try:
-                save_session_mapping_json(self.excel_path, new_map)
-            except Exception:
-                pass
             self.accept()
         except Exception as e:
             _popup_error(self, f"Не удалось сохранить сопоставление:\n{e}")
@@ -2336,10 +2382,6 @@ class MappingDialogLarix(QtWidgets.QDialog):
         MASTER_MAP_CACHE[wb] = _deepcopy_dict(mapping)
         global GLOBAL_PARAM_MAPPING
         GLOBAL_PARAM_MAPPING = _deepcopy_dict(mapping)
-        try:
-            save_session_mapping_json(self.excel_path, mapping)
-        except Exception:
-            pass
         self._apply_mapping_to_rows()
         show_info_dialog(f"Импортировано: {len(mapping)} параметров.", title="Готово", parent=self)
 # --------- Диалог сопоставления листов ---------
@@ -2580,14 +2622,13 @@ class PairPickerDialog(QtWidgets.QDialog):
                 parent.setEnabled(need)
 
     def _accept(self):
-        # использовать режим из главного окна
         mode = globals().get("MODE_SELECTED", "both")
         need_cat = (mode in ("category", "both"))
         need_cls = (mode in ("classifier", "both"))
         if need_cat and not self._cat_list:
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Добавьте хотя бы один лист для категорий."); return
+            show_warning_dialog("Добавьте хотя бы один лист для категорий.", title="Внимание", parent=self); return
         if need_cls and not self._cls_list:
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Добавьте хотя бы один лист для классификатора."); return
+            show_warning_dialog("Добавьте хотя бы один лист для классификатора.", title="Внимание", parent=self); return
         self.accept()
 
     def result(self):
@@ -2744,6 +2785,7 @@ class ModelTreeWidget(QtWidgets.QTreeWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.setHeaderLabels(["", "Наименование модели"])
         self.header().setStretchLastSection(True)
         self.header().setSectionResizeMode(0, QtWidgets.QHeaderView.Fixed)
@@ -2934,16 +2976,18 @@ class _CheckboxDelegate(QtWidgets.QStyledItemDelegate):
                 if option.rect.contains(event.pos()):
                     current = self._state_value(index.data(QtCore.Qt.CheckStateRole))
                     new_state = self._UNCHECKED_VALUE if current == self._CHECKED_VALUE else self._CHECKED_VALUE
-                    selected_rows = set()
+                    selected_rows = {index.row()}
                     sm = self.tree.selectionModel()
                     if sm:
-                        for idx in sm.selectedIndexes():
-                            if idx.column() == 0:
-                                selected_rows.add(idx.row())
-                    selected_rows.add(index.row())
-                    for row in selected_rows:
-                        idx0 = model.index(row, 0)
-                        model.setData(idx0, new_state, QtCore.Qt.CheckStateRole)
+                        for idx in sm.selectedRows(0):
+                            selected_rows.add(idx.row())
+                    self.tree._bulk_checking = True
+                    try:
+                        for row in selected_rows:
+                            idx0 = model.index(row, 0)
+                            model.setData(idx0, new_state, QtCore.Qt.CheckStateRole)
+                    finally:
+                        self.tree._bulk_checking = False
                     self.tree.checkStateChanged.emit()
                     return True
         elif event.type() == QtCore.QEvent.KeyPress:
@@ -3234,7 +3278,7 @@ class ProjectSelectionWindow(QtWidgets.QDialog):
                 cid = item.data(0, QtCore.Qt.UserRole)
                 sel.append(cid)
         if not sel:
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Выберите хотя бы одну модель.")
+            show_warning_dialog("Выберите хотя бы одну модель.", title="Внимание", parent=self)
             return
         global SELECTED_CONTAINER_IDS, SELECTED_PROJECT_ID, SELECTED_PROJECT_TITLE
         SELECTED_CONTAINER_IDS = sel
@@ -3700,7 +3744,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         self._reload_filter_fields()
                         self._update_excel_summary()
             except Exception as e:
-                QtWidgets.QMessageBox.warning(self, "Ошибка", f"Не удалось загрузить листы из файла:\n{e}")
+                show_warning_dialog(f"Не удалось загрузить листы из файла:\n{e}", title="Ошибка", parent=self)
 
     def select_codes_file(self):
         """Выбор Excel файла для Кодов (классификатора)."""
@@ -3717,7 +3761,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.cmb_codes_sheet.addItems(sheets)
                         self.cmb_codes_sheet.setCurrentIndex(0)
             except Exception as e:
-                QtWidgets.QMessageBox.warning(self, "Ошибка", f"Не удалось загрузить листы из файла:\n{e}")
+                show_warning_dialog(f"Не удалось загрузить листы из файла:\n{e}", title="Ошибка", parent=self)
 
     def on_loin_sheet_changed(self, sheet_name: str):
         """Обработчик изменения выбранного листа Excel."""
@@ -3783,9 +3827,8 @@ class MainWindow(QtWidgets.QMainWindow):
             _popup_error(self, str(e), title="Ошибка создания шаблона")
 
     def open_mapping(self):
-        """Открыть диалог сопоставления параметров."""
         if not self.input_file or not self.sheet_name:
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Сначала выберите Excel-файл и лист.")
+            show_warning_dialog("Сначала выберите Excel-файл и лист.", title="Внимание", parent=self)
             return
         dlg = MappingDialogLarix(self.input_file, self.sheet_name, self)
         if dlg.exec():
@@ -3793,11 +3836,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def save_json_master(self):
-        """Сохранить глобальную карту сопоставлений в JSON."""
         wb = _wb_id(getattr(self, "input_file", "") or "")
         data = _deepcopy_dict(MASTER_MAP_CACHE.get(wb, {}))
         if not data:
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Глобальная карта пуста.")
+            show_warning_dialog("Глобальная карта пуста.", title="Внимание", parent=self)
             return
         start_dir = os.path.dirname(getattr(self, "input_file", "") or "") or os.getcwd()
         suggested = os.path.join(start_dir, "Маппинг.json")
@@ -3829,9 +3871,8 @@ class MainWindow(QtWidgets.QMainWindow):
         show_info_dialog("Глобальная карта очищена для текущей книги.", title="Очищено", parent=self)
 
     def _on_generate_click(self):
-        """Генерация профиля без сопоставления параметров."""
         if not self.input_file or not self.sheet_name:
-            QtWidgets.QMessageBox.warning(self, "Ошибка", "Сначала выберите Excel-файл и убедитесь, что выбран лист.")
+            show_warning_dialog("Сначала выберите Excel-файл и убедитесь, что выбран лист.", title="Ошибка", parent=self)
             return
         title = (self.edit_title.text() or "Профиль проверки параметров").strip()
         sheet = (self.sheet_name or "").strip()

@@ -263,8 +263,10 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
     fg = PALETTE.FG_DARK if dark else PALETTE.FG_LIGHT
     border = PALETTE.BORDER_DARK if dark else PALETTE.BORDER_LIGHT
     panel = bg if dark else "#FFFFFF"
-    soft = "rgba(247,146,30,0.10)" if not dark else "rgba(247,146,30,0.22)"
-    pressed = "rgba(247,146,30,0.20)" if not dark else "rgba(247,146,30,0.34)"
+    soft = "rgba(247,146,30,0.15)" if dark else "rgba(247,146,30,0.08)"
+    pressed = "rgba(247,146,30,0.25)" if dark else "rgba(247,146,30,0.15)"
+    dialog_soft = "rgba(247,146,30,0.15)" if dark else "rgba(247,146,30,0.10)"
+    dialog_pressed = "rgba(247,146,30,0.25)" if dark else "rgba(247,146,30,0.20)"
     input_bg = bg if dark else "#FFFFFF"
     tip_bg = "#2a2a2a" if dark else "#FFFFFF"
     tip_fg = "#e0e0e0" if dark else "#222222"
@@ -392,6 +394,10 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
         background: {panel};
         color: {fg};
         border: 1px solid {border};
+        border-radius: 14px;
+        padding: 6px 12px;
+        min-height: 24px;
+        font-weight: 600;
     }}
     QPushButton:hover, QToolButton:hover {{ background: {soft}; color: {button_hover_fg}; border-color: {PALETTE.ACCENT_HOVER}; }}
     QPushButton:pressed, QToolButton:pressed {{ background: {pressed}; color: {button_hover_fg}; border-color: {PALETTE.ACCENT_PRESSED}; }}
@@ -479,6 +485,39 @@ def _build_qss(dark: bool, icon_dir: str = "") -> str:
         border: 1px solid {PALETTE.ACCENT_HOVER};
         border-radius: 8px;
         padding: 6px 10px;
+    }}
+
+    /* Диалоги QMessageBox - унифицированный стиль кнопок */
+    QMessageBox {{
+        background: {bg};
+    }}
+    QMessageBox QLabel {{
+        color: {fg};
+        background: transparent;
+    }}
+    QMessageBox QPushButton {{
+        background: {panel};
+        color: {fg};
+        border: 1px solid {border};
+        border-radius: 14px;
+        padding: 6px 12px;
+        min-height: 24px;
+        font-weight: 600;
+    }}
+    QMessageBox QPushButton:hover {{
+        background: {dialog_soft};
+        color: {button_hover_fg};
+        border-color: {PALETTE.ACCENT_HOVER};
+    }}
+    QMessageBox QPushButton:pressed {{
+        background: {dialog_pressed};
+        color: {button_hover_fg};
+        border-color: {PALETTE.ACCENT_PRESSED};
+    }}
+    QMessageBox QPushButton:disabled {{
+        background: {bg};
+        color: #9b9b9b;
+        border-color: {border};
     }}
 
     """

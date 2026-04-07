@@ -1,7 +1,6 @@
 *
 !.gitignore
 
-# keep top-level dirs traversable
 !*/
 
 # tracked source folders
@@ -13,11 +12,15 @@
 !Sync/
 !shared/
 !icon/
+!importxml/
 
 # tracked files
 !main.py
+!manager_main.py
+!viewer_main.py
 !ARCHITECTURE.md
 !build_exe.bat
+!requirements.txt
 !Шаблон Excel.xlsx
 
 # keep nested source files in tracked folders
@@ -29,7 +32,12 @@
 !Sync/**
 !shared/**
 !icon/**
+!importxml/**
 
-# never track caches/artifacts
+# never track caches/artifacts/builds
 **/__pycache__/
 *.pyc
+*.spec
+build/
+dist/
+_junk/

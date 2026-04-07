@@ -9,17 +9,21 @@ pushd "%PROJECT_DIR%" >nul || (
     exit /b 1
 )
 
-set "ENTRY_SCRIPT=%PROJECT_DIR%\main.py"
-set "APP_NAME=Larix_Plugin_Manager"
-set "ICON_FILE=%PROJECT_DIR%\icon\logo_transparent_multi.ico"
+set "MANAGER_SCRIPT=%PROJECT_DIR%\manager_main.py"
+set "VIEWER_SCRIPT=%PROJECT_DIR%\viewer_main.py"
+set "MANAGER_NAME=Larix_Plugin_Manager"
+set "VIEWER_NAME=Larix_Viewer"
+set "ICON_FILE=%PROJECT_DIR%\icon\logo.ico"
 set "DIST_DIR=%PROJECT_DIR%\dist"
 set "BUILD_DIR=%PROJECT_DIR%\build"
 set "SPEC_DIR=%PROJECT_DIR%"
 
-if not exist "%ENTRY_SCRIPT%" (
-    echo [ERROR] Entry script not found: "%ENTRY_SCRIPT%"
-    popd >nul
-    exit /b 1
+for %%S in ("%MANAGER_SCRIPT%" "%VIEWER_SCRIPT%") do (
+    if not exist %%S (
+        echo [ERROR] Entry script not found: %%S
+        popd >nul
+        exit /b 1
+    )
 )
 
 where py >nul 2>&1
@@ -57,52 +61,44 @@ if errorlevel 1 (
     echo [WARN] The built EXE will work, but Parquet export in BIM Sync mode will be unavailable.
 )
 
-if exist "%DIST_DIR%\%APP_NAME%.exe" del /f /q "%DIST_DIR%\%APP_NAME%.exe" >nul 2>&1
-if exist "%BUILD_DIR%" rmdir /s /q "%BUILD_DIR%"
-if exist "%SPEC_DIR%\%APP_NAME%.spec" del /f /q "%SPEC_DIR%\%APP_NAME%.spec" >nul 2>&1
+set "COMMON_ARGS=--noconfirm --clean --onefile --windowed --distpath "%DIST_DIR%" --specpath "%SPEC_DIR%" --paths "%PROJECT_DIR%\Adapters" --paths "%PROJECT_DIR%\Sets" --paths "%PROJECT_DIR%\Matrix" --paths "%PROJECT_DIR%\Validator" --paths "%PROJECT_DIR%\Viewer" --paths "%PROJECT_DIR%\Sync" --paths "%PROJECT_DIR%\shared" --add-data "%PROJECT_DIR%\Adapters;Adapters" --add-data "%PROJECT_DIR%\Sets;Sets" --add-data "%PROJECT_DIR%\Matrix;Matrix" --add-data "%PROJECT_DIR%\Validator;Validator" --add-data "%PROJECT_DIR%\Viewer;Viewer" --add-data "%PROJECT_DIR%\Sync;Sync" --add-data "%PROJECT_DIR%\shared;shared" --add-data "%PROJECT_DIR%\icon;icon" --hidden-import pyodbc --hidden-import tenacity --hidden-import pandas --hidden-import requests --hidden-import openpyxl --collect-binaries pyodbc --collect-data certifi %PYARROW_ARGS%"
 
-echo [INFO] Starting build...
+rem --- Clean previous builds ---
+if exist "%DIST_DIR%\%MANAGER_NAME%.exe" del /f /q "%DIST_DIR%\%MANAGER_NAME%.exe" >nul 2>&1
+if exist "%DIST_DIR%\%VIEWER_NAME%.exe" del /f /q "%DIST_DIR%\%VIEWER_NAME%.exe" >nul 2>&1
+if exist "%BUILD_DIR%" rmdir /s /q "%BUILD_DIR%" >nul 2>&1
+if exist "%SPEC_DIR%\%MANAGER_NAME%.spec" del /f /q "%SPEC_DIR%\%MANAGER_NAME%.spec" >nul 2>&1
+if exist "%SPEC_DIR%\%VIEWER_NAME%.spec" del /f /q "%SPEC_DIR%\%VIEWER_NAME%.spec" >nul 2>&1
 
-py -3 -m PyInstaller ^
- --noconfirm ^
- --clean ^
- --onefile ^
- --windowed ^
- --name "%APP_NAME%" ^
- --icon "%ICON_FILE%" ^
- --distpath "%DIST_DIR%" ^
- --workpath "%BUILD_DIR%" ^
- --specpath "%SPEC_DIR%" ^
- --paths "%PROJECT_DIR%\Adapters" ^
- --paths "%PROJECT_DIR%\Sets" ^
- --paths "%PROJECT_DIR%\Matrix" ^
- --paths "%PROJECT_DIR%\Validator" ^
- --paths "%PROJECT_DIR%\Viewer" ^
- --paths "%PROJECT_DIR%\Sync" ^
- --paths "%PROJECT_DIR%\shared" ^
- --hidden-import Adapters.ui ^
- --hidden-import Sets.ui ^
- --hidden-import Matrix.ui ^
- --hidden-import Validator.ui ^
- --hidden-import Viewer.ui ^
- --hidden-import Sync.ui ^
- --hidden-import Sync.odbc ^
- --hidden-import Sync.tls ^
- --hidden-import shared.excel_template ^
- --add-data "%PROJECT_DIR%\icon;icon" ^
- --collect-data certifi ^
- %PYARROW_ARGS% ^
- "%ENTRY_SCRIPT%"
-
+rem =============================================
+echo [INFO] Building %MANAGER_NAME%...
+echo =============================================
+py -3 -m PyInstaller %COMMON_ARGS% --workpath "%BUILD_DIR%\manager" --name "%MANAGER_NAME%" --icon "%ICON_FILE%" "%MANAGER_SCRIPT%"
 if errorlevel 1 (
-    echo [ERROR] Build failed.
+    echo [ERROR] %MANAGER_NAME% build failed.
     popd >nul
     exit /b 1
 )
+echo [OK] %MANAGER_NAME% done: "%DIST_DIR%\%MANAGER_NAME%.exe"
+echo.
+
+rem =============================================
+echo [INFO] Building %VIEWER_NAME%...
+echo =============================================
+py -3 -m PyInstaller %COMMON_ARGS% --workpath "%BUILD_DIR%\viewer" --name "%VIEWER_NAME%" --icon "%ICON_FILE%" "%VIEWER_SCRIPT%"
+if errorlevel 1 (
+    echo [ERROR] %VIEWER_NAME% build failed.
+    popd >nul
+    exit /b 1
+)
+echo [OK] %VIEWER_NAME% done: "%DIST_DIR%\%VIEWER_NAME%.exe"
 
 echo.
-echo [OK] Build completed:
-echo "%DIST_DIR%\%APP_NAME%.exe"
+echo =============================================
+echo [DONE] Both builds completed:
+echo   "%DIST_DIR%\%MANAGER_NAME%.exe"
+echo   "%DIST_DIR%\%VIEWER_NAME%.exe"
+echo =============================================
 
 popd >nul
 exit /b 0

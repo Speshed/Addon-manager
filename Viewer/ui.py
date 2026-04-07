@@ -20,7 +20,7 @@ from PySide6.QtCore import Qt
 PYSIDE = True
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
-APP_ROOT_DIR = os.path.dirname(APP_DIR)
+APP_ROOT_DIR = getattr(sys, "_MEIPASS", os.path.dirname(APP_DIR))
 ICON_DIR = os.path.join(APP_ROOT_DIR, "icon")
 WINDOW_ICON_NAME = "app_icon"
 LOGO_NAME = "logo"
@@ -37,7 +37,9 @@ from shared.theme_toggle import (
     register_icon_files, _ensure_white_copy, _ensure_black_copy, _tint_pixmap, _qss_url
 )
 from shared.dialogs import show_dialog, wire_message_box_buttons
+from Viewer.keycloak_auth import KeycloakAuth
 
+KEYCLOAK_AUTH = KeycloakAuth()
 
 # --- Additional icon files specific to Viewer ---
 _VIEWER_ICON_FILES = {
@@ -48,6 +50,8 @@ _VIEWER_ICON_FILES = {
     "navigation":  ["navigation.png"],
     "move":        ["move.png"],
     "compare":     ["compare.png"],
+    "eye_hide":    ["free-icon-hide-11238328.png"],
+    "eye_show":    ["free-icon-eye-2455724.png"],
 }
 
 register_icon_files(_VIEWER_ICON_FILES)
@@ -76,6 +80,44 @@ def _pad_pixmap(pm: QtGui.QPixmap, left: int, top: int, right: int, bottom: int)
     painter.drawPixmap(left, top, pm)
     painter.end()
     return out
+
+
+def _trim_transparent_pixmap(pm: QtGui.QPixmap) -> QtGui.QPixmap:
+    if pm.isNull():
+        return pm
+    img = pm.toImage()
+    left = img.width()
+    top = img.height()
+    right = -1
+    bottom = -1
+    for y in range(img.height()):
+        for x in range(img.width()):
+            if img.pixelColor(x, y).alpha() > 0:
+                if x < left:
+                    left = x
+                if y < top:
+                    top = y
+                if x > right:
+                    right = x
+                if y > bottom:
+                    bottom = y
+    if right < left or bottom < top:
+        return pm
+    return pm.copy(left, top, right - left + 1, bottom - top + 1)
+
+
+def _square_icon_pixmap(pm: QtGui.QPixmap, size: int) -> QtGui.QPixmap:
+    if pm.isNull():
+        return pm
+    fitted = pm.scaled(size, size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+    canvas = QtGui.QPixmap(size, size)
+    canvas.fill(QtCore.Qt.transparent)
+    painter = QtGui.QPainter(canvas)
+    x = (size - fitted.width()) // 2
+    y = (size - fitted.height()) // 2
+    painter.drawPixmap(x, y, fitted)
+    painter.end()
+    return canvas
 
 
 def apply_themed_icon_with_arrow(widget, name: str = "arrow_right", icon_dir: str = ICON_DIR, icon_size: tuple = (8, 8), padding_top: int = 8):
@@ -187,7 +229,7 @@ def show_info_dialog(text: str, *, title: str = "Информация", icon_dir
     msg.setWindowTitle(title)
     msg.setText(text)
     app = QtWidgets.QApplication.instance()
-    p = resolve_icon_path("alert", icon_dir, app=app)
+    p = resolve_icon_path("ok", icon_dir, app=app)
     pm = QPixmap(p) if p else QPixmap()
     if not pm.isNull():
         msg.setIconPixmap(pm.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
@@ -674,6 +716,33 @@ def _internal_base_url() -> str:
     return f"{base}/api"
 
 
+class _PasswordLineEdit(QLineEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._eye_btn = QtWidgets.QToolButton(self)
+        self._eye_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self._eye_btn.setStyleSheet("QToolButton { border: none; background: transparent; padding: 0px; margin: 0px; }")
+        self._eye_btn.setFixedSize(20, 20)
+        self.setTextMargins(0, 0, 28, 0)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        x = self.width() - self._eye_btn.width() - 8
+        y = (self.height() - self._eye_btn.height()) // 2
+        self._eye_btn.move(x, y)
+
+    def set_eye_icon(self, icon):
+        self._eye_btn.setIcon(icon)
+        self._eye_btn.setIconSize(QtCore.QSize(18, 18))
+        self._eye_btn.setVisible(not icon.isNull())
+
+    def set_eye_clicked(self, callback):
+        self._eye_btn.clicked.connect(callback)
+
+    def set_eye_tooltip(self, text):
+        self._eye_btn.setToolTip(text)
+
+
 # --- Utils ---
 def api_get(url, headers, params=None, timeout=10):
     try:
@@ -736,7 +805,7 @@ class MainWindow(QMainWindow):
         grid.addWidget(header, 0, 0, 1, 2)
 
         # --- 0. Token (top section) ---
-        token_group = QGroupBox("Доступ к внешнему API (введите токен)")
+        token_group = QGroupBox("Авторизация (Larix Viewer)")
         tlayout = QVBoxLayout(token_group)
         self._configure_section_layout(tlayout)
         try:
@@ -744,33 +813,94 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-        trow = QHBoxLayout()
-        self._configure_row_layout(trow)
-        self.token_edit = QLineEdit()
-        self.token_edit.setPlaceholderText("Bearer xxxxx...")
+        self._auth_ok = False
+        self._use_token_mode = True
         self.auth_status = QLabel("Не подключено")
         self.auth_status.setObjectName("statusBad")
         self.auth_status_icon = QLabel()
         self.auth_status_icon.setFixedSize(16, 16)
         self.auth_status_icon.setVisible(False)
-        self._auth_ok = False
-        token_btn = QPushButton("Ввод")
-        token_btn.clicked.connect(self.try_auth)
+
+        site_row = QHBoxLayout()
+        self._configure_row_layout(site_row)
+        site_row.addWidget(QLabel("Адрес сайта:"))
+        self.site_edit = QLineEdit()
+        self.site_edit.setText("https://viewer.larix.ru/")
+        self.site_edit.setPlaceholderText("https://viewer.larix.ru/")
+        site_row.addWidget(self.site_edit, stretch=1)
+        tlayout.addLayout(site_row)
+        self._site_row = site_row
+
+        token_row = QHBoxLayout()
+        self._configure_row_layout(token_row)
+        token_row.addWidget(QLabel("Токен:"))
+        self.token_edit = QLineEdit()
+        self.token_edit.setPlaceholderText("Bearer xxxxx...")
+        self.token_edit.returnPressed.connect(self._on_login_clicked)
+        token_row.addWidget(self.token_edit, stretch=1)
+        tlayout.addLayout(token_row)
+        self._token_row = token_row
+
+        mode_row = QHBoxLayout()
+        self._configure_row_layout(mode_row)
+        self.token_mode_cb = QCheckBox("Вход по логину и паролю")
+        self.token_mode_cb.toggled.connect(self._on_auth_mode_changed)
+        mode_row.addWidget(self.token_mode_cb)
+        mode_row.addStretch(1)
+        tlayout.addLayout(mode_row)
+
+        user_row = QHBoxLayout()
+        self._configure_row_layout(user_row)
+        user_row.addWidget(QLabel("Логин:"))
+        self.username_edit = QLineEdit()
+        self.username_edit.setPlaceholderText("email или username")
+        self.username_edit.returnPressed.connect(self._on_login_clicked)
+        self.username_edit.setEnabled(False)
+        user_row.addWidget(self.username_edit, stretch=1)
+        tlayout.addLayout(user_row)
+        self._login_row = user_row
+
+        pass_row = QHBoxLayout()
+        self._configure_row_layout(pass_row)
+        pass_row.addWidget(QLabel("Пароль:"))
+        self.password_edit = _PasswordLineEdit()
+        self.password_edit.setPlaceholderText("Пароль")
+        self.password_edit.setEchoMode(QLineEdit.Password)
+        self.password_edit.returnPressed.connect(self._on_login_clicked)
+        self.password_edit.setEnabled(False)
+        self.password_edit.set_eye_clicked(self._toggle_password_visibility)
+        pass_row.addWidget(self.password_edit, stretch=1)
+        self._pwd_visible = False
+        self._update_pwd_toggle_icon()
+        tlayout.addLayout(pass_row)
+        self._pass_row = pass_row
+
+        btn_row = QHBoxLayout()
+        self._configure_row_layout(btn_row)
+        btn_row.addStretch(1)
+        token_btn = QPushButton("Войти")
+        token_btn.clicked.connect(self._on_login_clicked)
         self._token_btn = token_btn
-        # Themed icons for buttons (update on theme toggle)
         try:
             apply_themed_icon(token_btn, "login", ICON_DIR)
             if self.theme_toggle is not None:
                 self.theme_toggle.toggled.connect(lambda _checked, b=token_btn: apply_themed_icon(b, "login", ICON_DIR))
         except Exception:
             pass
+        btn_row.addWidget(token_btn)
+        btn_row.addWidget(self.auth_status_icon)
+        btn_row.addWidget(self.auth_status)
+        btn_row.addStretch(1)
+        tlayout.addLayout(btn_row)
 
-        trow.addWidget(self.token_edit, stretch=1)
-        trow.addWidget(token_btn)
-        trow.addWidget(self.auth_status_icon)
-        trow.addWidget(self.auth_status)
-        tlayout.addLayout(trow)
-        self._lock_control_heights(self.token_edit, token_btn)
+        self._lock_control_heights(self.site_edit, self.username_edit, self.password_edit, self.token_edit, token_btn)
+
+        self._apply_auth_disabled_style()
+
+        self._token_timer = QtCore.QTimer(self)
+        self._token_timer.setInterval(60000)
+        self._token_timer.timeout.connect(self._on_token_timer)
+        self._token_timer.start()
 
         # --- 1. Viewer Projects/Models ---
         viewer_group = QGroupBox("Модели во вьювере")
@@ -911,6 +1041,7 @@ class MainWindow(QMainWindow):
         grid.setColumnStretch(1, 1)
 
         self.setCentralWidget(central)
+        QtCore.QTimer.singleShot(0, self._apply_auth_disabled_style)
 
     def _configure_section_layout(self, layout):
         try:
@@ -957,6 +1088,20 @@ class MainWindow(QMainWindow):
             self._set_auth_status_icon(bool(getattr(self, "_auth_ok", False)))
         except Exception:
             pass
+        try:
+            self._apply_auth_disabled_style()
+        except Exception:
+            pass
+        except Exception:
+            pass
+        try:
+            self._set_auth_status_icon(bool(getattr(self, "_auth_ok", False)))
+        except Exception:
+            pass
+        try:
+            self._update_pwd_toggle_icon()
+        except Exception:
+            pass
 
     def _make_section_title(self, text):
         # Заголовки теперь задаются через QGroupBox.setTitle; вспомогательный метод не используется
@@ -999,45 +1144,154 @@ class MainWindow(QMainWindow):
         except Exception:
             return None
 
-    # --- Token flow ---
-    def try_auth(self):
+    def _apply_auth_token(self):
+        global ACCESS_TOKEN, EXTERNAL_HEADERS
+        ACCESS_TOKEN = KEYCLOAK_AUTH.access_token
+        EXTERNAL_HEADERS = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Accept": "application/json"}
+
+    def _set_auth_ok(self):
+        self._auth_ok = True
+        self.auth_status.setText("Авторизован")
+        self.auth_status.setObjectName("statusOk")
+        self._refresh_status_style()
+        self._set_auth_status_icon(True)
+        self._apply_auth_token()
+
+    def _set_auth_fail(self, msg: str = "Не подключено"):
+        self._auth_ok = False
+        self.auth_status.setText(msg)
+        self.auth_status.setObjectName("statusBad")
+        self._refresh_status_style()
+        self._set_auth_status_icon(False)
+
+    # --- Auth mode switch ---
+    def _get_external_base_url(self):
+        return self.site_edit.text().strip().rstrip("/")
+
+    def _on_auth_mode_changed(self, checked: bool):
+        self._use_token_mode = not checked
+        self.username_edit.setEnabled(checked)
+        self.password_edit.setEnabled(checked)
+        self.token_edit.setEnabled(not checked)
+        if checked:
+            self.token_edit.clear()
+        else:
+            self.username_edit.clear()
+            self.password_edit.clear()
+        self._apply_auth_disabled_style()
+
+    def _apply_auth_disabled_style(self):
+        try:
+            is_dark = is_dark_theme(QtWidgets.QApplication.instance())
+        except Exception:
+            is_dark = False
+        disabled = "background-color: #2a2a2a; color: #606060;" if is_dark else "background-color: #f0f0f0; color: #a0a0a0;"
+        enabled = ""
+        for w in (self.username_edit, self.password_edit):
+            w.setStyleSheet(disabled if not w.isEnabled() else enabled)
+        self.token_edit.setStyleSheet(disabled if not self.token_edit.isEnabled() else enabled)
+
+    # --- Login flow ---
+    def _on_login_clicked(self):
+        if self._use_token_mode:
+            self._login_by_token()
+        else:
+            self._login_by_password()
+
+    def _toggle_password_visibility(self):
+        self._pwd_visible = not self._pwd_visible
+        if self._pwd_visible:
+            self.password_edit.setEchoMode(QLineEdit.Normal)
+        else:
+            self.password_edit.setEchoMode(QLineEdit.Password)
+        self._update_pwd_toggle_icon()
+
+    def _update_pwd_toggle_icon(self):
+        icon_name = "eye_show" if self._pwd_visible else "eye_hide"
+        app = QtWidgets.QApplication.instance()
+        p = resolve_icon_path(icon_name, ICON_DIR, app=app)
+        pm = QtGui.QPixmap(p) if p else QtGui.QPixmap()
+        if not pm.isNull():
+            pm = _trim_transparent_pixmap(pm)
+            pm = _square_icon_pixmap(pm, 18)
+        self.password_edit.set_eye_icon(QtGui.QIcon(pm))
+        self.password_edit.set_eye_tooltip("Скрыть пароль" if self._pwd_visible else "Показать пароль")
+
+    def _login_by_token(self):
         global ACCESS_TOKEN, EXTERNAL_HEADERS
         raw = self.token_edit.text().strip()
         if len(raw) <= 7:
-            self.auth_status.setText("Не подключено")
-            self.auth_status.setObjectName("statusBad")
-            self._refresh_status_style()
-            self._set_auth_status_icon(False)
+            self._set_auth_fail()
             _popup_error(self, "Введите корректный токен (Bearer ...)")
             return
-
-        ACCESS_TOKEN = raw[7:].strip()
+        ACCESS_TOKEN = raw[7:].strip() if raw.lower().startswith("bearer ") else raw.strip()
         EXTERNAL_HEADERS = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Accept": "application/json"}
-
+        self._token_btn.setEnabled(False)
+        self.auth_status.setText("Проверка...")
         try:
-            r = requests.get(f"{EXTERNAL_BASE_URL}/api/projects/all", headers=EXTERNAL_HEADERS, timeout=5)
+            r = requests.get(f"{self._get_external_base_url()}/api/projects/all", headers=EXTERNAL_HEADERS, timeout=5)
             if r.status_code == 200:
+                self._auth_ok = True
                 self.auth_status.setText("Авторизован")
                 self.auth_status.setObjectName("statusOk")
                 self._refresh_status_style()
                 self._set_auth_status_icon(True)
                 show_info_dialog("Авторизация прошла успешно.", title="Успех", parent=self)
             else:
-                self.auth_status.setText("Не подключено")
-                self.auth_status.setObjectName("statusBad")
-                self._refresh_status_style()
-                self._set_auth_status_icon(False)
+                self._set_auth_fail()
                 _popup_error(self, f"Не удалось авторизоваться: {r.status_code}")
         except Exception as e:
-            self.auth_status.setText("Не подключено")
-            self.auth_status.setObjectName("statusBad")
-            self._refresh_status_style()
-            self._set_auth_status_icon(False)
+            self._set_auth_fail()
             _popup_error(self, f"Не удалось подключиться: {e}")
+        finally:
+            self._token_btn.setEnabled(True)
+
+    def _login_by_password(self):
+        username = self.username_edit.text().strip()
+        password = self.password_edit.text().strip()
+        if not username or not password:
+            _popup_error(self, "Введите логин и пароль")
+            return
+        self._token_btn.setEnabled(False)
+        self.auth_status.setText("Подключение...")
+        try:
+            ok, msg = KEYCLOAK_AUTH.login_password(username, password)
+            if ok:
+                self._set_auth_ok()
+                show_info_dialog(msg, title="Успех", parent=self)
+            else:
+                self._set_auth_fail()
+                _popup_error(self, f"Ошибка авторизации:\n{msg}")
+        except Exception as e:
+            self._set_auth_fail()
+            _popup_error(self, f"Ошибка: {e}")
+        finally:
+            self._token_btn.setEnabled(True)
+
+    def _on_token_timer(self):
+        if not KEYCLOAK_AUTH.is_authenticated:
+            return
+        remaining = KEYCLOAK_AUTH.seconds_until_expire
+        if remaining < 300:
+            ok, _ = KEYCLOAK_AUTH.refresh()
+            if ok:
+                self._apply_auth_token()
+                self._set_auth_ok()
+            else:
+                if KEYCLOAK_AUTH._username and KEYCLOAK_AUTH._password:
+                    ok2, _ = KEYCLOAK_AUTH.login_password(
+                        KEYCLOAK_AUTH._username, KEYCLOAK_AUTH._password
+                    )
+                    if ok2:
+                        self._apply_auth_token()
+                        self._set_auth_ok()
+                        return
+                self._set_auth_fail("Сессия истекла")
+                self._token_timer.stop()
 
     # --- Viewer projects/models ---
     def load_projects(self):
-        data = api_get(f"{EXTERNAL_BASE_URL}/api/projects/all", EXTERNAL_HEADERS)
+        data = api_get(f"{self._get_external_base_url()}/api/projects/all", EXTERNAL_HEADERS)
         if not data:
             _popup_error(self, "Не удалось загрузить проекты")
             return
@@ -1060,7 +1314,7 @@ class MainWindow(QMainWindow):
         self.checked_models.clear()
         self.model_titles.clear()
 
-        data = api_get(f"{EXTERNAL_BASE_URL}/api/jimc/projectid", EXTERNAL_HEADERS, {"projectId": proj_id})
+        data = api_get(f"{self._get_external_base_url()}/api/jimc/projectid", EXTERNAL_HEADERS, {"projectId": proj_id})
         if not data:
             return
         for m in data:
@@ -1089,13 +1343,13 @@ class MainWindow(QMainWindow):
             return
 
         for mid in models:
-            schemas = api_get(f"{EXTERNAL_BASE_URL}/api/attribute-schema/projectid-jimcid",
+            schemas = api_get(f"{self._get_external_base_url()}/api/attribute-schema/projectid-jimcid",
                               EXTERNAL_HEADERS, {"projectId": proj_id, "jimcId": mid}) or []
             for s in schemas:
                 sid = s["id"]
                 if sid not in self.schema_data:
                     self.schema_data[sid] = {"title": s["title"], "attributes": {}}
-                attrs = api_get(f"{EXTERNAL_BASE_URL}/api/attribute/attributeschemaid-jimcid",
+                attrs = api_get(f"{self._get_external_base_url()}/api/attribute/attributeschemaid-jimcid",
                                 EXTERNAL_HEADERS, {"attributeSchemaId": sid, "jimcId": mid}) or []
                 for a in attrs:
                     aid = a["id"]
@@ -1213,7 +1467,7 @@ class MainWindow(QMainWindow):
         union_native = set()
         for mid, _name in selected_models:
             values = api_get(
-                f"{EXTERNAL_BASE_URL}/api/attribute-value/jimcid-attributeid",
+                f"{self._get_external_base_url()}/api/attribute-value/jimcid-attributeid",
                 EXTERNAL_HEADERS, {"jimcId": mid, "attributeId": attr_id}
             ) or []
             s = set()

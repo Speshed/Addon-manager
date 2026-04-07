@@ -19,7 +19,10 @@ except Exception:
 
 _OPEN_DIALOG_REFS: set[QtWidgets.QDialog] = set()
 
-_DEFAULT_ICON_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "icon")
+_DEFAULT_ICON_DIR = os.path.join(
+    getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "icon"
+)
 _CACHE_SUBDIR = "larix_dialog_icons"
 
 _APP_ICON_PATH = None

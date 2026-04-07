@@ -72,6 +72,7 @@ _BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 ICON_DIR = os.path.join(_BASE_DIR, "icon")
 
 
+
 def resource_path(*parts):
     base = getattr(sys, "_MEIPASS", None)
     if base is None:
@@ -96,6 +97,87 @@ def _dialog_icon_path(icon_name: str, is_dark: bool) -> str:
         if icon_name not in no_tint:
             return _ensure_white_copy(path, ICON_DIR)
     return path
+
+
+def _trim_transparent_pixmap(pm: QPixmap) -> QPixmap:
+    if pm.isNull():
+        return pm
+    img = pm.toImage()
+    left = img.width()
+    top = img.height()
+    right = -1
+    bottom = -1
+    for y in range(img.height()):
+        for x in range(img.width()):
+            if img.pixelColor(x, y).alpha() > 0:
+                if x < left:
+                    left = x
+                if y < top:
+                    top = y
+                if x > right:
+                    right = x
+                if y > bottom:
+                    bottom = y
+    if right < left or bottom < top:
+        return pm
+    return pm.copy(left, top, right - left + 1, bottom - top + 1)
+
+
+def _square_icon_pixmap(pm: QPixmap, size: int) -> QPixmap:
+    if pm.isNull():
+        return pm
+    fitted = pm.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    canvas = QPixmap(size, size)
+    canvas.fill(Qt.transparent)
+    painter = QPainter(canvas)
+    x = (size - fitted.width()) // 2
+    y = (size - fitted.height()) // 2
+    painter.drawPixmap(x, y, fitted)
+    painter.end()
+    return canvas
+
+
+def _make_pwd_action_icon(visible: bool, is_dark: bool) -> QIcon:
+    icon_name = "free-icon-eye-2455724.png" if visible else "free-icon-hide-11238328.png"
+    icon_path = icon_file(icon_name)
+    if os.path.exists(icon_path):
+        pm = QPixmap(icon_path)
+        pm = _trim_transparent_pixmap(pm)
+        pm = _square_icon_pixmap(pm, 18)
+        if is_dark:
+            painter = QPainter(pm)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+            painter.fillRect(pm.rect(), QColor(255, 255, 255))
+            painter.end()
+        return QIcon(pm)
+    return QIcon()
+
+
+class _InlinePasswordLineEdit(QLineEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._eye_btn = QToolButton(self)
+        self._eye_btn.setCursor(Qt.PointingHandCursor)
+        self._eye_btn.setStyleSheet("QToolButton { border: none; background: transparent; padding: 0px; margin: 0px; }")
+        self._eye_btn.setFixedSize(20, 20)
+        self.setTextMargins(0, 0, 28, 0)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        x = self.width() - self._eye_btn.width() - 8
+        y = (self.height() - self._eye_btn.height()) // 2
+        self._eye_btn.move(x, y)
+
+    def set_eye_clicked(self, callback):
+        self._eye_btn.clicked.connect(callback)
+
+    def set_eye_icon(self, icon: QIcon):
+        self._eye_btn.setIcon(icon)
+        self._eye_btn.setIconSize(QSize(18, 18))
+        self._eye_btn.setVisible(not icon.isNull())
+
+    def set_eye_tooltip(self, text: str):
+        self._eye_btn.setToolTip(text)
 
 
 def app_window_icon_path():
@@ -3041,10 +3123,13 @@ class DBAuthDialog(QDialog):
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_edit.setText(password)
         pass_layout.addWidget(self.password_edit, 1)
-        
         self._password_visible = False
-        self._password_action = self.password_edit.addAction(QIcon(), QLineEdit.ActionPosition.TrailingPosition)
-        self._password_action.triggered.connect(self._toggle_password_visibility)
+        self._pwd_btn = QToolButton()
+        self._pwd_btn.setCursor(Qt.PointingHandCursor)
+        self._pwd_btn.setStyleSheet("QToolButton { border: none; background: transparent; }")
+        self._pwd_btn.setFixedSize(28, 28)
+        self._pwd_btn.clicked.connect(self._toggle_password_visibility)
+        pass_layout.addWidget(self._pwd_btn)
         self._update_password_icon()
         layout.addWidget(pass_row)
         
@@ -3080,12 +3165,14 @@ class DBAuthDialog(QDialog):
         icon_path = icon_file(icon_name)
         if os.path.exists(icon_path):
             pm = QPixmap(icon_path)
+            pm = pm.scaled(22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             if self._is_dark:
                 painter = QPainter(pm)
                 painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
                 painter.fillRect(pm.rect(), QColor(255, 255, 255))
                 painter.end()
-            self._password_action.setIcon(QIcon(pm))
+            self._pwd_btn.setIcon(QIcon(pm))
+            self._pwd_btn.setIconSize(QSize(22, 22))
     
     def _import_config(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -3329,14 +3416,57 @@ class BimSyncWindow(QMainWindow):
         main_layout.addWidget(header_frame)
 
         token_frame = QFrame()
-        token_layout = QHBoxLayout(token_frame)
+        token_layout = QVBoxLayout(token_frame)
         token_layout.setContentsMargins(0, 0, 0, 0)
-        token_layout.setSpacing(10)
-        token_layout.addWidget(QLabel("Токен:"))
+        token_layout.setSpacing(6)
+
+        self._sync_auth = None
+        self._sync_use_token = True
+
+        self._sync_token_row = QHBoxLayout()
+        self._sync_token_row.setSpacing(10)
+        self._sync_token_row.addWidget(QLabel("Токен:"))
         self.token_edit = QLineEdit()
         self.token_edit.setPlaceholderText("bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwi...")
         self.token_edit.setMinimumWidth(600)
-        token_layout.addWidget(self.token_edit, 1)
+        self._sync_token_row.addWidget(self.token_edit, 1)
+        token_layout.addLayout(self._sync_token_row)
+
+        self._sync_token_mode_cb = QCheckBox("Вход по логину и паролю")
+        self._sync_token_mode_cb.toggled.connect(self._sync_toggle_auth_mode)
+        token_layout.addWidget(self._sync_token_mode_cb)
+
+        self._sync_login_row = QHBoxLayout()
+        self._sync_login_row.setSpacing(10)
+        self._sync_login_row.addWidget(QLabel("Логин:"))
+        self._sync_username_edit = QLineEdit()
+        self._sync_username_edit.setPlaceholderText("email или username")
+        self._sync_username_edit.setEnabled(False)
+        self._sync_login_row.addWidget(self._sync_username_edit, 1)
+        token_layout.addLayout(self._sync_login_row)
+
+        self._sync_pass_row = QHBoxLayout()
+        self._sync_pass_row.setSpacing(10)
+        self._sync_pass_row.addWidget(QLabel("Пароль:"))
+        self._sync_password_edit = QLineEdit()
+        self._sync_password_edit.setPlaceholderText("Пароль")
+        self._sync_password_edit.setEchoMode(QLineEdit.Password)
+        self._sync_password_edit.setEnabled(False)
+        self._sync_pass_row.addWidget(self._sync_password_edit, 1)
+        self._sync_pwd_visible = False
+        self._sync_pwd_btn = QToolButton()
+        self._sync_pwd_btn.setCursor(Qt.PointingHandCursor)
+        self._sync_pwd_btn.setStyleSheet("QToolButton { border: none; background: transparent; }")
+        self._sync_pwd_btn.setFixedSize(28, 28)
+        self._sync_pwd_btn.clicked.connect(lambda: self._toggle_line_password(
+            self._sync_password_edit, "_sync_pwd_visible", self._sync_pwd_btn
+        ))
+        self._sync_pass_row.addWidget(self._sync_pwd_btn)
+        self._update_line_pwd_icon(self._sync_password_edit, False, self._sync_pwd_btn)
+        token_layout.addLayout(self._sync_pass_row)
+
+        self._sync_apply_disabled_style()
+
         main_layout.addWidget(token_frame)
         
         main_layout.addSpacing(20)
@@ -3472,6 +3602,8 @@ class BimSyncWindow(QMainWindow):
         
         main_layout.addWidget(status_row)
 
+        QTimer.singleShot(0, self._sync_apply_disabled_style)
+
     def _update_label_style(self, label, color):
         label.setStyleSheet(f"color: {color};")
 
@@ -3482,11 +3614,72 @@ class BimSyncWindow(QMainWindow):
             scaled = pm.scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             icon_label.setPixmap(scaled)
 
+    def _sync_toggle_auth_mode(self, checked: bool):
+        self._sync_use_token = not checked
+        self._sync_username_edit.setEnabled(checked)
+        self._sync_password_edit.setEnabled(checked)
+        self.token_edit.setEnabled(not checked)
+        if checked:
+            self.token_edit.clear()
+        else:
+            self._sync_username_edit.clear()
+            self._sync_password_edit.clear()
+        self._sync_apply_disabled_style()
+
+    def _sync_apply_disabled_style(self):
+        disabled = "background-color: #f0f0f0; color: #a0a0a0;" if not self.is_dark_theme else "background-color: #2a2a2a; color: #606060;"
+        enabled = ""
+        for w in (self._sync_username_edit, self._sync_password_edit):
+            w.setStyleSheet(disabled if not w.isEnabled() else enabled)
+        self.token_edit.setStyleSheet(disabled if not self.token_edit.isEnabled() else enabled)
+
+    def _toggle_line_password(self, line_edit, visible_attr, btn=None):
+        new_val = not getattr(self, visible_attr, False)
+        setattr(self, visible_attr, new_val)
+        if new_val:
+            line_edit.setEchoMode(QLineEdit.Normal)
+        else:
+            line_edit.setEchoMode(QLineEdit.Password)
+        self._update_line_pwd_icon(line_edit, new_val, btn)
+
+    def _update_line_pwd_icon(self, line_edit, visible, btn=None):
+        icon = _make_pwd_action_icon(visible, self.is_dark_theme)
+        if hasattr(line_edit, "set_eye_icon"):
+            line_edit.set_eye_icon(icon)
+            if hasattr(line_edit, "set_eye_tooltip"):
+                line_edit.set_eye_tooltip("Скрыть пароль" if visible else "Показать пароль")
+        if btn is not None:
+            btn.setIcon(icon)
+            btn.setIconSize(QSize(22, 22))
+
+    def _sync_do_login(self) -> bool:
+        username = self._sync_username_edit.text().strip()
+        password = self._sync_password_edit.text().strip()
+        if not username or not password:
+            self._show_warning("Внимание", "Введите логин и пароль")
+            return False
+        from Viewer.keycloak_auth import KeycloakAuth
+        if self._sync_auth is None:
+            self._sync_auth = KeycloakAuth()
+        ok, msg = self._sync_auth.login_password(username, password)
+        if not ok:
+            self._show_error("Ошибка авторизации", msg)
+            return False
+        token = self._sync_auth.access_token
+        self.token_edit.setText(token)
+        CONFIG["token"] = token
+        return True
+
     def _check_token_periodically(self):
         global CONFIG
         if not self._is_connected or not CONFIG:
             return
         try:
+            if not self._sync_use_token and self._sync_auth is not None:
+                token = self._sync_auth.get_valid_token()
+                if token:
+                    CONFIG["token"] = token
+                    self.token_edit.setText(token)
             api_ok, _ = test_api_connection(CONFIG.get("site", ""), CONFIG.get("token", ""))
             self._set_status_icon(self.api_status_icon, api_ok)
             if not api_ok:
@@ -3518,6 +3711,8 @@ class BimSyncWindow(QMainWindow):
         self._update_label_style(self.projects_count_label, label_color)
         self.progress_bar.setTheme(self.is_dark_theme)
         self._set_toggle_icon(self.toggle_clear_btn, self.clear_frame.isVisible())
+        self._sync_apply_disabled_style()
+        self._update_line_pwd_icon(self._sync_password_edit, self._sync_pwd_visible, self._sync_pwd_btn)
 
     def _go_back(self):
         self._return_to_mode_select = True
@@ -3547,6 +3742,11 @@ class BimSyncWindow(QMainWindow):
 
     def _load_config(self):
         global CONFIG
+
+        if not self._sync_use_token:
+            if not self._sync_do_login():
+                return
+
         site = self._db_config.get("site", "")
         server = self._db_config.get("server", "")
         database = self._db_config.get("database", "")
@@ -4159,7 +4359,7 @@ class BimSyncWindow(QMainWindow):
         if icon_type == "critical":
             icon_path = _dialog_icon_path("error", self.is_dark_theme)
         elif icon_type == "information":
-            icon_path = _dialog_icon_path("alert", self.is_dark_theme)
+            icon_path = _dialog_icon_path("ok", self.is_dark_theme)
         else:
             icon_path = _dialog_icon_path("warning", self.is_dark_theme)
         if icon_path and os.path.exists(icon_path):
@@ -4686,6 +4886,38 @@ class PowerBiExportWindow(QMainWindow):
         self.token_edit.setMinimumWidth(400)
         token_layout.addWidget(self.token_edit, 1)
         api_layout.addLayout(token_layout)
+
+        self._pbi_auth = None
+        self._pbi_use_token = True
+
+        pbi_mode_row = QHBoxLayout()
+        self._pbi_token_mode_cb = QCheckBox("Вход по логину и паролю")
+        self._pbi_token_mode_cb.toggled.connect(self._pbi_toggle_auth_mode)
+        pbi_mode_row.addWidget(self._pbi_token_mode_cb)
+        pbi_mode_row.addStretch()
+        api_layout.addLayout(pbi_mode_row)
+
+        pbi_login_row = QHBoxLayout()
+        pbi_login_row.addWidget(QLabel("Логин:"))
+        self._pbi_username_edit = QLineEdit()
+        self._pbi_username_edit.setPlaceholderText("email или username")
+        self._pbi_username_edit.setEnabled(False)
+        pbi_login_row.addWidget(self._pbi_username_edit, 1)
+        api_layout.addLayout(pbi_login_row)
+
+        pbi_pass_row = QHBoxLayout()
+        pbi_pass_row.addWidget(QLabel("Пароль:"))
+        self._pbi_password_edit = _InlinePasswordLineEdit()
+        self._pbi_password_edit.setPlaceholderText("Пароль")
+        self._pbi_password_edit.setEchoMode(QLineEdit.Password)
+        self._pbi_password_edit.setEnabled(False)
+        self._pbi_password_edit.set_eye_clicked(
+            lambda: self._toggle_line_password(self._pbi_password_edit, "_pbi_pwd_visible")
+        )
+        pbi_pass_row.addWidget(self._pbi_password_edit, 1)
+        self._pbi_pwd_visible = False
+        self._update_line_pwd_icon(self._pbi_password_edit, False)
+        api_layout.addLayout(pbi_pass_row)
         
         output_layout = QHBoxLayout()
         output_layout.addWidget(QLabel("Папка для выгрузки:"))
@@ -4772,6 +5004,8 @@ class PowerBiExportWindow(QMainWindow):
         
         main_layout.addWidget(status_bar)
     
+        QTimer.singleShot(0, self._pbi_apply_disabled_style)
+
     def _update_label_style(self, label, color):
         label.setStyleSheet(f"color: {color};")
     
@@ -4805,14 +5039,72 @@ class PowerBiExportWindow(QMainWindow):
         label_color = "#888" if not self.is_dark_theme else "#a0a0a0"
         self._update_label_style(self.projects_count_label, label_color)
         self.progress_bar.setTheme(self.is_dark_theme)
+        self._update_line_pwd_icon(self._pbi_password_edit, self._pbi_pwd_visible)
     
     def _browse_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Выберите папку для выгрузки")
         if folder:
             self.output_edit.setText(folder)
     
+    def _pbi_toggle_auth_mode(self, checked):
+        self._pbi_use_token = not checked
+        self._pbi_username_edit.setEnabled(checked)
+        self._pbi_password_edit.setEnabled(checked)
+        self.token_edit.setEnabled(not checked)
+        if checked:
+            self.token_edit.clear()
+        else:
+            self._pbi_username_edit.clear()
+            self._pbi_password_edit.clear()
+        self._pbi_apply_disabled_style()
+
+    def _pbi_apply_disabled_style(self):
+        disabled = "background-color: #f0f0f0; color: #a0a0a0;" if not self.is_dark_theme else "background-color: #2a2a2a; color: #606060;"
+        enabled = ""
+        for w in (self._pbi_username_edit, self._pbi_password_edit):
+            w.setStyleSheet(disabled if not w.isEnabled() else enabled)
+        self.token_edit.setStyleSheet(disabled if not self.token_edit.isEnabled() else enabled)
+
+    def _toggle_line_password(self, line_edit, visible_attr, btn=None):
+        new_val = not getattr(self, visible_attr, False)
+        setattr(self, visible_attr, new_val)
+        if new_val:
+            line_edit.setEchoMode(QLineEdit.Normal)
+        else:
+            line_edit.setEchoMode(QLineEdit.Password)
+        self._update_line_pwd_icon(line_edit, new_val, btn)
+
+    def _update_line_pwd_icon(self, line_edit, visible, btn=None):
+        icon = _make_pwd_action_icon(visible, self.is_dark_theme)
+        if hasattr(line_edit, "set_eye_icon"):
+            line_edit.set_eye_icon(icon)
+            if hasattr(line_edit, "set_eye_tooltip"):
+                line_edit.set_eye_tooltip("Скрыть пароль" if visible else "Показать пароль")
+        if btn is not None:
+            btn.setIcon(icon)
+            btn.setIconSize(QSize(22, 22))
+
+    def _pbi_do_login(self) -> bool:
+        username = self._pbi_username_edit.text().strip()
+        password = self._pbi_password_edit.text().strip()
+        if not username or not password:
+            self._show_warning("Внимание", "Введите логин и пароль")
+            return False
+        from Viewer.keycloak_auth import KeycloakAuth
+        if self._pbi_auth is None:
+            self._pbi_auth = KeycloakAuth()
+        ok, msg = self._pbi_auth.login_password(username, password)
+        if not ok:
+            self._show_error("Ошибка авторизации", msg)
+            return False
+        self.token_edit.setText(self._pbi_auth.access_token)
+        return True
+
     def _connect(self):
-        global CONFIG
+        if not self._pbi_use_token:
+            if not self._pbi_do_login():
+                return
+
         site = self.site_edit.text().strip()
         token = self.token_edit.text().strip()
         
@@ -4826,6 +5118,7 @@ class PowerBiExportWindow(QMainWindow):
             self._show_warning("Внимание", "URL должен начинаться с http:// или https://")
             return
         
+        global CONFIG
         self.btn_connect.setEnabled(False)
         self.btn_connect.setText("Проверка...")
         self._set_status_icon(self.api_status_icon, False)
@@ -5180,7 +5473,7 @@ class PowerBiExportWindow(QMainWindow):
         if icon_type == "critical":
             icon_path = _dialog_icon_path("error", self.is_dark_theme)
         elif icon_type == "information":
-            icon_path = _dialog_icon_path("alert", self.is_dark_theme)
+            icon_path = _dialog_icon_path("ok", self.is_dark_theme)
         else:
             icon_path = _dialog_icon_path("warning", self.is_dark_theme)
         if icon_path and os.path.exists(icon_path):

@@ -63,7 +63,7 @@ except Exception:
     EXCEL_TEMPLATE_AVAILABLE = False
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
-APP_ROOT_DIR = os.path.dirname(APP_DIR)
+APP_ROOT_DIR = getattr(sys, "_MEIPASS", os.path.dirname(APP_DIR))
 ICON_DIR = os.path.join(APP_ROOT_DIR, "icon")
 LOGO_LIGHT_REL = os.path.join("icon", "Manager-scaled.png")
 LOGO_DARK_REL = os.path.join("icon", "Manager-scaled_white.png")
@@ -104,18 +104,21 @@ class _MappingRow(NamedTuple):
 
 FILTER_FIELD_DEFAULT_CATEGORY = "Категория:\\"
 FILTER_FIELD_DEFAULT_CLASSIF = "Тип:\\Код по классификатору"
+FILTER_FIELD_DEFAULT_CLASSIF_DESC = "Тип:\\Описание по классификатору"
 FILTER_FIELD_DEFAULT_IFC = "IfcClass"
 FILTER_FIELD_SUGGESTIONS = [
     FILTER_FIELD_DEFAULT_CATEGORY,
     FILTER_FIELD_DEFAULT_CLASSIF,
+    FILTER_FIELD_DEFAULT_CLASSIF_DESC,
     FILTER_FIELD_DEFAULT_IFC,
 ]
 
 
 class _FilterFieldRow(QtWidgets.QWidget):
-    def __init__(self, column_name: str, default_field: str = "", pick_api_callback=None, parent=None):
+    def __init__(self, column_name: str, column_label: str = "", default_field: str = "", pick_api_callback=None, parent=None):
         super().__init__(parent)
         self.column_name = str(column_name or "").strip()
+        self.column_label = str(column_label or self.column_name).strip()
         self._pick_api_callback = pick_api_callback
 
         layout = QtWidgets.QHBoxLayout(self)
@@ -126,7 +129,7 @@ class _FilterFieldRow(QtWidgets.QWidget):
         self.chk_active.setChecked(bool(default_field))
         layout.addWidget(self.chk_active)
 
-        self.lbl_column = QtWidgets.QLabel(self.column_name)
+        self.lbl_column = QtWidgets.QLabel(self.column_label)
         self.lbl_column.setMinimumWidth(260)
         layout.addWidget(self.lbl_column)
 
@@ -186,6 +189,98 @@ class SingleSheetPickerDialog(_LarixSheetPickerDialog if _LarixSheetPickerDialog
         return path, (sheets[0] if sheets else "")
 
 
+class MultiSheetPickerDialog(_LarixSheetPickerDialog if _LarixSheetPickerDialog is not None else QtWidgets.QDialog):
+    def __init__(self, master: QtWidgets.QWidget, existing_path: str = "", existing_sheets: list[str] | None = None):
+        if _LarixSheetPickerDialog is not None:
+            super().__init__(master, existing_path, list(existing_sheets or []))
+            return
+        super().__init__(master)
+        self.setWindowTitle("Выбор листов Excel")
+        self.resize(760, 560)
+        self._selected_path = str(existing_path or "").strip()
+        self._selected_sheets = [str(sheet).strip() for sheet in (existing_sheets or []) if str(sheet).strip()]
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        path_row = QtWidgets.QHBoxLayout()
+        path_row.addWidget(QtWidgets.QLabel("Excel-файл:"))
+        self.ed_path = QtWidgets.QLineEdit(self._selected_path)
+        self.ed_path.setReadOnly(True)
+        path_row.addWidget(self.ed_path, 1)
+        self.btn_pick_file = QtWidgets.QPushButton("Выбрать файл")
+        path_row.addWidget(self.btn_pick_file)
+        layout.addLayout(path_row)
+
+        self.lst_sheets = QtWidgets.QListWidget()
+        self.lst_sheets.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
+        layout.addWidget(self.lst_sheets, 1)
+
+        actions = QtWidgets.QHBoxLayout()
+        self.btn_check_all = QtWidgets.QPushButton("Выделить все")
+        self.btn_uncheck_all = QtWidgets.QPushButton("Снять все")
+        actions.addWidget(self.btn_check_all)
+        actions.addWidget(self.btn_uncheck_all)
+        actions.addStretch(1)
+        layout.addLayout(actions)
+
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel, parent=self)
+        wire_dialog_button_box(buttons, self._accept, self.reject)
+        layout.addWidget(buttons)
+
+        self.btn_pick_file.clicked.connect(self._pick_file)
+        self.btn_check_all.clicked.connect(lambda: self._set_all_checks(True))
+        self.btn_uncheck_all.clicked.connect(lambda: self._set_all_checks(False))
+
+        if self._selected_path:
+            self._fill_sheets(self._selected_path)
+
+    def _pick_file(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Выбор Excel-файла", self._selected_path, "Excel (*.xlsx *.xls)")
+        if not path:
+            return
+        self._selected_path = path
+        self.ed_path.setText(path)
+        self._fill_sheets(path)
+
+    def _fill_sheets(self, path: str):
+        self.lst_sheets.clear()
+        names: list[str] = []
+        try:
+            if pd is not None:
+                names = list(pd.ExcelFile(path).sheet_names)
+        except Exception as exc:
+            show_warning_dialog(f"Не удалось загрузить листы из файла:\n{exc}", title="Ошибка", parent=self)
+            names = []
+        selected = set(self._selected_sheets)
+        for name in names:
+            item = QtWidgets.QListWidgetItem(name, self.lst_sheets)
+            item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
+            item.setCheckState(QtCore.Qt.Checked if name in selected else QtCore.Qt.Unchecked)
+
+    def _set_all_checks(self, checked: bool):
+        for idx in range(self.lst_sheets.count()):
+            self.lst_sheets.item(idx).setCheckState(QtCore.Qt.Checked if checked else QtCore.Qt.Unchecked)
+
+    def _accept(self):
+        self._selected_sheets = []
+        for idx in range(self.lst_sheets.count()):
+            item = self.lst_sheets.item(idx)
+            if item.checkState() == QtCore.Qt.Checked:
+                self._selected_sheets.append(item.text())
+        if not self._selected_path:
+            show_warning_dialog("Сначала выберите Excel-файл.", title="Внимание", parent=self)
+            return
+        if not self._selected_sheets:
+            show_warning_dialog("Выберите хотя бы один лист.", title="Внимание", parent=self)
+            return
+        self.accept()
+
+    def result(self):
+        return self._selected_path, list(self._selected_sheets)
+
+
 def _normalize_mapping_payload(raw: dict | None) -> dict[str, dict]:
     normalized: dict[str, dict] = {}
     for key, value in (raw or {}).items():
@@ -207,6 +302,25 @@ def _normalize_mapping_payload(raw: dict | None) -> dict[str, dict]:
             }
         elif isinstance(value, str):
             normalized[name] = {"code": value.strip(), "isNumeric": False}
+    return normalized
+
+
+def _normalize_sheet_names(sheet_name_or_names) -> list[str]:
+    if isinstance(sheet_name_or_names, str):
+        raw_items = [sheet_name_or_names]
+    elif isinstance(sheet_name_or_names, (list, tuple, set)):
+        raw_items = list(sheet_name_or_names)
+    else:
+        raw_items = []
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in raw_items:
+        name = str(value or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        normalized.append(name)
     return normalized
 
 # --- Local style helpers (no nik_style dependency) ---
@@ -1393,16 +1507,195 @@ def _load_parameter_sheet_layout(excel_path: str, sheet_name: str):
     return read_parameter_sheet(excel_path, sheet_name, pd)
 
 
+def _load_parameter_sheet_layouts(excel_path: str, sheet_names) -> list[tuple[str, object]]:
+    layouts: list[tuple[str, object]] = []
+    for sheet_name in _normalize_sheet_names(sheet_names):
+        layouts.append((sheet_name, _load_parameter_sheet_layout(excel_path, sheet_name)))
+    return layouts
+
+
 def _default_filter_field_for_column(layout, column_name: str) -> str:
     role_defaults = {
         "category": FILTER_FIELD_DEFAULT_CATEGORY,
         "classif_code": FILTER_FIELD_DEFAULT_CLASSIF,
+        "classif_desc": FILTER_FIELD_DEFAULT_CLASSIF_DESC,
         "ifc": FILTER_FIELD_DEFAULT_IFC,
     }
     for role_name, default_field in role_defaults.items():
         if layout.role_columns.get(role_name) == column_name:
             return default_field
     return ""
+
+
+def _layout_column_label(layout, column_name: str) -> str:
+    try:
+        label = layout.column_labels.get(column_name, "")
+        return str(label or column_name).strip()
+    except Exception:
+        return str(column_name or "").strip()
+
+
+def _collect_excel_params_from_sheets(excel_path: str, sheet_names) -> list[str]:
+    params: list[str] = []
+    seen: set[str] = set()
+    for _, layout in _load_parameter_sheet_layouts(excel_path, sheet_names):
+        for column_name in getattr(layout, "param_columns", []) or []:
+            name = str(column_name or "").strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            params.append(name)
+    return params
+
+
+def _collect_filter_specs_from_layouts(layouts: list[tuple[str, object]]) -> list[tuple[str, str, str]]:
+    specs: list[tuple[str, str, str]] = []
+    known: dict[str, dict[str, str]] = {}
+    for _, layout in layouts:
+        section_column = layout.role_columns.get("section")
+        for column_name in getattr(layout, "filter_columns", []) or []:
+            name = str(column_name or "").strip()
+            if not name or name == section_column:
+                continue
+            label = _layout_column_label(layout, name)
+            default_field = _default_filter_field_for_column(layout, name)
+            if name not in known:
+                known[name] = {"label": label, "default": default_field}
+                specs.append((name, label, default_field))
+            elif default_field and not known[name]["default"]:
+                known[name]["default"] = default_field
+    if not specs:
+        return []
+    return [(name, known[name]["label"], known[name]["default"]) for name, _, _ in specs]
+
+
+def _build_selected_filter_map(layout, mode: str, filter_field_map=None) -> dict[str, str]:
+    selected_filter_map: dict[str, str] = {}
+    explicit_filter_selection = isinstance(filter_field_map, dict)
+    if explicit_filter_selection:
+        for col_name, field_name in filter_field_map.items():
+            col = str(col_name or "").strip()
+            field = str(field_name or "").strip()
+            if col and field and col in layout.dataframe.columns:
+                selected_filter_map[col] = field
+        return selected_filter_map
+
+    category_col = layout.role_columns.get("category") or ""
+    ifc_col = layout.role_columns.get("ifc") or ""
+    classif_col = layout.role_columns.get("classif_code") or ""
+    classif_desc_col = layout.role_columns.get("classif_desc") or ""
+    if mode in ("category", "both") and category_col:
+        selected_filter_map[category_col] = FILTER_FIELD_DEFAULT_CATEGORY
+    if mode in ("classifier", "both") and classif_col:
+        selected_filter_map[classif_col] = FILTER_FIELD_DEFAULT_CLASSIF
+    if mode in ("classifier", "both") and classif_desc_col:
+        selected_filter_map[classif_desc_col] = FILTER_FIELD_DEFAULT_CLASSIF_DESC
+    if mode in ("category", "both") and ifc_col:
+        selected_filter_map.setdefault(ifc_col, FILTER_FIELD_DEFAULT_IFC)
+    return selected_filter_map
+
+
+def _build_sheet_categories(layout, sheet_name: str, mode: str, filter_field_map=None, codes_map: dict[str, list[str]] | None = None):
+    df = layout.dataframe.copy()
+    if df.shape[1] < 3:
+        raise ValueError(f"Лист '{sheet_name}': недостаточно столбцов в файле")
+
+    section_col = layout.role_columns.get("section") or (str(df.columns[0]).strip() if len(df.columns) > 0 else "")
+    category_col = layout.role_columns.get("category") or (str(df.columns[1]).strip() if len(df.columns) > 1 else "")
+    classif_col = layout.role_columns.get("classif_code") or ""
+    loi_cols = [c for c in layout.param_columns if str(c).strip()]
+    if not section_col or not loi_cols:
+        raise ValueError(f"Лист '{sheet_name}': не удалось определить структуру Excel-шаблона")
+
+    df = df.dropna(subset=[section_col]).reset_index(drop=True)
+    selected_filter_map = _build_selected_filter_map(layout, mode, filter_field_map)
+    codes_map = codes_map or {}
+
+    def _norm_code(text: str) -> str:
+        s = (text or "").strip()
+        s = s.replace("ё", "е").replace("Ё", "Е")
+        for ch in (" ", "-", "/", "\\", ",", ";", ":"):
+            s = s.replace(ch, "_")
+        for ch in ("(", ")", "[", "]", "{", "}", "'", '"'):
+            s = s.replace(ch, "")
+        while "__" in s:
+            s = s.replace("__", "_")
+        return s.strip("_")
+
+    section_data: dict[str, dict[str, object]] = {}
+    validation_codes: set[tuple[str, bool]] = set()
+    for _, row in df.iterrows():
+        section = str(row.get(section_col, "") or "").strip()
+        if not section:
+            continue
+        revit_cat = str(row.get(category_col, "")).strip() if category_col and pd.notna(row.get(category_col, "")) else ""
+        row_classifier_codes = []
+        if classif_col and classif_col in row and pd.notna(row[classif_col]):
+            row_classifier_codes = [c.strip() for c in str(row[classif_col]).split(",") if c.strip()]
+
+        if section not in section_data:
+            section_data[section] = {
+                "revit_categories": set(),
+                "classifier_codes": set(),
+                "filter_values": {},
+                "params": {},
+            }
+
+        section_data[section]["classifier_codes"].update(row_classifier_codes)
+        section_data[section]["classifier_codes"].update(codes_map.get(section, []))
+
+        for col_name in selected_filter_map:
+            values = _split_filter_values(row.get(col_name, ""))
+            if col_name == classif_col and section in codes_map:
+                for code in codes_map.get(section, []):
+                    if code and code not in values:
+                        values.append(code)
+            if not values:
+                continue
+            bucket = section_data[section]["filter_values"].setdefault(col_name, [])
+            for value in values:
+                if value not in bucket:
+                    bucket.append(value)
+
+        if revit_cat:
+            for cat_part in revit_cat.split(','):
+                cat_part = cat_part.strip()
+                if cat_part:
+                    section_data[section]["revit_categories"].add(cat_part)
+
+        for col in loi_cols:
+            if col in row and pd.notna(row[col]) and str(row[col]).strip() == '+':
+                if isinstance(GLOBAL_PARAM_MAPPING, dict) and col in GLOBAL_PARAM_MAPPING:
+                    code = GLOBAL_PARAM_MAPPING[col]["code"]
+                    is_numeric = GLOBAL_PARAM_MAPPING[col]["isNumeric"]
+                else:
+                    code = f"\\{_norm_code(col) or col}"
+                    is_numeric = col in ["Площадь", "Объем", "Длина", "Ширина", "Высота", "Масса"]
+
+                if col not in section_data[section]["params"]:
+                    section_data[section]["params"][col] = {
+                        "title": col,
+                        "field_name": code,
+                        "is_numeric": is_numeric,
+                    }
+                validation_codes.add((code, is_numeric))
+
+    categories = []
+    for section, data in section_data.items():
+        if data["params"]:
+            categories.append({
+                "title": section,
+                "revit_categories": sorted(list(data["revit_categories"])),
+                "classifier_codes": sorted(list(data["classifier_codes"])),
+                "filter_values": dict(data["filter_values"]),
+                "params": list(data["params"].values()),
+            })
+    return {
+        "sheet_name": sheet_name,
+        "selected_filter_map": selected_filter_map,
+        "categories": categories,
+        "validation_codes": validation_codes,
+    }
 
 
 def _has_numeric_title_prefix(value: str) -> bool:
@@ -1515,52 +1808,13 @@ def excel_to_pv_profile(
     build_filters=True,
     grouped=False,
 ):
-    api_types = fetch_api_param_types()
     if pd is None:
         return False, "ERROR: Требуется пакет pandas"
     try:
-        layout = _load_parameter_sheet_layout(excel_path, sheet_name)
-        df = layout.dataframe.copy()
-        if df.shape[1] < 3:
-            return False, "ERROR: Недостаточно столбцов в файле"
-        section_col = layout.role_columns.get("section") or (str(df.columns[0]).strip() if len(df.columns) > 0 else "")
-        category_col = layout.role_columns.get("category") or (str(df.columns[1]).strip() if len(df.columns) > 1 else "")
-        ifc_col = layout.role_columns.get("ifc") or (str(df.columns[2]).strip() if len(df.columns) > 2 else "")
-        classif_col = layout.role_columns.get("classif_code") or ""
-        loi_cols = [c for c in layout.param_columns if str(c).strip()]
-        if not section_col or not loi_cols:
-            return False, "ERROR: Не удалось определить структуру Excel-шаблона."
-        df = df.dropna(subset=[section_col]).reset_index(drop=True)
+        sheet_names = _normalize_sheet_names(sheet_name)
+        if not sheet_names:
+            return False, "ERROR: Не выбран ни один лист Excel"
 
-        selected_filter_map: dict[str, str] = {}
-        explicit_filter_selection = isinstance(filter_field_map, dict)
-        if explicit_filter_selection:
-            for col_name, field_name in filter_field_map.items():
-                col = str(col_name or "").strip()
-                field = str(field_name or "").strip()
-                if col and field and col in df.columns:
-                    selected_filter_map[col] = field
-
-        if not explicit_filter_selection:
-            if mode in ("category", "both") and category_col:
-                selected_filter_map[category_col] = FILTER_FIELD_DEFAULT_CATEGORY
-            if mode in ("classifier", "both") and classif_col:
-                selected_filter_map[classif_col] = FILTER_FIELD_DEFAULT_CLASSIF
-            if mode in ("category", "both") and ifc_col:
-                selected_filter_map.setdefault(ifc_col, FILTER_FIELD_DEFAULT_IFC)
-
-        def _norm_code(text: str) -> str:
-            s = (text or "").strip()
-            s = s.replace("ё", "е").replace("Ё", "Е")
-            for ch in (" ", "-", "/", "\\", ",", ";", ":"):
-                s = s.replace(ch, "_")
-            for ch in ("(", ")", "[", "]", "{", "}", "'", '"'):
-                s = s.replace(ch, "")
-            while "__" in s:
-                s = s.replace("__", "_")
-            return s.strip("_")
-
-        # Читаем файл с кодами классификатора
         codes_map = {}
         if use_classifier and classifier_path:
             try:
@@ -1578,74 +1832,13 @@ def excel_to_pv_profile(
                 print(f"Warning: Could not read classifier codes: {ex}")
                 codes_map = {}
 
-        # Сбор параметров
-        categories = []
-        validation_codes = set()
-        # Группируем по разделам и собираем категории Revit
-        section_data = {}
-        for _, row in df.iterrows():
-            section = str(row.get(section_col, "")).strip()
-            revit_cat = str(row.get(category_col, "")).strip() if category_col and pd.notna(row.get(category_col, "")) else ""
-            row_classifier_codes = []
-            if classif_col and classif_col in row and pd.notna(row[classif_col]):
-                row_classifier_codes = [c.strip() for c in str(row[classif_col]).split(",") if c.strip()]
-            
-            if section not in section_data:
-                section_data[section] = {
-                    'revit_categories': set(),
-                    'classifier_codes': set(),
-                    'filter_values': {},
-                    'params': {}
-                }
-            section_data[section]['classifier_codes'].update(row_classifier_codes)
-            section_data[section]['classifier_codes'].update(codes_map.get(section, []))
-            for col_name in selected_filter_map:
-                values = _split_filter_values(row.get(col_name, ""))
-                if col_name == classif_col and section in codes_map:
-                    for code in codes_map.get(section, []):
-                        if code and code not in values:
-                            values.append(code)
-                if not values:
-                    continue
-                bucket = section_data[section]['filter_values'].setdefault(col_name, [])
-                for value in values:
-                    if value not in bucket:
-                        bucket.append(value)
-            
-            # Разделяем категории по запятой
-            if revit_cat:
-                for cat_part in revit_cat.split(','):
-                    cat_part = cat_part.strip()
-                    if cat_part:
-                        section_data[section]['revit_categories'].add(cat_part)
-            
-            for col in loi_cols:
-                if col in row and pd.notna(row[col]) and str(row[col]).strip() == '+':
-                    if isinstance(GLOBAL_PARAM_MAPPING, dict) and col in GLOBAL_PARAM_MAPPING:
-                        code = GLOBAL_PARAM_MAPPING[col]['code']
-                        is_numeric = GLOBAL_PARAM_MAPPING[col]['isNumeric']
-                    else:
-                        code = f"\\{col}"
-                        is_numeric = col in ['Площадь', 'Объем', 'Длина', 'Ширина', 'Высота', 'Масса']
-                    
-                    if col not in section_data[section]['params']:
-                        section_data[section]['params'][col] = {
-                            'title': col, 
-                            'field_name': code, 
-                            'is_numeric': is_numeric
-                        }
-                    validation_codes.add((code, is_numeric))
-        
-        # Формируем итоговый список категорий
-        for section, data in section_data.items():
-            if data['params']:
-                categories.append({
-                    'title': section,
-                    'revit_categories': sorted(list(data['revit_categories'])),
-                    'classifier_codes': sorted(list(data['classifier_codes'])),
-                    'filter_values': dict(data['filter_values']),
-                    'params': list(data['params'].values())
-                })
+        sheet_payloads = []
+        for current_sheet_name, layout in _load_parameter_sheet_layouts(excel_path, sheet_names):
+            payload = _build_sheet_categories(layout, current_sheet_name, mode, filter_field_map, codes_map)
+            sheet_payloads.append(payload)
+
+        if not any(payload["categories"] for payload in sheet_payloads):
+            return False, "ERROR: Не найдено ни одного раздела с параметрами на выбранных листах"
 
         # Генерация XML
         root = ET.Element("ExportProfilesCollection", {
@@ -1653,135 +1846,133 @@ def excel_to_pv_profile(
             "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
         })
         profiles = ET.SubElement(root, "Profiles")
-        base_profile = ET.SubElement(profiles, "BaseExportProfile", {"xsi:type": "ParameterValidationExportProfile"})
-        ET.SubElement(base_profile, "Id").text = "0"
-        ET.SubElement(base_profile, "Title").text = profile_title
-        items = ET.SubElement(base_profile, "ProfileItems")
-        item_id = 1838
+        for profile_idx, payload in enumerate(sheet_payloads):
+            base_profile = ET.SubElement(profiles, "BaseExportProfile", {"xsi:type": "ParameterValidationExportProfile"})
+            ET.SubElement(base_profile, "Id").text = str(profile_idx)
+            title_text = profile_title if len(sheet_payloads) == 1 else f"{profile_title} - {payload['sheet_name']}"
+            ET.SubElement(base_profile, "Title").text = title_text
+            items = ET.SubElement(base_profile, "ProfileItems")
+            item_id = 1838
+            folder_idx = 0
 
-        folder_idx = 0
-        for cat in categories:
-            item_id += 1
-            parent_id = item_id
-            folder = ET.SubElement(items, "BaseExportProfileItem", {"xsi:type": "ParameterValidationExportProfileItem"})
-            ET.SubElement(folder, "Id").text = str(parent_id)
-            ET.SubElement(folder, "ParentId", {"xsi:nil": "true"})
-            folder_idx += 1
-            folder_title = cat['title']
-            clean_title = _strip_numeric_prefix(folder_title)
-            if auto_number:
-                folder_title = f"{folder_idx:02d}_{clean_title}"
-            else:
-                folder_title = clean_title
-            ET.SubElement(folder, "Title").text = folder_title
-            ET.SubElement(folder, "IsFolder").text = "true"
-            ET.SubElement(folder, "ExtFieldParamCodes")
-
-            fcb = ET.SubElement(folder, "FilteringConditionBlock", {
-                "Type": "Block", "LogicalOperator": "Or", "IsNegative": "false", "IsEnabled": "true"
-            })
-            fcb_signal = ET.SubElement(fcb, "Signal")
-            fcb_signal.append(_empty_messages())
-            fcb_condition = ET.SubElement(fcb, "Condition", {
-                "FieldName": "", "FieldIsNumeric": "false", "Operator": "Equal", "Value": "",
-                "TextCaseSensitive": "false", "TextSpaceSensitive": "true", "IsUndefinedFieldName": "false"
-            })
-            fcb_condition_signal = ET.SubElement(fcb_condition, "Signal")
-            fcb_condition_signal.append(_info_message("Имя не указано"))
-            cb = ET.SubElement(fcb, "ConditionsBlocks")
-            
-            if build_filters:
-                filter_pairs = []
-                for col_name, field_name in selected_filter_map.items():
-                    values = list((cat.get('filter_values') or {}).get(col_name, []) or [])
-                    if values:
-                        filter_pairs.append((field_name, values))
-                if grouped:
-                    _append_grouped_filter_conditions(cb, filter_pairs)
-                else:
-                    _append_filter_conditions(cb, filter_pairs)
-
-            ET.SubElement(folder, "ParentFilteringProfileItemId", {"xsi:nil": "true"})
-            vcb = ET.SubElement(folder, "ValidatingConditionBlock", {
-                "Type": "Block", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
-            })
-            vcb_signal = ET.SubElement(vcb, "Signal")
-            vcb_signal.append(_info_message("Нет ни одного включенного условия в наборе условий"))
-            vcb_condition = ET.SubElement(vcb, "Condition", {
-                "FieldName": "", "FieldIsNumeric": "false", "Operator": "Equal", "Value": "",
-                "TextCaseSensitive": "false", "TextSpaceSensitive": "true", "IsUndefinedFieldName": "false"
-            })
-            vcb_condition_signal = ET.SubElement(vcb_condition, "Signal")
-            vcb_condition_signal.append(_info_message("Имя не указано"))
-            ET.SubElement(vcb, "ConditionsBlocks")
-
-            # Создаем дочерние параметры (всегда, независимо от mode)
-            for param in cat['params']:
+            for cat in payload["categories"]:
                 item_id += 1
-                child = ET.SubElement(items, "BaseExportProfileItem", {"xsi:type": "ParameterValidationExportProfileItem"})
-                ET.SubElement(child, "Id").text = str(item_id)
-                ET.SubElement(child, "ParentId").text = str(parent_id)
-                ET.SubElement(child, "Title").text = param['title']
-                ET.SubElement(child, "IsFolder").text = "true"
-                ET.SubElement(child, "ExtFieldParamCodes")
-                
-                # FilteringConditionBlock for child
-                fcb_child = ET.SubElement(child, "FilteringConditionBlock", {
-                    "Type": "Block", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
+                parent_id = item_id
+                folder = ET.SubElement(items, "BaseExportProfileItem", {"xsi:type": "ParameterValidationExportProfileItem"})
+                ET.SubElement(folder, "Id").text = str(parent_id)
+                ET.SubElement(folder, "ParentId", {"xsi:nil": "true"})
+                folder_idx += 1
+                folder_title = cat['title']
+                clean_title = _strip_numeric_prefix(folder_title)
+                if auto_number:
+                    folder_title = f"{folder_idx:02d}_{clean_title}"
+                else:
+                    folder_title = clean_title
+                ET.SubElement(folder, "Title").text = folder_title
+                ET.SubElement(folder, "IsFolder").text = "true"
+                ET.SubElement(folder, "ExtFieldParamCodes")
+
+                fcb = ET.SubElement(folder, "FilteringConditionBlock", {
+                    "Type": "Block", "LogicalOperator": "Or", "IsNegative": "false", "IsEnabled": "true"
                 })
-                fcb_child_signal = ET.SubElement(fcb_child, "Signal")
-                fcb_child_signal.append(_info_message("Нет ни одного включенного условия в наборе условий"))
-                fcb_child_condition = ET.SubElement(fcb_child, "Condition", {
-                    "FieldName": "", "FieldIsNumeric": "true", "Operator": "Equal", "Value": "",
-                    "TextCaseSensitive": "false", "TextSpaceSensitive": "false", "IsUndefinedFieldName": "false"
-                })
-                fcb_child_condition_signal = ET.SubElement(fcb_child_condition, "Signal")
-                fcb_child_condition_signal.append(_info_message("Имя не указано"))
-                ET.SubElement(fcb_child, "ConditionsBlocks")
-                
-                ET.SubElement(child, "ParentFilteringProfileItemId", {"xsi:nil": "true"})
-                
-                # ValidatingConditionBlock for child
-                vcb_child = ET.SubElement(child, "ValidatingConditionBlock", {
-                    "Type": "Block", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
-                })
-                vcb_child_signal = ET.SubElement(vcb_child, "Signal")
-                vcb_child_signal.append(_empty_messages())
-                vcb_child_condition = ET.SubElement(vcb_child, "Condition", {
+                fcb_signal = ET.SubElement(fcb, "Signal")
+                fcb_signal.append(_empty_messages())
+                fcb_condition = ET.SubElement(fcb, "Condition", {
                     "FieldName": "", "FieldIsNumeric": "false", "Operator": "Equal", "Value": "",
                     "TextCaseSensitive": "false", "TextSpaceSensitive": "true", "IsUndefinedFieldName": "false"
                 })
-                vcb_child_condition_signal = ET.SubElement(vcb_child_condition, "Signal")
-                vcb_child_condition_signal.append(_info_message("Имя не указано"))
-                
-                conditions_blocks = ET.SubElement(vcb_child, "ConditionsBlocks")
-                single_cond = ET.SubElement(conditions_blocks, "ConditionsBlock", {
-                    "Type": "Single", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
-                })
-                single_cond_signal = ET.SubElement(single_cond, "Signal")
-                single_cond_signal.append(_empty_messages())
-                
-                op = "More" if param['is_numeric'] else "Default"
-                val = "0" if param['is_numeric'] else ""
-                cond = ET.SubElement(single_cond, "Condition", {
-                    "FieldName": param['field_name'], "FieldIsNumeric": str(param['is_numeric']).lower(),
-                    "Operator": op, "Value": val, "TextCaseSensitive": "false",
-                    "TextSpaceSensitive": "false", "Layer": "-1", "IsUndefinedFieldName": "false"
-                })
-                cond_signal = ET.SubElement(cond, "Signal")
-                cond_signal.append(_empty_messages())
-                ET.SubElement(single_cond, "ConditionsBlocks")
+                fcb_condition_signal = ET.SubElement(fcb_condition, "Signal")
+                fcb_condition_signal.append(_info_message("Имя не указано"))
+                cb = ET.SubElement(fcb, "ConditionsBlocks")
 
-        # ValidationParameters
-        validation_params = ET.SubElement(base_profile, "ValidationParameters")
-        param_id = 505
-        for code, is_numeric in sorted(validation_codes):
-            param_id += 1
-            dto = ET.SubElement(validation_params, "ValidationParameterDto")
-            ET.SubElement(dto, "Id").text = str(param_id)
-            ET.SubElement(dto, "ProfileId").text = "0"
-            ET.SubElement(dto, "Code").text = code
-            ET.SubElement(dto, "IsNumeric").text = str(is_numeric).lower()
+                if build_filters:
+                    filter_pairs = []
+                    for col_name, field_name in payload["selected_filter_map"].items():
+                        values = list((cat.get('filter_values') or {}).get(col_name, []) or [])
+                        if values:
+                            filter_pairs.append((field_name, values))
+                    if grouped:
+                        _append_grouped_filter_conditions(cb, filter_pairs)
+                    else:
+                        _append_filter_conditions(cb, filter_pairs)
+
+                ET.SubElement(folder, "ParentFilteringProfileItemId", {"xsi:nil": "true"})
+                vcb = ET.SubElement(folder, "ValidatingConditionBlock", {
+                    "Type": "Block", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
+                })
+                vcb_signal = ET.SubElement(vcb, "Signal")
+                vcb_signal.append(_info_message("Нет ни одного включенного условия в наборе условий"))
+                vcb_condition = ET.SubElement(vcb, "Condition", {
+                    "FieldName": "", "FieldIsNumeric": "false", "Operator": "Equal", "Value": "",
+                    "TextCaseSensitive": "false", "TextSpaceSensitive": "true", "IsUndefinedFieldName": "false"
+                })
+                vcb_condition_signal = ET.SubElement(vcb_condition, "Signal")
+                vcb_condition_signal.append(_info_message("Имя не указано"))
+                ET.SubElement(vcb, "ConditionsBlocks")
+
+                for param in cat['params']:
+                    item_id += 1
+                    child = ET.SubElement(items, "BaseExportProfileItem", {"xsi:type": "ParameterValidationExportProfileItem"})
+                    ET.SubElement(child, "Id").text = str(item_id)
+                    ET.SubElement(child, "ParentId").text = str(parent_id)
+                    ET.SubElement(child, "Title").text = param['title']
+                    ET.SubElement(child, "IsFolder").text = "true"
+                    ET.SubElement(child, "ExtFieldParamCodes")
+
+                    fcb_child = ET.SubElement(child, "FilteringConditionBlock", {
+                        "Type": "Block", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
+                    })
+                    fcb_child_signal = ET.SubElement(fcb_child, "Signal")
+                    fcb_child_signal.append(_info_message("Нет ни одного включенного условия в наборе условий"))
+                    fcb_child_condition = ET.SubElement(fcb_child, "Condition", {
+                        "FieldName": "", "FieldIsNumeric": "true", "Operator": "Equal", "Value": "",
+                        "TextCaseSensitive": "false", "TextSpaceSensitive": "false", "IsUndefinedFieldName": "false"
+                    })
+                    fcb_child_condition_signal = ET.SubElement(fcb_child_condition, "Signal")
+                    fcb_child_condition_signal.append(_info_message("Имя не указано"))
+                    ET.SubElement(fcb_child, "ConditionsBlocks")
+
+                    ET.SubElement(child, "ParentFilteringProfileItemId", {"xsi:nil": "true"})
+
+                    vcb_child = ET.SubElement(child, "ValidatingConditionBlock", {
+                        "Type": "Block", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
+                    })
+                    vcb_child_signal = ET.SubElement(vcb_child, "Signal")
+                    vcb_child_signal.append(_empty_messages())
+                    vcb_child_condition = ET.SubElement(vcb_child, "Condition", {
+                        "FieldName": "", "FieldIsNumeric": "false", "Operator": "Equal", "Value": "",
+                        "TextCaseSensitive": "false", "TextSpaceSensitive": "true", "IsUndefinedFieldName": "false"
+                    })
+                    vcb_child_condition_signal = ET.SubElement(vcb_child_condition, "Signal")
+                    vcb_child_condition_signal.append(_info_message("Имя не указано"))
+
+                    conditions_blocks = ET.SubElement(vcb_child, "ConditionsBlocks")
+                    single_cond = ET.SubElement(conditions_blocks, "ConditionsBlock", {
+                        "Type": "Single", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
+                    })
+                    single_cond_signal = ET.SubElement(single_cond, "Signal")
+                    single_cond_signal.append(_empty_messages())
+
+                    op = "More" if param['is_numeric'] else "Default"
+                    val = "0" if param['is_numeric'] else ""
+                    cond = ET.SubElement(single_cond, "Condition", {
+                        "FieldName": param['field_name'], "FieldIsNumeric": str(param['is_numeric']).lower(),
+                        "Operator": op, "Value": val, "TextCaseSensitive": "false",
+                        "TextSpaceSensitive": "false", "Layer": "-1", "IsUndefinedFieldName": "false"
+                    })
+                    cond_signal = ET.SubElement(cond, "Signal")
+                    cond_signal.append(_empty_messages())
+                    ET.SubElement(single_cond, "ConditionsBlocks")
+
+            validation_params = ET.SubElement(base_profile, "ValidationParameters")
+            param_id = 505
+            for code, is_numeric in sorted(payload["validation_codes"]):
+                param_id += 1
+                dto = ET.SubElement(validation_params, "ValidationParameterDto")
+                ET.SubElement(dto, "Id").text = str(param_id)
+                ET.SubElement(dto, "ProfileId").text = str(profile_idx)
+                ET.SubElement(dto, "Code").text = code
+                ET.SubElement(dto, "IsNumeric").text = str(is_numeric).lower()
 
         # Сохранение
         rough = ET.tostring(root, encoding='utf-8')
@@ -1793,7 +1984,9 @@ def excel_to_pv_profile(
         pretty_xml = pretty_xml.replace('/>', ' />')
         with open(output_pv_path, 'w', encoding='utf-8') as f:
             f.write(pretty_xml)
-        return True, f"OK: Профиль '{profile_title}' из листа '{sheet_name}' сохранён: {output_pv_path}"
+        if len(sheet_payloads) == 1:
+            return True, f"OK: Профиль '{profile_title}' из листа '{sheet_payloads[0]['sheet_name']}' сохранён: {output_pv_path}"
+        return True, f"OK: Файл '{output_pv_path}' содержит {len(sheet_payloads)} отдельных профилей по выбранным листам"
     except Exception as ex:
         return False, f"ERROR: Ошибка генерации: {ex}"
 
@@ -1844,7 +2037,8 @@ class MappingDialog(QtWidgets.QDialog):
         self.setWindowTitle("Сопоставление параметров")
         self.resize(980, 900)
         self.excel_path = excel_path
-        self.sheet_name = sheet_name
+        self.sheet_names = _normalize_sheet_names(sheet_name)
+        self.sheet_name = self.sheet_names[0] if self.sheet_names else ""
         QtCore.QTimer.singleShot(0, lambda: _apply_titlebar_theme(self))
 
         v = QtWidgets.QVBoxLayout(self); v.setContentsMargins(16,12,16,16); v.setSpacing(8)
@@ -2024,8 +2218,7 @@ class MappingDialog(QtWidgets.QDialog):
     def _load_excel_params(self) -> list:
         if pd is None: return []
         try:
-            layout = _load_parameter_sheet_layout(self.excel_path, self.sheet_name)
-            return [str(c).strip() for c in layout.param_columns if str(c).strip()]
+            return _collect_excel_params_from_sheets(self.excel_path, self.sheet_names)
         except Exception:
             return []
 
@@ -2103,7 +2296,8 @@ class MappingDialogLarix(QtWidgets.QDialog):
         super().__init__(parent)
         self._wb_id = _wb_id(excel_path)
         self.excel_path = excel_path
-        self.sheet_name = sheet_name
+        self.sheet_names = _normalize_sheet_names(sheet_name)
+        self.sheet_name = self.sheet_names[0] if self.sheet_names else ""
         self.setWindowTitle("Сопоставление параметров")
         self.resize(980, 900)
 
@@ -2312,8 +2506,7 @@ class MappingDialogLarix(QtWidgets.QDialog):
     def _load_excel_params(self) -> list:
         if pd is None: return []
         try:
-            layout = _load_parameter_sheet_layout(self.excel_path, self.sheet_name)
-            return [str(c).strip() for c in layout.param_columns if str(c).strip()]
+            return _collect_excel_params_from_sheets(self.excel_path, self.sheet_names)
         except Exception:
             return []
 
@@ -3305,6 +3498,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # state
         self.input_file = ""
         self.sheet_name = ""
+        self.sheet_names: list[str] = []
         self.output_file = "ExportProfile.pv"
         self.last_output_dir = ""
         self.profile_title = "Профиль проверки параметров"
@@ -3451,7 +3645,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.filter_inner.setSpacing(4)
         self.filter_inner.setAlignment(QtCore.Qt.AlignTop)
         self.filter_scroll.setWidget(self.filter_wrap)
-        self.lbl_no_filter_fields = QtWidgets.QLabel("Сначала выберите Excel-файл и лист.")
+        self.lbl_no_filter_fields = QtWidgets.QLabel("Сначала выберите Excel-файл и листы.")
         self.lbl_no_filter_fields.setStyleSheet("color: gray; font-style: italic;")
         self.filter_inner.addWidget(self.lbl_no_filter_fields)
 
@@ -3599,8 +3793,14 @@ class MainWindow(QtWidgets.QMainWindow):
         return "Не выбрано"
 
     def _update_excel_summary(self):
-        if self.input_file and self.sheet_name:
-            self.ed_excel_summary.setText(f"{os.path.basename(self.input_file)}: {self.sheet_name}")
+        if self.input_file and self.sheet_names:
+            if len(self.sheet_names) == 1:
+                summary = self.sheet_names[0]
+            elif len(self.sheet_names) <= 3:
+                summary = ", ".join(self.sheet_names)
+            else:
+                summary = f"{', '.join(self.sheet_names[:3])} и ещё {len(self.sheet_names) - 3}"
+            self.ed_excel_summary.setText(f"{os.path.basename(self.input_file)}: {summary}")
         else:
             self.ed_excel_summary.setText("Не выбрано")
 
@@ -3654,14 +3854,12 @@ class MainWindow(QtWidgets.QMainWindow):
             self.setWindowTitle(f"Larix — Параметры: {SELECTED_PROJECT_TITLE or ''}")
 
     def _open_sheet_dialog(self):
-        if _LarixSheetPickerDialog is None:
-            self.select_loin_file()
-            return
-        dlg = SingleSheetPickerDialog(self, self.input_file, self.sheet_name)
+        dlg = MultiSheetPickerDialog(self, self.input_file, self.sheet_names)
         exec_fn = getattr(dlg, "exec", None) or getattr(dlg, "exec_", None)
         ok = exec_fn() if exec_fn else False
         if ok:
-            self.input_file, self.sheet_name = dlg.result()
+            self.input_file, self.sheet_names = dlg.result()
+            self.sheet_name = self.sheet_names[0] if self.sheet_names else ""
             self._update_excel_summary()
             self._reload_filter_fields()
 
@@ -3695,27 +3893,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lbl_no_filter_fields.show()
         self.lbl_no_filter_fields.setText("Загрузка колонок Excel...")
         self._update_excel_summary()
-        if not self.input_file or not self.sheet_name:
+        if not self.input_file or not self.sheet_names:
             self._enable_settings_checkboxes(False)
-            self.lbl_no_filter_fields.setText("Сначала выберите Excel-файл и лист.")
+            self.lbl_no_filter_fields.setText("Сначала выберите Excel-файл и листы.")
             return
         try:
-            layout = _load_parameter_sheet_layout(self.input_file, self.sheet_name)
-            self._current_sheet_layout = layout
-            filter_columns = [
-                col for col in layout.filter_columns
-                if col and col != layout.role_columns.get("section")
-            ]
-            if not filter_columns:
+            layouts = _load_parameter_sheet_layouts(self.input_file, self.sheet_names)
+            self._current_sheet_layout = layouts[0][1] if layouts else None
+            filter_specs = _collect_filter_specs_from_layouts(layouts)
+            if not filter_specs:
                 self._enable_settings_checkboxes(False)
                 self.lbl_no_filter_fields.setText("Не найдены колонки для фильтрации до блока LOI.")
                 return
             self.lbl_no_filter_fields.hide()
             self._enable_settings_checkboxes(True)
-            for column_name in filter_columns:
+            for column_name, column_label, default_field in filter_specs:
                 row = _FilterFieldRow(
                     column_name,
-                    _default_filter_field_for_column(layout, column_name),
+                    column_label,
+                    default_field,
                     self._open_api_select_for_filter_row,
                     self.filter_wrap,
                 )
@@ -3741,6 +3937,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.cmb_loin_sheet.addItems(sheets)
                         self.cmb_loin_sheet.setCurrentIndex(0)
                         self.sheet_name = sheets[0]
+                        self.sheet_names = [sheets[0]]
                         self._reload_filter_fields()
                         self._update_excel_summary()
             except Exception as e:
@@ -3767,6 +3964,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """Обработчик изменения выбранного листа Excel."""
         if sheet_name:
             self.sheet_name = sheet_name
+            self.sheet_names = [sheet_name]
             self._reload_filter_fields()
 
     def on_codes_sheet_changed(self, sheet_name: str):
@@ -3794,6 +3992,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.cmb_loin_sheet.addItems(sheets)
                         self.cmb_loin_sheet.setCurrentIndex(0)
                         self.sheet_name = sheets[0]
+                        self.sheet_names = [sheets[0]]
                         self._reload_filter_fields()
                         self._update_excel_summary()
             except Exception:
@@ -3827,10 +4026,10 @@ class MainWindow(QtWidgets.QMainWindow):
             _popup_error(self, str(e), title="Ошибка создания шаблона")
 
     def open_mapping(self):
-        if not self.input_file or not self.sheet_name:
-            show_warning_dialog("Сначала выберите Excel-файл и лист.", title="Внимание", parent=self)
+        if not self.input_file or not self.sheet_names:
+            show_warning_dialog("Сначала выберите Excel-файл и листы.", title="Внимание", parent=self)
             return
-        dlg = MappingDialogLarix(self.input_file, self.sheet_name, self)
+        dlg = MappingDialogLarix(self.input_file, self.sheet_names, self)
         if dlg.exec():
             self.ed_map_summary.setText("Сопоставление параметров настроено")
 
@@ -3871,11 +4070,11 @@ class MainWindow(QtWidgets.QMainWindow):
         show_info_dialog("Глобальная карта очищена для текущей книги.", title="Очищено", parent=self)
 
     def _on_generate_click(self):
-        if not self.input_file or not self.sheet_name:
-            show_warning_dialog("Сначала выберите Excel-файл и убедитесь, что выбран лист.", title="Ошибка", parent=self)
+        if not self.input_file or not self.sheet_names:
+            show_warning_dialog("Сначала выберите Excel-файл и отметьте хотя бы один лист.", title="Ошибка", parent=self)
             return
         title = (self.edit_title.text() or "Профиль проверки параметров").strip()
-        sheet = (self.sheet_name or "").strip()
+        sheet = list(self.sheet_names)
         filter_field_map = self._selected_filter_field_map()
         base_dir = self.last_output_dir or os.path.dirname(self.input_file or "") or os.getcwd()
         filename = os.path.basename(self.output_file or "ExportProfile.pv")

@@ -17,7 +17,10 @@ from shared.theme_toggle import (
 )
 from shared.dialogs import show_dialog, wire_message_box_buttons
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, 'frozen', False):
+    BASE_DIR = sys._MEIPASS
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ICON_DIR = os.path.join(BASE_DIR, "icon")
 LOGO_LIGHT_REL = os.path.join("icon", "Manager-scaled.png")
 LOGO_DARK_REL = os.path.join("icon", "Manager-scaled_white.png")
@@ -1179,6 +1182,7 @@ class MainWindow(QMainWindow):
             theme(app, self._is_dark, icon_dir=ICON_DIR)
             icon_path = get_window_icon_path()
             if icon_path:
+                app.setWindowIcon(QIcon(icon_path))
                 self.setWindowIcon(QIcon(icon_path))
             apply_dark_titlebar(self, self._is_dark)
         except Exception:

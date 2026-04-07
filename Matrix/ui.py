@@ -42,7 +42,7 @@ HEADER_BG = "#f5f5f5"
 
 # ---- resource helpers (as in AddUser) ----
 def rsrc_path(*segments: str) -> str:
-    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return os.path.join(base, *segments)
 
 def first_existing(paths):

@@ -35,7 +35,7 @@ def _plugins_dir() -> str:
 
 
 def _app_root_dir() -> str:
-    return os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
+    return getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 
 def _resolve_logo_path() -> str:

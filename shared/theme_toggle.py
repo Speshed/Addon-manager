@@ -69,7 +69,7 @@ def _fallback_icon_dirs(primary: str) -> list[str]:
     if p:
         dirs.append(p)
 
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    root = getattr(sys, "_MEIPASS", os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     common = os.path.join(root, "icon")
     if common not in dirs:
         dirs.append(common)

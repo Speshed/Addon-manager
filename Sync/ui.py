@@ -5,6 +5,7 @@ import logging
 import traceback
 import os
 import time
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -55,10 +56,10 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 from PySide6.QtCore import Qt, QThread, Signal, QSize, QPropertyAnimation, Property, QRectF, QPointF, QEventLoop, QEasingCurve, QPoint, QTimer
 from PySide6.QtGui import QFont, QIcon, QPixmap, QColor, QLinearGradient, QPainter, QPen, QRadialGradient
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QLineEdit, QPushButton, QScrollArea, QFrame, QCheckBox,
     QProgressBar, QMessageBox, QFileDialog, QGroupBox, QToolButton,
-    QStyleOptionButton, QStyle,
+    QStyleOptionButton, QStyle, QPlainTextEdit,
     QDialog, QDialogButtonBox, QRadioButton, QButtonGroup, QGraphicsDropShadowEffect, QSizePolicy
 )
 import threading
@@ -302,6 +303,11 @@ BATCH_SIZE = 500
 REQUEST_TIMEOUT = 30
 MAX_RETRIES = 3
 SAVE_EMPTY_PROPERTIES = True
+PROJECT_GRID_MAX_COLUMNS = 2
+PROJECT_GRID_MIN_CARD_WIDTH = 400
+MESSAGE_BOX_MIN_WIDTH = 520
+MESSAGE_BOX_MIN_HEIGHT = 180
+MESSAGE_BOX_TEXT_MIN_WIDTH = 420
 
 
 def is_empty_value(value) -> bool:
@@ -314,6 +320,106 @@ def is_empty_value(value) -> bool:
     if isinstance(value, str):
         return value.strip() == ""
     return False
+
+
+def set_message_box_min_width(msg: QMessageBox) -> None:
+    msg.setMinimumSize(MESSAGE_BOX_MIN_WIDTH, MESSAGE_BOX_MIN_HEIGHT)
+    text_label = msg.findChild(QLabel, "qt_msgbox_label")
+    if text_label is not None:
+        text_label.setWordWrap(True)
+        text_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        text_label.setMinimumWidth(MESSAGE_BOX_TEXT_MIN_WIDTH)
+        text_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
+        text_label.adjustSize()
+    layout = msg.layout()
+    if layout is not None:
+        layout.activate()
+    msg.adjustSize()
+
+
+def show_sized_message_dialog(parent, title, text, icon_type, is_dark, buttons=("ok",)):
+    dialog = QDialog(parent)
+    dialog.setWindowTitle(title)
+    dialog.setMinimumWidth(MESSAGE_BOX_MIN_WIDTH)
+    dialog.setStyleSheet(DARK_STYLESHEET if is_dark else LIGHT_STYLESHEET)
+    set_window_title_bar_dark(dialog, is_dark)
+
+    layout = QVBoxLayout(dialog)
+    layout.setContentsMargins(20, 20, 20, 20)
+    layout.setSpacing(16)
+
+    content_layout = QHBoxLayout()
+    content_layout.setSpacing(16)
+
+    icon_label = QLabel()
+    icon_path = _dialog_icon_path(icon_type, is_dark)
+    if icon_path and os.path.exists(icon_path):
+        pixmap = QPixmap(icon_path)
+        if not pixmap.isNull():
+            icon_label.setPixmap(
+                pixmap.scaled(
+                    32,
+                    32,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+    icon_label.setFixedSize(40, 40)
+    icon_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+    content_layout.addWidget(icon_label, 0, Qt.AlignmentFlag.AlignTop)
+
+    body_layout = QHBoxLayout()
+    body_layout.setSpacing(40)
+    if isinstance(text, str) and text.startswith("Выгружено") and "\n\n" in text:
+        main_text, side_text = text.split("\n\n", 1)
+    else:
+        main_text, side_text = text, ""
+
+    text_label = QLabel(main_text)
+    text_label.setWordWrap(True)
+    text_label.setMinimumWidth(MESSAGE_BOX_TEXT_MIN_WIDTH if not side_text else 260)
+    text_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    text_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
+    body_layout.addWidget(text_label, 1)
+
+    if side_text:
+        side_label = QLabel(side_text)
+        side_label.setWordWrap(True)
+        side_label.setMinimumWidth(160)
+        side_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        side_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
+        body_layout.addWidget(side_label, 0, Qt.AlignmentFlag.AlignTop)
+
+    content_layout.addLayout(body_layout, 1)
+    layout.addLayout(content_layout)
+
+    button_box = QDialogButtonBox()
+    button_map = {}
+    for button_id in buttons:
+        if button_id == "yes":
+            button = button_box.addButton("Да", QDialogButtonBox.ButtonRole.YesRole)
+        elif button_id == "no":
+            button = button_box.addButton("Нет", QDialogButtonBox.ButtonRole.NoRole)
+        elif button_id == "cancel":
+            button = button_box.addButton("Отмена", QDialogButtonBox.ButtonRole.RejectRole)
+        else:
+            button = button_box.addButton("OK", QDialogButtonBox.ButtonRole.AcceptRole)
+        button_map[button] = button_id
+
+    result = {"button": "cancel" if "cancel" in buttons else "no" if "no" in buttons else "ok"}
+
+    def on_clicked(button):
+        result["button"] = button_map.get(button, result["button"])
+        if result["button"] in ("ok", "yes"):
+            dialog.accept()
+        else:
+            dialog.reject()
+
+    button_box.clicked.connect(on_clicked)
+    layout.addWidget(button_box, 0, Qt.AlignmentFlag.AlignRight)
+    dialog.adjustSize()
+    dialog.exec()
+    return result["button"]
 
 
 class MultiSelectionManager:
@@ -407,7 +513,9 @@ class SelectableRowWidget(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 2)
         layout.setSpacing(4)
-        layout.addWidget(self._content_widget)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._content_widget.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        layout.addWidget(self._content_widget, 1)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
     
     def _update_style(self):
@@ -2126,6 +2234,466 @@ def replace_elements_by_model_ids(df_elements, model_ids, schema="staging", db_c
             conn.commit()
 
 
+def delete_properties_by_model_ids(model_ids, schema="staging", db_config=None):
+    if not model_ids:
+        return
+    return _delete_rows_by_ids(
+        [f"{schema}.ElementProperties", f"{schema}.ElementPropertiesWide"],
+        "idModel",
+        model_ids,
+        db_config=db_config,
+    )
+
+
+def delete_data_by_model_ids(model_ids, schema="staging", db_config=None):
+    if not model_ids:
+        return
+    return _delete_rows_by_ids(
+        [f"{schema}.ElementProperties", f"{schema}.ElementPropertiesWide", f"{schema}.Elements", f"{schema}.Models"],
+        "idModel",
+        model_ids,
+        db_config=db_config,
+    )
+
+
+def delete_data_by_project_ids(project_ids, schema="staging", db_config=None):
+    if not project_ids:
+        return
+    return _delete_rows_by_ids(
+        [f"{schema}.ElementProperties", f"{schema}.ElementPropertiesWide", f"{schema}.Elements", f"{schema}.Models", f"{schema}.Projects"],
+        "idProject",
+        project_ids,
+        db_config=db_config,
+    )
+
+
+def _table_exists(cursor, table_name):
+    cursor.execute("SELECT CASE WHEN OBJECT_ID(?, 'U') IS NOT NULL THEN 1 ELSE 0 END", table_name)
+    row = cursor.fetchone()
+    return bool(row and row[0])
+
+
+def _count_rows(cursor, table_name):
+    cursor.execute(f"SELECT COUNT_BIG(1) FROM {table_name}")
+    row = cursor.fetchone()
+    return int(row[0] or 0) if row else 0
+
+
+def _count_rows_by_ids(cursor, table_name, column_name, ids):
+    if not ids:
+        return 0
+    placeholders = ','.join('?' * len(ids))
+    cursor.execute(
+        f"SELECT COUNT_BIG(1) FROM {table_name} WHERE [{column_name}] IN ({placeholders})",
+        list(ids),
+    )
+    row = cursor.fetchone()
+    return int(row[0] or 0) if row else 0
+
+
+def _preview_ids(ids, limit=10):
+    values = [str(item) for item in ids[:limit]]
+    suffix = ", ..." if len(ids) > limit else ""
+    return ", ".join(values) + suffix
+
+
+def _required_staging_tables(schema="staging"):
+    return [
+        f"{schema}.Projects",
+        f"{schema}.Models",
+        f"{schema}.Elements",
+        f"{schema}.ElementProperties",
+        f"{schema}.ElementPropertiesWide",
+    ]
+
+
+def get_database_runtime_diagnostics(schema="staging", db_config=None):
+    diagnostics = {
+        "target_server": (db_config or {}).get("server", ""),
+        "target_database": (db_config or {}).get("database", ""),
+        "connection_ok": False,
+        "connection_error": "",
+        "server_name": "",
+        "database_name": "",
+        "system_user": "",
+        "original_login": "",
+        "db_user": "",
+        "schema_exists": False,
+        "tables": [],
+    }
+    conn_str = get_connection_str(db_config)
+    try:
+        with pyodbc.connect(conn_str) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT
+                    CAST(SERVERPROPERTY('ServerName') AS NVARCHAR(256)) AS [server_name],
+                    DB_NAME() AS [database_name],
+                    SYSTEM_USER AS [system_user_name],
+                    ORIGINAL_LOGIN() AS [original_login_name],
+                    USER_NAME() AS [db_user_name]
+                """
+            )
+            row = cursor.fetchone()
+            if row:
+                diagnostics["server_name"] = str(row[0] or "")
+                diagnostics["database_name"] = str(row[1] or "")
+                diagnostics["system_user"] = str(row[2] or "")
+                diagnostics["original_login"] = str(row[3] or "")
+                diagnostics["db_user"] = str(row[4] or "")
+
+            cursor.execute("SELECT CASE WHEN SCHEMA_ID(?) IS NOT NULL THEN 1 ELSE 0 END", schema)
+            schema_row = cursor.fetchone()
+            diagnostics["schema_exists"] = bool(schema_row and schema_row[0])
+
+            for table_name in _required_staging_tables(schema):
+                table_info = {
+                    "table": table_name,
+                    "exists": False,
+                    "delete_permission": None,
+                    "select_permission": None,
+                    "row_count": None,
+                    "row_count_error": "",
+                }
+                exists = _table_exists(cursor, table_name)
+                table_info["exists"] = exists
+                if exists:
+                    cursor.execute("SELECT HAS_PERMS_BY_NAME(?, 'OBJECT', 'SELECT')", table_name)
+                    select_perm_row = cursor.fetchone()
+                    table_info["select_permission"] = None if not select_perm_row else bool(select_perm_row[0])
+
+                    cursor.execute("SELECT HAS_PERMS_BY_NAME(?, 'OBJECT', 'DELETE')", table_name)
+                    delete_perm_row = cursor.fetchone()
+                    table_info["delete_permission"] = None if not delete_perm_row else bool(delete_perm_row[0])
+
+                    if table_info["select_permission"] is not False:
+                        try:
+                            table_info["row_count"] = _count_rows(cursor, table_name)
+                        except Exception as exc:
+                            table_info["row_count_error"] = str(exc)
+                diagnostics["tables"].append(table_info)
+
+            diagnostics["connection_ok"] = True
+    except Exception as exc:
+        diagnostics["connection_error"] = str(exc)
+    return diagnostics
+
+
+def _diagnostic_problem_list(diagnostics, require_delete=True):
+    if not diagnostics.get("connection_ok"):
+        return [f"Не удалось подключиться к БД: {diagnostics.get('connection_error', '')}"]
+
+    problems = []
+    if not diagnostics.get("schema_exists"):
+        problems.append("Схема staging не найдена")
+
+    missing_tables = [item["table"] for item in diagnostics.get("tables", []) if not item.get("exists")]
+    if missing_tables:
+        problems.append("Отсутствуют таблицы: " + ", ".join(missing_tables))
+
+    if require_delete:
+        no_delete = [
+            item["table"]
+            for item in diagnostics.get("tables", [])
+            if item.get("exists") and item.get("delete_permission") is False
+        ]
+        if no_delete:
+            problems.append("Нет права DELETE на таблицы: " + ", ".join(no_delete))
+    return problems
+
+
+def format_database_diagnostics(diagnostics):
+    lines = [
+        "Диагностика подключения:",
+        f"Ожидалось: {diagnostics.get('target_server', '')} / {diagnostics.get('target_database', '')}",
+    ]
+    if not diagnostics.get("connection_ok"):
+        lines.append(f"Подключение: ошибка - {diagnostics.get('connection_error', '')}")
+        return "\n".join(lines)
+
+    lines.extend(
+        [
+            f"Фактически: {diagnostics.get('server_name', '')} / {diagnostics.get('database_name', '')}",
+            f"Логин SQL/Windows: {diagnostics.get('original_login', '') or diagnostics.get('system_user', '')}",
+            f"Пользователь в БД: {diagnostics.get('db_user', '')}",
+            f"Схема staging: {'есть' if diagnostics.get('schema_exists') else 'нет'}",
+            "Таблицы:",
+        ]
+    )
+    for item in diagnostics.get("tables", []):
+        if not item.get("exists"):
+            lines.append(f"- {item['table']}: нет")
+            continue
+        delete_perm = item.get("delete_permission")
+        delete_text = "да" if delete_perm is True else "нет" if delete_perm is False else "неизвестно"
+        row_count = item.get("row_count")
+        row_text = str(row_count) if row_count is not None else "н/д"
+        if item.get("row_count_error"):
+            row_text = f"ошибка: {item['row_count_error']}"
+        lines.append(f"- {item['table']}: DELETE={delete_text}, строк={row_text}")
+    return "\n".join(lines)
+
+
+def check_database_delete_prerequisites(schema="staging", db_config=None):
+    diagnostics = get_database_runtime_diagnostics(schema=schema, db_config=db_config)
+    problems = _diagnostic_problem_list(diagnostics, require_delete=True)
+    return diagnostics, problems
+
+
+def _delete_rows_by_ids(table_names, column_name, ids, db_config=None):
+    if not ids:
+        return []
+    target_server = (db_config or {}).get("server", "")
+    target_database = (db_config or {}).get("database", "")
+    log_info(
+        f"Старт выборочного удаления из БД: server={target_server}, database={target_database}, "
+        f"column={column_name}, ids_count={len(ids)}, ids=[{_preview_ids(list(ids))}]"
+    )
+    conn_str = get_connection_str(db_config)
+    with pyodbc.connect(conn_str) as conn:
+        cursor = conn.cursor()
+        placeholders = ','.join('?' * len(ids))
+        params = list(ids)
+        results = []
+        errors = []
+        for table in table_names:
+            if not _table_exists(cursor, table):
+                log_info(f"Пропуск удаления: таблица {table} не найдена")
+                results.append({"table": table, "deleted": 0, "skipped": True})
+                continue
+            try:
+                matched_before = _count_rows_by_ids(cursor, table, column_name, params)
+                total_before = _count_rows(cursor, table)
+                cursor.execute(f"DELETE FROM {table} WHERE [{column_name}] IN ({placeholders})", params)
+                deleted = max(0, int(cursor.rowcount)) if cursor.rowcount != -1 else 0
+                matched_after = _count_rows_by_ids(cursor, table, column_name, params)
+                total_after = _count_rows(cursor, table)
+                results.append(
+                    {
+                        "table": table,
+                        "deleted": deleted if deleted else max(0, matched_before - matched_after),
+                        "matched_before": matched_before,
+                        "matched_after": matched_after,
+                        "total_before": total_before,
+                        "total_after": total_after,
+                        "skipped": False,
+                    }
+                )
+                log_info(
+                    f"Удаление по {column_name}: table={table}, matched_before={matched_before}, "
+                    f"matched_after={matched_after}, total_before={total_before}, total_after={total_after}, "
+                    f"rowcount={deleted}"
+                )
+            except Exception as exc:
+                errors.append(f"{table}: {exc}")
+                log_error(f"Ошибка удаления из {table} по {column_name}: {exc}\n{traceback.format_exc()}")
+        if errors:
+            log_error(
+                "Откат выборочного удаления из БД:\n"
+                + "\n".join(errors)
+            )
+            conn.rollback()
+            raise RuntimeError("Не удалось удалить данные из таблиц:\n" + "\n".join(errors))
+        conn.commit()
+        total_deleted = sum(int(item.get("deleted", 0)) for item in results if not item.get("skipped"))
+        log_info(
+            f"Выборочное удаление завершено: tables={len(results)}, total_deleted={total_deleted}, "
+            f"server={target_server}, database={target_database}"
+        )
+        return results
+
+
+def clear_database_tables(schema="staging", db_config=None):
+    table_names = [
+        f"{schema}.ElementPropertiesWide",
+        f"{schema}.ElementProperties",
+        f"{schema}.Elements",
+        f"{schema}.Models",
+        f"{schema}.Projects",
+    ]
+    target_server = (db_config or {}).get("server", "")
+    target_database = (db_config or {}).get("database", "")
+    log_info(
+        f"Старт полной очистки БД: server={target_server}, database={target_database}, "
+        f"schema={schema}, tables={', '.join(table_names)}"
+    )
+    conn_str = get_connection_str(db_config)
+    with pyodbc.connect(conn_str) as conn:
+        cursor = conn.cursor()
+        results = []
+        errors = []
+        for table in table_names:
+            if not _table_exists(cursor, table):
+                log_info(f"Пропуск очистки: таблица {table} не найдена")
+                results.append({"table": table, "deleted": 0, "skipped": True})
+                continue
+            try:
+                before_count = _count_rows(cursor, table)
+                cursor.execute(f"DELETE FROM {table}")
+                after_count = _count_rows(cursor, table)
+                if after_count != 0:
+                    raise RuntimeError(f"после удаления осталось строк: {after_count}")
+                results.append(
+                    {
+                        "table": table,
+                        "deleted": before_count,
+                        "before_count": before_count,
+                        "after_count": after_count,
+                        "skipped": False,
+                    }
+                )
+                log_info(
+                    f"Полная очистка: table={table}, before_count={before_count}, after_count={after_count}"
+                )
+            except Exception as exc:
+                errors.append(f"{table}: {exc}")
+                log_error(f"Ошибка полной очистки таблицы {table}: {exc}\n{traceback.format_exc()}")
+        if errors:
+            log_error(
+                "Откат полной очистки БД:\n"
+                + "\n".join(errors)
+            )
+            conn.rollback()
+            raise RuntimeError("Не удалось полностью очистить базу данных:\n" + "\n".join(errors))
+        conn.commit()
+        total_deleted = sum(int(item.get("deleted", 0)) for item in results if not item.get("skipped"))
+        log_info(
+            f"Полная очистка БД завершена: tables={len(results)}, total_deleted={total_deleted}, "
+            f"server={target_server}, database={target_database}"
+        )
+        return results
+
+
+def _find_db_rows_by_names(table_name, id_column, name_column, names, db_config=None, extra_columns=None):
+    normalized_names = []
+    seen = set()
+    for name in names or []:
+        value = str(name).strip()
+        key = value.casefold()
+        if not value or key in seen:
+            continue
+        normalized_names.append(value)
+        seen.add(key)
+    if not normalized_names:
+        return [], []
+
+    conn_str = get_connection_str(db_config)
+    with pyodbc.connect(conn_str) as conn:
+        cursor = conn.cursor()
+        if not _table_exists(cursor, table_name):
+            raise RuntimeError(f"Таблица {table_name} не найдена")
+
+        select_columns = [id_column, name_column] + list(extra_columns or [])
+        quoted_columns = ", ".join(f"[{col}]" for col in select_columns)
+        placeholders = ",".join("?" * len(normalized_names))
+        sql = f"SELECT {quoted_columns} FROM {table_name} WHERE [{name_column}] IN ({placeholders})"
+        cursor.execute(sql, normalized_names)
+        rows = cursor.fetchall()
+
+    results = []
+    found_keys = set()
+    for row in rows:
+        row_dict = {}
+        for idx, col in enumerate(select_columns):
+            row_dict[col] = row[idx]
+        results.append(row_dict)
+        found_keys.add(str(row_dict.get(name_column, "")).strip().casefold())
+
+    missing = [name for name in normalized_names if name.casefold() not in found_keys]
+    return results, missing
+
+
+def find_projects_by_names(names, schema="staging", db_config=None):
+    return _find_db_rows_by_names(
+        f"{schema}.Projects",
+        "idProject",
+        "name",
+        names,
+        db_config=db_config,
+    )
+
+
+def find_models_by_names(names, schema="staging", db_config=None):
+    return _find_db_rows_by_names(
+        f"{schema}.Models",
+        "idModel",
+        "NameM",
+        names,
+        db_config=db_config,
+        extra_columns=["idProject"],
+    )
+
+
+def load_database_projects_models(schema="staging", db_config=None):
+    conn_str = get_connection_str(db_config)
+    with pyodbc.connect(conn_str) as conn:
+        cursor = conn.cursor()
+        projects_table = f"{schema}.Projects"
+        models_table = f"{schema}.Models"
+
+        projects = []
+        projects_by_id = {}
+        orphan_projects = {}
+
+        if _table_exists(cursor, projects_table):
+            cursor.execute(
+                f"SELECT [idProject], [name] FROM {projects_table} ORDER BY [name], [idProject]"
+            )
+            for row in cursor.fetchall():
+                project_id = int(row[0])
+                project_name = str(row[1]).strip() if row[1] else f"(Проект {project_id})"
+                project_item = {"idProject": project_id, "name": project_name, "models": []}
+                projects.append(project_item)
+                projects_by_id[project_id] = project_item
+
+        if _table_exists(cursor, models_table):
+            cursor.execute(
+                f"SELECT [idModel], [NameM], [idProject] "
+                f"FROM {models_table} ORDER BY [idProject], [NameM], [idModel]"
+            )
+            for row in cursor.fetchall():
+                model_id = int(row[0])
+                model_name = str(row[1]).strip() if row[1] else f"(Модель {model_id})"
+                project_id = int(row[2]) if row[2] is not None else None
+                model_item = {"idModel": model_id, "NameM": model_name}
+
+                if project_id in projects_by_id:
+                    projects_by_id[project_id]["models"].append(model_item)
+                    continue
+
+                orphan_key = project_id if project_id is not None else f"none_{model_id}"
+                orphan_project = orphan_projects.get(orphan_key)
+                if orphan_project is None:
+                    if project_id is None:
+                        orphan_name = "(Проект в БД не указан)"
+                    else:
+                        orphan_name = f"(Проект в БД не найден) idProject={project_id}"
+                    orphan_project = {"idProject": project_id, "name": orphan_name, "models": []}
+                    orphan_projects[orphan_key] = orphan_project
+                orphan_project["models"].append(model_item)
+
+        return projects + list(orphan_projects.values())
+
+
+def collect_selected_ids_from_cards(cards):
+    selected_project_ids = []
+    selected_model_ids = []
+
+    for card in cards:
+        card_model_ids = card.get_selected_model_ids()
+        selected_count = len(card_model_ids)
+        total_count = len(card.model_checkboxes)
+        if selected_count == 0:
+            continue
+        if card.project_id is not None and total_count > 0 and selected_count == total_count:
+            selected_project_ids.append(card.project_id)
+        else:
+            selected_model_ids.extend(card_model_ids)
+
+    return selected_project_ids, selected_model_ids
+
+
 class SyncWorker(QThread):
     progress = Signal(int, str)
     finished = Signal(dict)
@@ -2546,6 +3114,10 @@ class SyncWorker(QThread):
             replace_elements_by_model_ids(df_elements, model_ids, db_config=self.config)
             log_timing("SQL INSERT Elements", t3, len(df_elements))
             
+            if model_ids:
+                log_debug("Удаление старых свойств для обновляемых моделей...")
+                delete_properties_by_model_ids(model_ids, db_config=self.config)
+
             if not df_properties.empty:
                 t4 = time.time()
                 log_debug("Сохранение таблицы ElementProperties (EAV)...")
@@ -2839,6 +3411,7 @@ class ProjectCard(QFrame):
     def __init__(self, project_id, project_name, models, is_dark=False, parent=None):
         super().__init__(parent)
         self.project_id = project_id
+        self.project_name = str(project_name).strip() or "(без названия)"
         self.models = models
         self.model_checkboxes = {}
         self._model_id_to_index = {}
@@ -2848,9 +3421,11 @@ class ProjectCard(QFrame):
         self._selection_manager = MultiSelectionManager()
         self._is_handling_checkbox = False
         self._card_selected = False
+        self._search_forced_expand = False
+        self._no_models_label = None
 
         self._update_style()
-        self._build_ui(project_name, models)
+        self._build_ui(self.project_name, models)
 
     def _update_style(self):
         if self._card_selected:
@@ -2893,9 +3468,10 @@ class ProjectCard(QFrame):
 
         self.project_checkbox = QCheckBox(project_name)
         self.project_checkbox.setTristate(True)
+        self.project_checkbox.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.project_checkbox.setStyleSheet("font-weight: 600; font-size: 11pt;")
         self.project_checkbox.stateChanged.connect(self._on_project_toggled)
-        header_layout.addWidget(self.project_checkbox)
+        header_layout.addWidget(self.project_checkbox, 1)
         header_layout.addStretch()
 
         layout.addLayout(header_layout)
@@ -2931,6 +3507,7 @@ class ProjectCard(QFrame):
             text_color = "#666" if self.is_dark else "#999"
             no_models.setStyleSheet(f"color: {text_color};")
             models_layout.addWidget(no_models)
+            self._no_models_label = no_models
 
         layout.addWidget(self.models_container)
 
@@ -2956,7 +3533,10 @@ class ProjectCard(QFrame):
 
     def _toggle_expand(self):
         self.is_expanded = not self.is_expanded
-        self.models_container.setVisible(self.is_expanded)
+        self._update_models_container_visibility()
+        self.models_container.updateGeometry()
+        self.updateGeometry()
+        self.adjustSize()
         self._update_toggle_icon()
         self.toggled.emit()
 
@@ -2970,6 +3550,50 @@ class ProjectCard(QFrame):
             cb.setStyleSheet(f"color: {text_color}; background: transparent;")
             row.set_theme(is_dark)
         self._update_project_checkbox_state()
+        if self._no_models_label is not None:
+            empty_color = "#666" if is_dark else "#999"
+            self._no_models_label.setStyleSheet(f"color: {empty_color};")
+        self._update_models_container_visibility()
+
+    def _has_visible_model_rows(self):
+        return any(not row.isHidden() for row in self._model_rows)
+
+    def _update_models_container_visibility(self):
+        has_models_content = self._has_visible_model_rows()
+        if self._no_models_label is not None:
+            has_models_content = has_models_content or self._no_models_label.isVisible()
+        self.models_container.setVisible(has_models_content and (self.is_expanded or self._search_forced_expand))
+
+    def apply_text_filter(self, text):
+        query = str(text or "").strip().casefold()
+        if not query:
+            for row in self._model_rows:
+                row.setVisible(True)
+            if self._no_models_label is not None:
+                self._no_models_label.setVisible(not self.models)
+            self._search_forced_expand = False
+            self.setVisible(True)
+            self._update_models_container_visibility()
+            return True
+
+        project_match = query in self.project_name.casefold()
+        visible_model_count = 0
+        for idx, row in enumerate(self._model_rows):
+            model_name = str(self.models[idx].get("NameM", "")).strip()
+            model_match = query in model_name.casefold()
+            row_visible = project_match or model_match
+            row.setVisible(row_visible)
+            if row_visible:
+                visible_model_count += 1
+
+        if self._no_models_label is not None:
+            self._no_models_label.setVisible(project_match and not self.models)
+
+        card_visible = project_match or visible_model_count > 0
+        self._search_forced_expand = bool(query and card_visible)
+        self.setVisible(card_visible)
+        self._update_models_container_visibility()
+        return card_visible
 
     def _update_project_checkbox_state(self):
         total = len(self.model_checkboxes)
@@ -3118,18 +3742,13 @@ class DBAuthDialog(QDialog):
         pass_layout.setContentsMargins(0, 0, 0, 0)
         pass_layout.setSpacing(10)
         pass_layout.addWidget(QLabel("Пароль:"))
-        self.password_edit = QLineEdit()
+        self.password_edit = _InlinePasswordLineEdit()
         self.password_edit.setPlaceholderText("passw_ibim")
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_edit.setText(password)
+        self.password_edit.set_eye_clicked(self._toggle_password_visibility)
         pass_layout.addWidget(self.password_edit, 1)
         self._password_visible = False
-        self._pwd_btn = QToolButton()
-        self._pwd_btn.setCursor(Qt.PointingHandCursor)
-        self._pwd_btn.setStyleSheet("QToolButton { border: none; background: transparent; }")
-        self._pwd_btn.setFixedSize(28, 28)
-        self._pwd_btn.clicked.connect(self._toggle_password_visibility)
-        pass_layout.addWidget(self._pwd_btn)
         self._update_password_icon()
         layout.addWidget(pass_row)
         
@@ -3161,18 +3780,13 @@ class DBAuthDialog(QDialog):
         self._update_password_icon()
     
     def _update_password_icon(self):
-        icon_name = "free-icon-eye-2455724.png" if self._password_visible else "free-icon-hide-11238328.png"
-        icon_path = icon_file(icon_name)
-        if os.path.exists(icon_path):
-            pm = QPixmap(icon_path)
-            pm = pm.scaled(22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            if self._is_dark:
-                painter = QPainter(pm)
-                painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-                painter.fillRect(pm.rect(), QColor(255, 255, 255))
-                painter.end()
-            self._pwd_btn.setIcon(QIcon(pm))
-            self._pwd_btn.setIconSize(QSize(22, 22))
+        icon = _make_pwd_action_icon(self._password_visible, self._is_dark)
+        if hasattr(self.password_edit, "set_eye_icon"):
+            self.password_edit.set_eye_icon(icon)
+            if hasattr(self.password_edit, "set_eye_tooltip"):
+                self.password_edit.set_eye_tooltip(
+                    "Скрыть пароль" if self._password_visible else "Показать пароль"
+                )
     
     def _import_config(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -3201,6 +3815,7 @@ class DBAuthDialog(QDialog):
             if self._is_dark:
                 msg.setStyleSheet(DARK_STYLESHEET)
             set_window_title_bar_dark(msg, self._is_dark)
+            set_message_box_min_width(msg)
             wire_message_box_buttons(msg)
             show_dialog(msg, modal=True)
         except Exception as e:
@@ -3217,6 +3832,7 @@ class DBAuthDialog(QDialog):
             if self._is_dark:
                 msg.setStyleSheet(DARK_STYLESHEET)
             set_window_title_bar_dark(msg, self._is_dark)
+            set_message_box_min_width(msg)
             wire_message_box_buttons(msg)
             show_dialog(msg, modal=True)
     
@@ -3242,6 +3858,7 @@ class DBAuthDialog(QDialog):
             if self._is_dark:
                 msg.setStyleSheet(DARK_STYLESHEET)
             set_window_title_bar_dark(msg, self._is_dark)
+            set_message_box_min_width(msg)
             wire_message_box_buttons(msg)
             show_dialog(msg, modal=True)
             return
@@ -3288,6 +3905,7 @@ request_timeout = 30
             if self._is_dark:
                 msg.setStyleSheet(DARK_STYLESHEET)
             set_window_title_bar_dark(msg, self._is_dark)
+            set_message_box_min_width(msg)
             wire_message_box_buttons(msg)
             show_dialog(msg, modal=True)
         except Exception as e:
@@ -3304,6 +3922,7 @@ request_timeout = 30
             if self._is_dark:
                 msg.setStyleSheet(DARK_STYLESHEET)
             set_window_title_bar_dark(msg, self._is_dark)
+            set_message_box_min_width(msg)
             wire_message_box_buttons(msg)
             show_dialog(msg, modal=True)
     
@@ -3339,6 +3958,7 @@ password = passw_ibim
             if self._is_dark:
                 msg.setStyleSheet(DARK_STYLESHEET)
             set_window_title_bar_dark(msg, self._is_dark)
+            set_message_box_min_width(msg)
             wire_message_box_buttons(msg)
             show_dialog(msg, modal=True)
         except Exception as e:
@@ -3355,6 +3975,7 @@ password = passw_ibim
             if self._is_dark:
                 msg.setStyleSheet(DARK_STYLESHEET)
             set_window_title_bar_dark(msg, self._is_dark)
+            set_message_box_min_width(msg)
             wire_message_box_buttons(msg)
             show_dialog(msg, modal=True)
     
@@ -3365,6 +3986,342 @@ password = passw_ibim
             "database": self.database_edit.text().strip(),
             "username": self.username_edit.text().strip(),
             "password": self.password_edit.text().strip(),
+        }
+
+
+class ManualDeleteByNameDialog(QDialog):
+    def __init__(self, parent=None, is_dark=False):
+        super().__init__(parent)
+        self.setWindowTitle("Удаление из БД по имени")
+        self.setMinimumWidth(560)
+        self.setMinimumHeight(360)
+        self.setModal(True)
+        self._is_dark = is_dark
+
+        self.setStyleSheet(DARK_STYLESHEET if is_dark else LIGHT_STYLESHEET)
+        set_window_title_bar_dark(self, is_dark)
+
+        icon_path = app_window_icon_path()
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+
+        info = QLabel(
+            "Введите названия проектов или моделей.\n"
+            "Можно по одному на строку, через запятую или через `;`.\n"
+            "Поиск идет по точному совпадению имени в БД."
+        )
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        mode_row = QFrame()
+        mode_layout = QHBoxLayout(mode_row)
+        mode_layout.setContentsMargins(0, 0, 0, 0)
+        mode_layout.setSpacing(16)
+        mode_layout.addWidget(QLabel("Что удалять:"))
+
+        self.projects_radio = QRadioButton("Проекты")
+        self.projects_radio.setChecked(True)
+        self.models_radio = QRadioButton("Модели")
+        mode_layout.addWidget(self.projects_radio)
+        mode_layout.addWidget(self.models_radio)
+        mode_layout.addStretch(1)
+        layout.addWidget(mode_row)
+
+        note = QLabel(
+            "Если одинаковое имя встречается в нескольких записях, будут удалены все найденные совпадения."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #888;")
+        layout.addWidget(note)
+
+        self.names_edit = QPlainTextEdit()
+        self.names_edit.setPlaceholderText(
+            "Пример:\n"
+            "Проект 1\n"
+            "Проект 2\n"
+            "или\n"
+            "SIL_SS_INPI_R22.imc, SIL_AR_INPI_R22.imc"
+        )
+        layout.addWidget(self.names_edit, 1)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        wire_dialog_button_box(buttons, self.accept, self.reject)
+        layout.addWidget(buttons)
+
+    def get_values(self):
+        mode = "projects" if self.projects_radio.isChecked() else "models"
+        raw_text = self.names_edit.toPlainText()
+        names = []
+        seen = set()
+        for item in re.split(r"[,\n;]+", raw_text):
+            value = item.strip()
+            key = value.casefold()
+            if not value or key in seen:
+                continue
+            names.append(value)
+            seen.add(key)
+        return mode, names
+
+
+class DatabaseDeleteSelectionDialog(QDialog):
+    def __init__(self, parent=None, db_config=None, is_dark=False):
+        super().__init__(parent)
+        self.setWindowTitle("Удаление из БД")
+        self.setMinimumSize(980, 720)
+        self.setModal(True)
+        self._is_dark = is_dark
+        self._db_config = dict(db_config or {})
+        self._manual_selection = None
+        self.project_cards = []
+
+        self.setStyleSheet(DARK_STYLESHEET if is_dark else LIGHT_STYLESHEET)
+        set_window_title_bar_dark(self, is_dark)
+
+        icon_path = app_window_icon_path()
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
+        self._build_ui()
+        self._load_from_database()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        header = QLabel(
+            "Выберите проекты и модели из SQL Server.\n"
+            "Этот список читается из БД, а не из Viewer."
+        )
+        header.setWordWrap(True)
+        header.setStyleSheet("font-weight: 600; font-size: 12pt;")
+        layout.addWidget(header)
+
+        search_row = QFrame()
+        search_layout = QHBoxLayout(search_row)
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.setSpacing(10)
+        search_layout.addWidget(QLabel("Поиск:"))
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("Поиск по проектам и моделям в БД...")
+        self.search_edit.textChanged.connect(self._filter_cards)
+        search_layout.addWidget(self.search_edit, 1)
+        layout.addWidget(search_row)
+
+        select_row = QFrame()
+        select_layout = QHBoxLayout(select_row)
+        select_layout.setContentsMargins(0, 0, 0, 0)
+        select_layout.setSpacing(10)
+        self.select_all_checkbox = HeaderSelectAllCheckBox()
+        self.select_all_checkbox.setText("Выбрать все проекты и модели из БД")
+        self.select_all_checkbox.stateChanged.connect(self._toggle_select_all)
+        self.select_all_checkbox.setCheckState(Qt.CheckState.Unchecked)
+        select_layout.addWidget(self.select_all_checkbox)
+        select_layout.addStretch(1)
+        layout.addWidget(select_row)
+
+        self.status_label = QLabel("")
+        self.status_label.setWordWrap(True)
+        self.status_label.setStyleSheet("color: #888;")
+        layout.addWidget(self.status_label)
+
+        self.projects_scroll = QScrollArea()
+        self.projects_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.projects_scroll.setWidgetResizable(True)
+        self.projects_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.projects_scroll_viewport = self.projects_scroll.viewport()
+        self.projects_scroll_viewport.installEventFilter(self)
+
+        self.projects_container = QWidget()
+        self.projects_layout = QGridLayout(self.projects_container)
+        self.projects_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.projects_layout.setSpacing(8)
+        self.projects_layout.setContentsMargins(0, 0, 0, 0)
+        self.projects_scroll.setWidget(self.projects_container)
+        layout.addWidget(self.projects_scroll, 1)
+
+        self.empty_label = QLabel("В staging.* ничего не найдено.")
+        self.empty_label.setWordWrap(True)
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setStyleSheet("color: #888;")
+        layout.addWidget(self.empty_label)
+        self.empty_label.hide()
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        if ok_button is not None:
+            ok_button.setText("Удалить выбранное")
+        cancel_button = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        if cancel_button is not None:
+            cancel_button.setText("Отмена")
+        buttons.accepted.connect(self._accept_selection)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def eventFilter(self, obj, event):
+        if obj == getattr(self, "projects_scroll_viewport", None) and event.type() == event.Type.Resize:
+            QTimer.singleShot(0, self._relayout_project_cards)
+        return super().eventFilter(obj, event)
+
+    def _project_grid_column_count(self):
+        viewport = getattr(self, "projects_scroll_viewport", None)
+        width = viewport.width() if viewport is not None else 0
+        if width <= 0:
+            width = self.projects_container.width()
+        spacing = self.projects_layout.horizontalSpacing()
+        if spacing < 0:
+            spacing = self.projects_layout.spacing()
+        spacing = max(0, spacing)
+        columns = (max(0, width) + spacing) // (PROJECT_GRID_MIN_CARD_WIDTH + spacing)
+        return max(1, min(PROJECT_GRID_MAX_COLUMNS, int(columns)))
+
+    def _relayout_project_cards(self):
+        while self.projects_layout.count():
+            self.projects_layout.takeAt(0)
+
+        visible_cards = [card for card in self.project_cards if card.isVisible()]
+        columns = self._project_grid_column_count()
+        for col in range(PROJECT_GRID_MAX_COLUMNS):
+            self.projects_layout.setColumnStretch(col, 1 if col < columns else 0)
+
+        for idx, card in enumerate(visible_cards):
+            is_last_single = columns > 1 and idx == len(visible_cards) - 1 and len(visible_cards) % columns == 1
+            column_span = columns if is_last_single else 1
+            card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+            self.projects_layout.addWidget(
+                card,
+                idx // columns,
+                idx % columns,
+                1,
+                column_span,
+                Qt.AlignmentFlag.AlignTop,
+            )
+
+    def _load_from_database(self):
+        self._manual_selection = None
+        self.status_label.setText("Чтение проектов и моделей из БД...")
+        QApplication.processEvents()
+
+        for card in self.project_cards:
+            self.projects_layout.removeWidget(card)
+            card.deleteLater()
+        self.project_cards.clear()
+
+        try:
+            db_projects = load_database_projects_models(db_config=self._db_config)
+            for item in db_projects:
+                card = ProjectCard(item.get("idProject"), item.get("name", "(без названия)"), item.get("models", []), is_dark=self._is_dark)
+                card.toggled.connect(self._handle_card_toggled)
+                card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+                self.project_cards.append(card)
+
+            self.status_label.setText("")
+            self._filter_cards(self.search_edit.text())
+        except Exception as e:
+            self.status_label.setText(f"Не удалось загрузить список из БД: {e}")
+            self.empty_label.setVisible(True)
+            self.projects_scroll.setVisible(False)
+
+    def _toggle_select_all(self, state):
+        if state == Qt.CheckState.PartiallyChecked.value:
+            return
+        should_check = state == Qt.CheckState.Checked.value
+        for card in self.project_cards:
+            for row in getattr(card, "_model_rows", []):
+                if not row.isVisible():
+                    continue
+                cb = row._content_widget
+                cb.blockSignals(True)
+                cb.setChecked(should_check)
+                cb.blockSignals(False)
+            card._update_project_checkbox_state()
+        self._update_select_all_checkbox_state()
+
+    def _update_select_all_checkbox_state(self):
+        total_visible = 0
+        checked_visible = 0
+        for card in self.project_cards:
+            if not card.isVisible():
+                continue
+            for row in getattr(card, "_model_rows", []):
+                if not row.isVisible():
+                    continue
+                total_visible += 1
+                cb = row._content_widget
+                if cb.isChecked():
+                    checked_visible += 1
+        self.select_all_checkbox.blockSignals(True)
+        if total_visible == 0 or checked_visible == 0:
+            self.select_all_checkbox.setCheckState(Qt.CheckState.Unchecked)
+        elif checked_visible == total_visible:
+            self.select_all_checkbox.setCheckState(Qt.CheckState.Checked)
+        else:
+            self.select_all_checkbox.setCheckState(Qt.CheckState.PartiallyChecked)
+        self.select_all_checkbox.blockSignals(False)
+
+    def _handle_card_toggled(self):
+        self._update_select_all_checkbox_state()
+        QTimer.singleShot(0, self._relayout_project_cards)
+
+    def _filter_cards(self, text):
+        query = str(text or "")
+        visible_count = 0
+        for card in self.project_cards:
+            if card.apply_text_filter(query):
+                visible_count += 1
+
+        self.projects_scroll.setVisible(visible_count > 0)
+        if self.project_cards:
+            if visible_count == 0:
+                self.empty_label.setText("По вашему запросу ничего не найдено в БД.")
+                self.empty_label.setVisible(True)
+            else:
+                self.empty_label.setText("В staging.* ничего не найдено.")
+                self.empty_label.setVisible(False)
+        else:
+            self.empty_label.setText("В staging.* ничего не найдено.")
+            self.empty_label.setVisible(True)
+
+        self._relayout_project_cards()
+        self._update_select_all_checkbox_state()
+
+    def _accept_selection(self):
+        selected_project_ids, selected_model_ids = collect_selected_ids_from_cards(self.project_cards)
+        if not selected_project_ids and not selected_model_ids:
+            show_sized_message_dialog(
+                self,
+                "Внимание",
+                "Не выбрано ни одного проекта или модели из БД.",
+                "warning",
+                self._is_dark,
+                buttons=("ok",),
+            )
+            return
+        self.accept()
+
+    def get_selection_result(self):
+        if self._manual_selection is not None:
+            return {
+                "mode": "manual",
+                "manual_mode": self._manual_selection["mode"],
+                "manual_names": list(self._manual_selection["names"]),
+                "source": "db_manual",
+            }
+
+        selected_project_ids, selected_model_ids = collect_selected_ids_from_cards(self.project_cards)
+        total_models = sum(len(card.model_checkboxes) for card in self.project_cards)
+        checked_models = sum(
+            1 for card in self.project_cards for cb in card.model_checkboxes.values() if cb.isChecked()
+        )
+        return {
+            "mode": "selection",
+            "project_ids": selected_project_ids,
+            "model_ids": selected_model_ids,
+            "source": "db_browser",
+            "full_database_selected": bool(total_models > 0 and checked_models == total_models),
         }
 
 
@@ -3429,6 +4386,7 @@ class BimSyncWindow(QMainWindow):
         self.token_edit = QLineEdit()
         self.token_edit.setPlaceholderText("bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwi...")
         self.token_edit.setMinimumWidth(600)
+        self.token_edit.textChanged.connect(lambda *_: self._refresh_connect_button_state())
         self._sync_token_row.addWidget(self.token_edit, 1)
         token_layout.addLayout(self._sync_token_row)
 
@@ -3436,68 +4394,66 @@ class BimSyncWindow(QMainWindow):
         self._sync_token_mode_cb.toggled.connect(self._sync_toggle_auth_mode)
         token_layout.addWidget(self._sync_token_mode_cb)
 
-        self._sync_login_row = QHBoxLayout()
-        self._sync_login_row.setSpacing(10)
-        self._sync_login_row.addWidget(QLabel("Логин:"))
+        self._sync_credentials_row = QHBoxLayout()
+        self._sync_credentials_row.setSpacing(10)
+        sync_login_label = QLabel("Логин:")
+        sync_login_label.setMinimumWidth(55)
+        self._sync_credentials_row.addWidget(sync_login_label)
         self._sync_username_edit = QLineEdit()
         self._sync_username_edit.setPlaceholderText("email или username")
         self._sync_username_edit.setEnabled(False)
-        self._sync_login_row.addWidget(self._sync_username_edit, 1)
-        token_layout.addLayout(self._sync_login_row)
+        self._sync_username_edit.setMinimumWidth(220)
+        self._sync_username_edit.textChanged.connect(lambda *_: self._refresh_connect_button_state())
+        self._sync_credentials_row.addWidget(self._sync_username_edit, 1)
 
-        self._sync_pass_row = QHBoxLayout()
-        self._sync_pass_row.setSpacing(10)
-        self._sync_pass_row.addWidget(QLabel("Пароль:"))
-        self._sync_password_edit = QLineEdit()
+        sync_password_label = QLabel("Пароль:")
+        sync_password_label.setMinimumWidth(60)
+        self._sync_credentials_row.addWidget(sync_password_label)
+        self._sync_password_edit = _InlinePasswordLineEdit()
         self._sync_password_edit.setPlaceholderText("Пароль")
         self._sync_password_edit.setEchoMode(QLineEdit.Password)
         self._sync_password_edit.setEnabled(False)
-        self._sync_pass_row.addWidget(self._sync_password_edit, 1)
+        self._sync_password_edit.setMinimumWidth(220)
+        self._sync_password_edit.textChanged.connect(lambda *_: self._refresh_connect_button_state())
         self._sync_pwd_visible = False
-        self._sync_pwd_btn = QToolButton()
-        self._sync_pwd_btn.setCursor(Qt.PointingHandCursor)
-        self._sync_pwd_btn.setStyleSheet("QToolButton { border: none; background: transparent; }")
-        self._sync_pwd_btn.setFixedSize(28, 28)
-        self._sync_pwd_btn.clicked.connect(lambda: self._toggle_line_password(
-            self._sync_password_edit, "_sync_pwd_visible", self._sync_pwd_btn
-        ))
-        self._sync_pass_row.addWidget(self._sync_pwd_btn)
-        self._update_line_pwd_icon(self._sync_password_edit, False, self._sync_pwd_btn)
-        token_layout.addLayout(self._sync_pass_row)
+        self._sync_password_edit.set_eye_clicked(
+            lambda: self._toggle_line_password(self._sync_password_edit, "_sync_pwd_visible")
+        )
+        self._sync_credentials_row.addWidget(self._sync_password_edit, 1)
+        self._update_line_pwd_icon(self._sync_password_edit, False)
+        token_layout.addLayout(self._sync_credentials_row)
 
         self._sync_apply_disabled_style()
 
         main_layout.addWidget(token_frame)
         
+        self._db_config = {"site": "", "server": "", "database": "", "username": "", "password": ""}
+        self._connect_busy = False
+
         main_layout.addSpacing(20)
-        
-        db_config_row = QFrame()
-        db_config_layout = QHBoxLayout(db_config_row)
-        db_config_layout.setContentsMargins(0, 0, 0, 0)
-        db_config_layout.setSpacing(10)
-        db_config_layout.addStretch()
-        
+
+        connection_actions_row = QFrame()
+        connection_actions_layout = QHBoxLayout(connection_actions_row)
+        connection_actions_layout.setContentsMargins(0, 0, 0, 0)
+        connection_actions_layout.setSpacing(10)
+        connection_actions_layout.addStretch(1)
+
         self.btn_db_auth = QPushButton("Авторизация в БД")
         self.btn_db_auth.setMinimumHeight(40)
         self.btn_db_auth.setMinimumWidth(180)
         self.btn_db_auth.clicked.connect(self._open_db_auth_dialog)
-        db_config_layout.addWidget(self.btn_db_auth)
-        db_config_layout.addStretch()
-        main_layout.addWidget(db_config_row)
-        
-        self._db_config = {"site": "", "server": "", "database": "", "username": "", "password": ""}
-        
-        connect_row = QFrame()
-        connect_layout = QHBoxLayout(connect_row)
-        connect_layout.setContentsMargins(0, 0, 0, 0)
-        connect_layout.addStretch()
+
         self.btn_connect = QPushButton("Подключить")
         self.btn_connect.setMinimumHeight(40)
         self.btn_connect.setMinimumWidth(150)
         self.btn_connect.clicked.connect(self._load_config)
-        connect_layout.addWidget(self.btn_connect)
-        connect_layout.addStretch()
-        main_layout.addWidget(connect_row)
+        self._update_connect_button_style()
+        self._refresh_connect_button_state()
+
+        connection_actions_layout.addWidget(self.btn_db_auth)
+        connection_actions_layout.addWidget(self.btn_connect)
+        connection_actions_layout.addStretch(1)
+        main_layout.addWidget(connection_actions_row)
 
         self.status_label = QLabel()
         self._update_label_style(self.status_label, "#888")
@@ -3507,8 +4463,8 @@ class BimSyncWindow(QMainWindow):
         select_layout = QHBoxLayout(select_frame)
         select_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.select_all_checkbox = QCheckBox("Выбрать все проекты и модели")
-        self.select_all_checkbox.setTristate(True)
+        self.select_all_checkbox = HeaderSelectAllCheckBox()
+        self.select_all_checkbox.setText("Выбрать все проекты и модели")
         self.select_all_checkbox.stateChanged.connect(self._toggle_select_all)
         select_layout.addWidget(self.select_all_checkbox)
         select_layout.addStretch()
@@ -3521,13 +4477,29 @@ class BimSyncWindow(QMainWindow):
         self.select_frame.setVisible(False)
         main_layout.addWidget(self.select_frame)
 
+        project_search_frame = QFrame()
+        project_search_layout = QHBoxLayout(project_search_frame)
+        project_search_layout.setContentsMargins(0, 0, 0, 0)
+        project_search_layout.setSpacing(10)
+        project_search_layout.addWidget(QLabel("Поиск:"))
+        self.project_search_edit = QLineEdit()
+        self.project_search_edit.setPlaceholderText("Поиск по проектам и моделям...")
+        self.project_search_edit.textChanged.connect(self._filter_project_cards)
+        project_search_layout.addWidget(self.project_search_edit, 1)
+        self.project_search_frame = project_search_frame
+        self.project_search_frame.setVisible(False)
+        main_layout.addWidget(self.project_search_frame)
+
         scroll = QScrollArea()
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.projects_scroll = scroll
+        self.projects_scroll_viewport = scroll.viewport()
+        self.projects_scroll_viewport.installEventFilter(self)
 
         self.projects_container = QWidget()
-        self.projects_layout = QVBoxLayout(self.projects_container)
+        self.projects_layout = QGridLayout(self.projects_container)
         self.projects_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.projects_layout.setSpacing(8)
         self.projects_layout.setContentsMargins(0, 0, 0, 0)
@@ -3543,34 +4515,31 @@ class BimSyncWindow(QMainWindow):
         self.progress_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(self.progress_label)
 
-        self.btn_sync = QPushButton("Загрузить в базу")
+        db_actions_frame = QFrame()
+        db_actions_layout = QHBoxLayout(db_actions_frame)
+        db_actions_layout.setContentsMargins(0, 0, 0, 0)
+        db_actions_layout.setSpacing(10)
+
+        self.btn_sync = QPushButton("Загрузить в базу данных")
         self.btn_sync.setMinimumHeight(40)
-        self.btn_sync.setStyleSheet("font-size: 12pt; padding: 10px 24px;")
         self.btn_sync.clicked.connect(self._start_sync)
         self.btn_sync.setEnabled(False)
-        main_layout.addWidget(self.btn_sync)
 
-        self.toggle_clear_btn = QPushButton()
-        self.toggle_clear_btn.setFixedSize(30, 20)
-        self.toggle_clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.toggle_clear_btn.setStyleSheet("border: none; background: transparent;")
-        self._set_toggle_icon(self.toggle_clear_btn, False)
-        self.toggle_clear_btn.clicked.connect(self._toggle_clear_section)
-        main_layout.addWidget(self.toggle_clear_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.btn_delete_db = QPushButton("Удалить из базы данных")
+        self.btn_delete_db.setMinimumHeight(40)
+        self.btn_delete_db.clicked.connect(self._delete_selected_from_database)
+        self.btn_delete_db.setEnabled(False)
 
-        self.clear_frame = QWidget()
-        clear_layout = QVBoxLayout(self.clear_frame)
-        clear_layout.setContentsMargins(0, 5, 0, 0)
-        
         self.btn_clear_db = QPushButton("Очистить базу данных")
-        self.btn_clear_db.setMinimumHeight(35)
-        self.btn_clear_db.setStyleSheet("font-size: 10pt; padding: 8px 20px;")
+        self.btn_clear_db.setMinimumHeight(40)
         self.btn_clear_db.clicked.connect(self._clear_database)
         self.btn_clear_db.setEnabled(False)
-        clear_layout.addWidget(self.btn_clear_db)
-        
-        self.clear_frame.setVisible(False)
-        main_layout.addWidget(self.clear_frame)
+        self.btn_clear_db.hide()
+        self._update_db_action_buttons_style()
+
+        db_actions_layout.addWidget(self.btn_sync, 1)
+        db_actions_layout.addWidget(self.btn_delete_db, 1)
+        main_layout.addWidget(db_actions_frame)
         
         status_row = QFrame()
         status_row_layout = QHBoxLayout(status_row)
@@ -3625,6 +4594,7 @@ class BimSyncWindow(QMainWindow):
             self._sync_username_edit.clear()
             self._sync_password_edit.clear()
         self._sync_apply_disabled_style()
+        self._refresh_connect_button_state()
 
     def _sync_apply_disabled_style(self):
         disabled = "background-color: #f0f0f0; color: #a0a0a0;" if not self.is_dark_theme else "background-color: #2a2a2a; color: #606060;"
@@ -3710,9 +4680,10 @@ class BimSyncWindow(QMainWindow):
         self._update_label_style(self.status_label, label_color)
         self._update_label_style(self.projects_count_label, label_color)
         self.progress_bar.setTheme(self.is_dark_theme)
-        self._set_toggle_icon(self.toggle_clear_btn, self.clear_frame.isVisible())
         self._sync_apply_disabled_style()
-        self._update_line_pwd_icon(self._sync_password_edit, self._sync_pwd_visible, self._sync_pwd_btn)
+        self._update_line_pwd_icon(self._sync_password_edit, self._sync_pwd_visible)
+        self._update_connect_button_style()
+        self._update_db_action_buttons_style()
 
     def _go_back(self):
         self._return_to_mode_select = True
@@ -3739,9 +4710,109 @@ class BimSyncWindow(QMainWindow):
         )
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self._db_config = dialog.get_config()
+            self._refresh_connect_button_state()
+
+    def _has_db_auth_config(self):
+        return bool(
+            self._db_config.get("site")
+            and self._db_config.get("server")
+            and self._db_config.get("database")
+        )
+
+    def _has_api_auth_input(self):
+        if self._sync_use_token:
+            return bool(self.token_edit.text().strip())
+        return bool(
+            self._sync_username_edit.text().strip()
+            and self._sync_password_edit.text().strip()
+        )
+
+    def _can_enable_connect_button(self):
+        return self._has_db_auth_config() and self._has_api_auth_input()
+
+    def _connect_button_disabled_reason(self):
+        missing_db = not self._has_db_auth_config()
+        missing_api = not self._has_api_auth_input()
+        auth_text = "логин/пароль" if not self._sync_use_token else "токен"
+        if missing_db and missing_api:
+            return f"Сначала введите {auth_text} и авторизуйтесь в БД."
+        if missing_db:
+            return "Сначала авторизуйтесь в БД."
+        if missing_api:
+            return f"Сначала введите {auth_text}."
+        return ""
+
+    def _update_connect_button_style(self):
+        if self.is_dark_theme:
+            disabled_bg = "#2a2a2a"
+            disabled_text = "#777777"
+            disabled_border = "#3a3a3a"
+        else:
+            disabled_bg = "#eeeeee"
+            disabled_text = "#9a9a9a"
+            disabled_border = "#d6d6d6"
+        self.btn_connect.setStyleSheet(f"""
+            QPushButton:disabled {{
+                background: {disabled_bg};
+                color: {disabled_text};
+                border: 1px solid {disabled_border};
+            }}
+            QPushButton:disabled:hover {{
+                background: {disabled_bg};
+                color: {disabled_text};
+                border: 1px solid {disabled_border};
+            }}
+        """)
+
+    def _update_db_action_buttons_style(self):
+        if self.is_dark_theme:
+            disabled_bg = "#2a2a2a"
+            disabled_text = "#777777"
+            disabled_border = "#3a3a3a"
+        else:
+            disabled_bg = "#eeeeee"
+            disabled_text = "#9a9a9a"
+            disabled_border = "#d6d6d6"
+        style = f"""
+            QPushButton {{
+                font-size: 12pt;
+                padding: 10px 24px;
+            }}
+            QPushButton:disabled {{
+                background: {disabled_bg};
+                color: {disabled_text};
+                border: 1px solid {disabled_border};
+            }}
+            QPushButton:disabled:hover {{
+                background: {disabled_bg};
+                color: {disabled_text};
+                border: 1px solid {disabled_border};
+            }}
+        """
+        for button in (self.btn_sync, self.btn_delete_db, self.btn_clear_db):
+            button.setStyleSheet(style)
+
+    def _set_connect_button_enabled(self, enabled, tooltip=None):
+        self.btn_connect.setEnabled(bool(enabled))
+        tooltip = "" if enabled else (tooltip if tooltip is not None else self._connect_button_disabled_reason())
+        self.btn_connect.setToolTip(tooltip)
+        self.btn_connect.setStatusTip(tooltip)
+
+    def _refresh_connect_button_state(self):
+        if getattr(self, "_connect_busy", False):
+            return
+        self._set_connect_button_enabled(
+            self._can_enable_connect_button(),
+            self._connect_button_disabled_reason(),
+        )
 
     def _load_config(self):
         global CONFIG
+
+        if not self._can_enable_connect_button():
+            self._show_warning("Внимание", self._connect_button_disabled_reason())
+            self._refresh_connect_button_state()
+            return
 
         if not self._sync_use_token:
             if not self._sync_do_login():
@@ -3767,7 +4838,8 @@ class BimSyncWindow(QMainWindow):
             self._show_warning("Внимание", "Укажите токен авторизации.")
             return
         
-        self.btn_connect.setEnabled(False)
+        self._connect_busy = True
+        self._set_connect_button_enabled(False, "")
         self.btn_connect.setText("Проверка...")
         QApplication.processEvents()
         
@@ -3824,6 +4896,7 @@ class BimSyncWindow(QMainWindow):
             auth_type = "Windows Auth" if not CONFIG.get("username") else "SQL Auth"
             self.status_label.setText(f"Подключено: {CONFIG['database']} ({auth_type})")
             self.btn_clear_db.setEnabled(True)
+            self.btn_delete_db.setEnabled(True)
             self._is_connected = True
             self._token_check_timer.start()
             
@@ -3843,8 +4916,9 @@ class BimSyncWindow(QMainWindow):
             log_error(f"Ошибка загрузки конфига: {e}\n{traceback.format_exc()}")
             self._show_error("Ошибка", f"Не удалось загрузить конфиг:\n{str(e)}")
         finally:
-            self.btn_connect.setEnabled(True)
+            self._connect_busy = False
             self.btn_connect.setText("Подключить")
+            self._refresh_connect_button_state()
 
     def _fetch_projects(self):
         global df_all_projects, project_models
@@ -3890,6 +4964,7 @@ class BimSyncWindow(QMainWindow):
 
     def _show_projects(self):
         for card in self.project_cards:
+            self.projects_layout.removeWidget(card)
             card.deleteLater()
         self.project_cards.clear()
         self._card_selection_manager.clear_selection()
@@ -3904,16 +4979,62 @@ class BimSyncWindow(QMainWindow):
             card.project_checkbox.installEventFilter(self)
             card.installEventFilter(self)
             card.toggled.connect(lambda c=card: self._on_card_toggled(c))
-            self.projects_layout.addWidget(card)
+            card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
             self.project_cards.append(card)
         
         self._card_selection_manager.set_items(self.project_cards)
+        self._filter_project_cards(self.project_search_edit.text())
 
         self.projects_count_label.setText(f"Всего проектов: {len(self.project_cards)}")
         self.btn_sync.setEnabled(True)
         self.select_frame.setVisible(True)
+        self.project_search_frame.setVisible(True)
+
+    def _project_grid_column_count(self):
+        viewport = getattr(self, "projects_scroll_viewport", None)
+        width = viewport.width() if viewport is not None else 0
+        if width <= 0:
+            width = self.projects_container.width()
+        spacing = self.projects_layout.horizontalSpacing()
+        if spacing < 0:
+            spacing = self.projects_layout.spacing()
+        spacing = max(0, spacing)
+        columns = (max(0, width) + spacing) // (PROJECT_GRID_MIN_CARD_WIDTH + spacing)
+        return max(1, min(PROJECT_GRID_MAX_COLUMNS, int(columns)))
+
+    def _relayout_project_cards(self):
+        if not hasattr(self, "projects_layout"):
+            return
+        while self.projects_layout.count():
+            self.projects_layout.takeAt(0)
+
+        visible_cards = [card for card in self.project_cards if card.isVisible()]
+        columns = self._project_grid_column_count()
+        for col in range(PROJECT_GRID_MAX_COLUMNS):
+            self.projects_layout.setColumnStretch(col, 1 if col < columns else 0)
+
+        for idx, card in enumerate(visible_cards):
+            is_last_single = columns > 1 and idx == len(visible_cards) - 1 and len(visible_cards) % columns == 1
+            column_span = columns if is_last_single else 1
+            card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+            self.projects_layout.addWidget(
+                card,
+                idx // columns,
+                idx % columns,
+                1,
+                column_span,
+                Qt.AlignmentFlag.AlignTop,
+            )
+
+    def _filter_project_cards(self, text):
+        query = str(text or "")
+        for card in self.project_cards:
+            card.apply_text_filter(query)
+        self._relayout_project_cards()
     
     def eventFilter(self, obj, event):
+        if obj == getattr(self, "projects_scroll_viewport", None) and event.type() == event.Type.Resize:
+            QTimer.singleShot(0, self._relayout_project_cards)
         if event.type() == event.Type.MouseButtonPress:
             for idx, card in enumerate(self.project_cards):
                 if obj == card.project_checkbox:
@@ -3936,6 +5057,7 @@ class BimSyncWindow(QMainWindow):
     def _on_card_toggled(self, card):
         del card
         self._update_select_all_checkbox_state()
+        QTimer.singleShot(0, self._relayout_project_cards)
 
     def _toggle_select_all(self, state):
         has_checked = any(
@@ -4256,20 +5378,6 @@ class BimSyncWindow(QMainWindow):
                 self.worker.request_cancel()
                 break
 
-    def _toggle_clear_section(self):
-        visible = self.clear_frame.isVisible()
-        self.clear_frame.setVisible(not visible)
-        self._set_toggle_icon(self.toggle_clear_btn, not visible)
-
-    def _set_toggle_icon(self, btn, is_expanded):
-        white_path = icon_file("white", "arrow-up.png") if is_expanded else icon_file("white", "arrow-down.png")
-        dark_path = icon_file("arrow-up.png") if is_expanded else icon_file("arrow-down.png")
-        icon_path = white_path if self.is_dark_theme else dark_path
-        pm = QPixmap(icon_path)
-        if not pm.isNull():
-            scaled = pm.scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            btn.setIcon(QIcon(scaled))
-
     def _clear_database(self):
         reply = self._question_yes_no(
             "Подтверждение", 
@@ -4284,29 +5392,219 @@ class BimSyncWindow(QMainWindow):
         if reply != "yes":
             return
 
+        log_info(
+            f"UI: запрошена полная очистка БД пользователем, server={CONFIG.get('server', '')}, "
+            f"database={CONFIG.get('database', '')}"
+        )
+        diagnostics, problems = check_database_delete_prerequisites(db_config=CONFIG)
+        if problems:
+            message = "Очистка БД сейчас невозможна.\n\n" + "\n".join(problems)
+            message += "\n\n" + format_database_diagnostics(diagnostics)
+            log_error("Проверка перед очисткой БД не пройдена:\n" + message)
+            self._show_error("Проблема доступа к БД", message)
+            return
         self.btn_clear_db.setEnabled(False)
         self.btn_clear_db.setText("Очистка...")
 
         try:
-            use_windows_auth = not CONFIG.get("username") or not CONFIG.get("password")
-            conn_str = get_connection_string(CONFIG, use_windows_auth)
+            results = clear_database_tables(db_config=CONFIG)
+            deleted_parts = []
+            skipped_tables = []
+            for result in results:
+                table_name = result["table"]
+                short_name = table_name.split(".", 1)[-1]
+                if result["skipped"]:
+                    skipped_tables.append(table_name)
+                else:
+                    deleted_parts.append(f"{short_name}: {result['deleted']}")
 
-            tables = ["staging.Projects", "staging.Models", "staging.Elements", "staging.ElementProperties", "staging.ElementPropertiesWide"]
-            with pyodbc.connect(conn_str) as conn:
-                cursor = conn.cursor()
-                for table in tables:
-                    try:
-                        cursor.execute(f"TRUNCATE TABLE {table}")
-                    except Exception:
-                        pass
-                conn.commit()
+            if not deleted_parts and skipped_tables:
+                self._show_warning(
+                    "Внимание",
+                    "Очистка не выполнена: таблицы staging не найдены.\n\n"
+                    + "\n".join(skipped_tables)
+                )
+                return
 
-            QMessageBox.information(self, "Готово", "База данных успешно очищена.")
+            message = "База данных очищена.\n\nУдалено строк:\n" + "\n".join(deleted_parts)
+            if skipped_tables:
+                message += "\n\nПропущены отсутствующие таблицы:\n" + "\n".join(skipped_tables)
+            message += "\n\nСписок проектов в окне загружается из API Viewer и не отражает содержимое SQL."
+            log_info(
+                f"UI: полная очистка БД завершена успешно, server={CONFIG.get('server', '')}, "
+                f"database={CONFIG.get('database', '')}, deleted_tables={len(deleted_parts)}, "
+                f"skipped_tables={len(skipped_tables)}"
+            )
+            self._show_info("Готово", message)
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось очистить базу данных:\n{e}")
+            diagnostics = get_database_runtime_diagnostics(db_config=CONFIG)
+            log_error(
+                f"UI: ошибка полной очистки БД: {e}\n"
+                f"server={CONFIG.get('server', '')}, database={CONFIG.get('database', '')}\n"
+                f"{traceback.format_exc()}"
+            )
+            self._show_error(
+                "Ошибка",
+                f"Не удалось очистить базу данных:\n{e}\n\n{format_database_diagnostics(diagnostics)}"
+            )
         finally:
             self.btn_clear_db.setEnabled(True)
             self.btn_clear_db.setText("Очистить базу данных")
+
+    def _delete_selected_from_database(self):
+        selected_project_ids, selected_model_ids = collect_selected_ids_from_cards(self.project_cards)
+        manual_mode = None
+        missing_names = []
+        matched_name_rows = []
+        selection_source = "viewer_selection"
+
+        if not selected_project_ids and not selected_model_ids:
+            dialog = DatabaseDeleteSelectionDialog(self, db_config=CONFIG, is_dark=self.is_dark_theme)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+
+            selection_result = dialog.get_selection_result()
+            selection_source = selection_result.get("source", "db_browser")
+
+            if selection_result.get("mode") == "manual":
+                manual_mode = selection_result.get("manual_mode")
+                manual_names = selection_result.get("manual_names", [])
+
+                try:
+                    if manual_mode == "projects":
+                        matched_name_rows, missing_names = find_projects_by_names(manual_names, db_config=CONFIG)
+                        selected_project_ids = [int(row["idProject"]) for row in matched_name_rows]
+                    else:
+                        matched_name_rows, missing_names = find_models_by_names(manual_names, db_config=CONFIG)
+                        selected_model_ids = [int(row["idModel"]) for row in matched_name_rows]
+                except Exception as e:
+                    self._show_error("Ошибка", f"Не удалось найти записи в базе данных:\n{e}")
+                    return
+
+                if not selected_project_ids and not selected_model_ids:
+                    suffix = ""
+                    if missing_names:
+                        suffix = "\n\nНе найдено:\n" + "\n".join(missing_names[:20])
+                    self._show_warning("Внимание", "По введенным названиям ничего не найдено в базе данных." + suffix)
+                    return
+            else:
+                if selection_result.get("full_database_selected"):
+                    self._clear_database()
+                    return
+                selected_project_ids = selection_result.get("project_ids", [])
+                selected_model_ids = selection_result.get("model_ids", [])
+
+        parts = []
+        if selected_project_ids:
+            parts.append(f"Проектов целиком: {len(selected_project_ids)}")
+        if selected_model_ids:
+            parts.append(f"Отдельных моделей: {len(selected_model_ids)}")
+        details = "\n".join(parts)
+
+        if manual_mode == "projects":
+            details = "Режим: удаление по названиям проектов\n" + details
+        elif manual_mode == "models":
+            details = "Режим: удаление по названиям моделей\n" + details
+        elif selection_source == "db_browser":
+            details = "Режим: выбор из списка БД\n" + details
+        if missing_names:
+            details += "\n\nНе найдено:\n" + "\n".join(missing_names[:20])
+            if len(missing_names) > 20:
+                details += "\n..."
+
+        reply = self._question_yes_no(
+            "Подтверждение",
+            "Удалить выбранные данные из базы данных?\n\n"
+            f"{details}\n\n"
+            + (
+                "Будут удалены все найденные проекты с этими названиями."
+                if manual_mode == "projects"
+                else "Будут удалены все найденные модели с этими названиями."
+                if manual_mode == "models"
+                else "Если в проекте выбраны все модели, проект будет удален полностью.\n"
+                     "Если выбрана только часть моделей, будут удалены только эти модели."
+            )
+        )
+        if reply != "yes":
+            return
+
+        log_info(
+            f"UI: запрошено выборочное удаление из БД, server={CONFIG.get('server', '')}, "
+            f"database={CONFIG.get('database', '')}, projects={len(selected_project_ids)}, "
+            f"models={len(selected_model_ids)}, source={selection_source}, manual_mode={manual_mode or ''}"
+        )
+        diagnostics, problems = check_database_delete_prerequisites(db_config=CONFIG)
+        if problems:
+            message = "Удаление из БД сейчас невозможно.\n\n" + "\n".join(problems)
+            message += "\n\n" + format_database_diagnostics(diagnostics)
+            log_error("Проверка перед удалением из БД не пройдена:\n" + message)
+            self._show_error("Проблема доступа к БД", message)
+            return
+        self.btn_delete_db.setEnabled(False)
+        self.btn_delete_db.setText("Удаление...")
+        try:
+            operation_results = []
+            if selected_project_ids:
+                operation_results.extend(delete_data_by_project_ids(selected_project_ids, db_config=CONFIG))
+            if selected_model_ids:
+                operation_results.extend(delete_data_by_model_ids(selected_model_ids, db_config=CONFIG))
+
+            skipped_tables = [item["table"] for item in operation_results if item.get("skipped")]
+            deleted_rows_total = sum(int(item.get("deleted", 0)) for item in operation_results if not item.get("skipped"))
+            if operation_results and all(item.get("skipped") for item in operation_results):
+                self._show_warning(
+                    "Внимание",
+                    "Удаление не выполнено: таблицы staging не найдены.\n\n"
+                    + "\n".join(skipped_tables)
+                )
+                return
+
+            result_parts = []
+            if selected_project_ids:
+                result_parts.append(f"проектов: {len(selected_project_ids)}")
+            if selected_model_ids:
+                result_parts.append(f"моделей: {len(selected_model_ids)}")
+            message = "Удалено " + ", ".join(result_parts)
+            message += f"\nСтрок в БД: {deleted_rows_total}"
+            if manual_mode == "projects":
+                found_names = sorted({str(row.get('name', '')).strip() for row in matched_name_rows if row.get('name')})
+                if found_names:
+                    message += "\n\nНайдены проекты:\n" + "\n".join(found_names[:20])
+                    if len(found_names) > 20:
+                        message += "\n..."
+            elif manual_mode == "models":
+                found_names = sorted({str(row.get('NameM', '')).strip() for row in matched_name_rows if row.get('NameM')})
+                if found_names:
+                    message += "\n\nНайдены модели:\n" + "\n".join(found_names[:20])
+                    if len(found_names) > 20:
+                        message += "\n..."
+            if skipped_tables:
+                message += "\n\nПропущены отсутствующие таблицы:\n" + "\n".join(skipped_tables)
+            if missing_names:
+                message += "\n\nНе найдено:\n" + "\n".join(missing_names[:20])
+                if len(missing_names) > 20:
+                    message += "\n..."
+            message += "\n\nСписок проектов в окне загружается из API Viewer и не отражает содержимое SQL."
+            log_info(
+                f"UI: выборочное удаление завершено, server={CONFIG.get('server', '')}, "
+                f"database={CONFIG.get('database', '')}, rows_deleted={deleted_rows_total}, "
+                f"skipped_tables={len(skipped_tables)}, source={selection_source}, manual_mode={manual_mode or ''}"
+            )
+            self._show_info("Готово", message)
+        except Exception as e:
+            diagnostics = get_database_runtime_diagnostics(db_config=CONFIG)
+            log_error(
+                f"UI: ошибка выборочного удаления из БД: {e}\n"
+                f"server={CONFIG.get('server', '')}, database={CONFIG.get('database', '')}\n"
+                f"{traceback.format_exc()}"
+            )
+            self._show_error(
+                "Ошибка",
+                f"Не удалось удалить данные:\n{e}\n\n{format_database_diagnostics(diagnostics)}"
+            )
+        finally:
+            self.btn_delete_db.setEnabled(True)
+            self.btn_delete_db.setText("Удалить из базы данных")
 
     def _on_progress(self, percent, text):
         self.progress_bar.setValue(percent)
@@ -4353,24 +5651,13 @@ class BimSyncWindow(QMainWindow):
         self._show_error("Ошибка", error_msg)
 
     def _msg_box(self, icon_type, title, text):
-        msg = QMessageBox(self)
-        msg.setWindowTitle(title)
-        msg.setText(text)
         if icon_type == "critical":
-            icon_path = _dialog_icon_path("error", self.is_dark_theme)
+            dialog_icon = "error"
         elif icon_type == "information":
-            icon_path = _dialog_icon_path("ok", self.is_dark_theme)
+            dialog_icon = "ok"
         else:
-            icon_path = _dialog_icon_path("warning", self.is_dark_theme)
-        if icon_path and os.path.exists(icon_path):
-            pm = QPixmap(icon_path)
-            scaled_pm = pm.scaled(32, 32, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            msg.setIconPixmap(scaled_pm)
-        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-        msg.setStyleSheet(DARK_STYLESHEET if self.is_dark_theme else LIGHT_STYLESHEET)
-        set_window_title_bar_dark(msg, self.is_dark_theme)
-        wire_message_box_buttons(msg)
-        return show_dialog(msg, modal=True)
+            dialog_icon = "warning"
+        return show_sized_message_dialog(self, title, text, dialog_icon, self.is_dark_theme, ("ok",))
 
     def _show_warning(self, title, text):
         return self._msg_box("warning", title, text)
@@ -4382,45 +5669,10 @@ class BimSyncWindow(QMainWindow):
         return self._msg_box("information", title, text)
     
     def _question_yes_no_cancel(self, title, text):
-        msg = QMessageBox(self)
-        msg.setWindowTitle(title)
-        msg.setText(text)
-        btn_yes = msg.addButton("Да", QMessageBox.ButtonRole.YesRole)
-        btn_no = msg.addButton("Нет", QMessageBox.ButtonRole.NoRole)
-        btn_cancel = msg.addButton("Отмена", QMessageBox.ButtonRole.RejectRole)
-        msg.setDefaultButton(btn_yes)
-        icon_path = _dialog_icon_path("warning", self.is_dark_theme)
-        if icon_path and os.path.exists(icon_path):
-            pm = QPixmap(icon_path)
-            scaled_pm = pm.scaled(32, 32, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            msg.setIconPixmap(scaled_pm)
-        msg.setStyleSheet(DARK_STYLESHEET if self.is_dark_theme else LIGHT_STYLESHEET)
-        set_window_title_bar_dark(msg, self.is_dark_theme)
-        msg.exec()
-        clicked = msg.clickedButton()
-        if clicked == btn_yes:
-            return "yes"
-        elif clicked == btn_no:
-            return "no"
-        else:
-            return "cancel"
+        return show_sized_message_dialog(self, title, text, "warning", self.is_dark_theme, ("yes", "no", "cancel"))
     
     def _question_yes_no(self, title, text):
-        msg = QMessageBox(self)
-        msg.setWindowTitle(title)
-        msg.setText(text)
-        btn_yes = msg.addButton("Да", QMessageBox.ButtonRole.YesRole)
-        btn_no = msg.addButton("Нет", QMessageBox.ButtonRole.NoRole)
-        msg.setDefaultButton(btn_yes)
-        icon_path = _dialog_icon_path("warning", self.is_dark_theme)
-        if icon_path and os.path.exists(icon_path):
-            pm = QPixmap(icon_path)
-            scaled_pm = pm.scaled(32, 32, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            msg.setIconPixmap(scaled_pm)
-        msg.setStyleSheet(DARK_STYLESHEET if self.is_dark_theme else LIGHT_STYLESHEET)
-        set_window_title_bar_dark(msg, self.is_dark_theme)
-        msg.exec()
-        return "yes" if msg.clickedButton() == btn_yes else "no"
+        return show_sized_message_dialog(self, title, text, "warning", self.is_dark_theme, ("yes", "no"))
 
 
 class AnimatableShadowEffect(QGraphicsDropShadowEffect):
@@ -4611,10 +5863,6 @@ class ModeSelectWidget(QWidget):
         layout.setContentsMargins(30, 30, 30, 30)
         
         header_layout = QHBoxLayout()
-        
-        self.btn_back = create_back_button(self, icon_dir=ICON_DIR)
-        self.btn_back.clicked.connect(self.back_requested.emit)
-        header_layout.addWidget(self.btn_back)
         
         header_layout.addStretch()
         
@@ -4897,27 +6145,32 @@ class PowerBiExportWindow(QMainWindow):
         pbi_mode_row.addStretch()
         api_layout.addLayout(pbi_mode_row)
 
-        pbi_login_row = QHBoxLayout()
-        pbi_login_row.addWidget(QLabel("Логин:"))
+        pbi_credentials_row = QHBoxLayout()
+        pbi_credentials_row.setSpacing(10)
+        pbi_login_label = QLabel("Логин:")
+        pbi_login_label.setMinimumWidth(55)
+        pbi_credentials_row.addWidget(pbi_login_label)
         self._pbi_username_edit = QLineEdit()
         self._pbi_username_edit.setPlaceholderText("email или username")
         self._pbi_username_edit.setEnabled(False)
-        pbi_login_row.addWidget(self._pbi_username_edit, 1)
-        api_layout.addLayout(pbi_login_row)
+        self._pbi_username_edit.setMinimumWidth(220)
+        pbi_credentials_row.addWidget(self._pbi_username_edit, 1)
 
-        pbi_pass_row = QHBoxLayout()
-        pbi_pass_row.addWidget(QLabel("Пароль:"))
+        pbi_password_label = QLabel("Пароль:")
+        pbi_password_label.setMinimumWidth(60)
+        pbi_credentials_row.addWidget(pbi_password_label)
         self._pbi_password_edit = _InlinePasswordLineEdit()
         self._pbi_password_edit.setPlaceholderText("Пароль")
         self._pbi_password_edit.setEchoMode(QLineEdit.Password)
         self._pbi_password_edit.setEnabled(False)
+        self._pbi_password_edit.setMinimumWidth(220)
         self._pbi_password_edit.set_eye_clicked(
             lambda: self._toggle_line_password(self._pbi_password_edit, "_pbi_pwd_visible")
         )
-        pbi_pass_row.addWidget(self._pbi_password_edit, 1)
+        pbi_credentials_row.addWidget(self._pbi_password_edit, 1)
         self._pbi_pwd_visible = False
         self._update_line_pwd_icon(self._pbi_password_edit, False)
-        api_layout.addLayout(pbi_pass_row)
+        api_layout.addLayout(pbi_credentials_row)
         
         output_layout = QHBoxLayout()
         output_layout.addWidget(QLabel("Папка для выгрузки:"))
@@ -4941,8 +6194,8 @@ class PowerBiExportWindow(QMainWindow):
         select_layout = QHBoxLayout(select_frame)
         select_layout.setContentsMargins(0, 0, 0, 0)
         
-        self.select_all_checkbox = QCheckBox("Выбрать все проекты и модели")
-        self.select_all_checkbox.setTristate(True)
+        self.select_all_checkbox = HeaderSelectAllCheckBox()
+        self.select_all_checkbox.setText("Выбрать все проекты и модели")
         self.select_all_checkbox.stateChanged.connect(self._toggle_select_all)
         select_layout.addWidget(self.select_all_checkbox)
         select_layout.addStretch()
@@ -4954,14 +6207,30 @@ class PowerBiExportWindow(QMainWindow):
         self.select_frame = select_frame
         self.select_frame.setVisible(False)
         main_layout.addWidget(self.select_frame)
-        
+
+        project_search_frame = QFrame()
+        project_search_layout = QHBoxLayout(project_search_frame)
+        project_search_layout.setContentsMargins(0, 0, 0, 0)
+        project_search_layout.setSpacing(10)
+        project_search_layout.addWidget(QLabel("Поиск:"))
+        self.project_search_edit = QLineEdit()
+        self.project_search_edit.setPlaceholderText("Поиск по проектам и моделям...")
+        self.project_search_edit.textChanged.connect(self._filter_project_cards)
+        project_search_layout.addWidget(self.project_search_edit, 1)
+        self.project_search_frame = project_search_frame
+        self.project_search_frame.setVisible(False)
+        main_layout.addWidget(self.project_search_frame)
+
         scroll = QScrollArea()
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.projects_scroll = scroll
+        self.projects_scroll_viewport = scroll.viewport()
+        self.projects_scroll_viewport.installEventFilter(self)
         
         self.projects_container = QWidget()
-        self.projects_layout = QVBoxLayout(self.projects_container)
+        self.projects_layout = QGridLayout(self.projects_container)
         self.projects_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.projects_layout.setSpacing(8)
         self.projects_layout.setContentsMargins(0, 0, 0, 0)
@@ -5188,6 +6457,7 @@ class PowerBiExportWindow(QMainWindow):
     
     def _show_projects(self):
         for card in self.project_cards:
+            self.projects_layout.removeWidget(card)
             card.deleteLater()
         self.project_cards.clear()
         self._card_selection_manager.clear_selection()
@@ -5202,16 +6472,62 @@ class PowerBiExportWindow(QMainWindow):
             card.project_checkbox.installEventFilter(self)
             card.installEventFilter(self)
             card.toggled.connect(lambda c=card: self._on_card_toggled(c))
-            self.projects_layout.addWidget(card)
+            card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
             self.project_cards.append(card)
         
         self._card_selection_manager.set_items(self.project_cards)
+        self._filter_project_cards(self.project_search_edit.text())
         
         self.projects_count_label.setText(f"Всего проектов: {len(self.project_cards)}")
         self.btn_sync.setEnabled(True)
         self.select_frame.setVisible(True)
+        self.project_search_frame.setVisible(True)
+
+    def _project_grid_column_count(self):
+        viewport = getattr(self, "projects_scroll_viewport", None)
+        width = viewport.width() if viewport is not None else 0
+        if width <= 0:
+            width = self.projects_container.width()
+        spacing = self.projects_layout.horizontalSpacing()
+        if spacing < 0:
+            spacing = self.projects_layout.spacing()
+        spacing = max(0, spacing)
+        columns = (max(0, width) + spacing) // (PROJECT_GRID_MIN_CARD_WIDTH + spacing)
+        return max(1, min(PROJECT_GRID_MAX_COLUMNS, int(columns)))
+
+    def _relayout_project_cards(self):
+        if not hasattr(self, "projects_layout"):
+            return
+        while self.projects_layout.count():
+            self.projects_layout.takeAt(0)
+
+        visible_cards = [card for card in self.project_cards if card.isVisible()]
+        columns = self._project_grid_column_count()
+        for col in range(PROJECT_GRID_MAX_COLUMNS):
+            self.projects_layout.setColumnStretch(col, 1 if col < columns else 0)
+
+        for idx, card in enumerate(visible_cards):
+            is_last_single = columns > 1 and idx == len(visible_cards) - 1 and len(visible_cards) % columns == 1
+            column_span = columns if is_last_single else 1
+            card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+            self.projects_layout.addWidget(
+                card,
+                idx // columns,
+                idx % columns,
+                1,
+                column_span,
+                Qt.AlignmentFlag.AlignTop,
+            )
+
+    def _filter_project_cards(self, text):
+        query = str(text or "")
+        for card in self.project_cards:
+            card.apply_text_filter(query)
+        self._relayout_project_cards()
     
     def eventFilter(self, obj, event):
+        if obj == getattr(self, "projects_scroll_viewport", None) and event.type() == event.Type.Resize:
+            QTimer.singleShot(0, self._relayout_project_cards)
         if event.type() == event.Type.MouseButtonPress:
             for idx, card in enumerate(self.project_cards):
                 if obj == card.project_checkbox:
@@ -5467,24 +6783,13 @@ class PowerBiExportWindow(QMainWindow):
         self._show_error("Ошибка", error_msg)
     
     def _msg_box(self, icon_type, title, text):
-        msg = QMessageBox(self)
-        msg.setWindowTitle(title)
-        msg.setText(text)
         if icon_type == "critical":
-            icon_path = _dialog_icon_path("error", self.is_dark_theme)
+            dialog_icon = "error"
         elif icon_type == "information":
-            icon_path = _dialog_icon_path("ok", self.is_dark_theme)
+            dialog_icon = "ok"
         else:
-            icon_path = _dialog_icon_path("warning", self.is_dark_theme)
-        if icon_path and os.path.exists(icon_path):
-            pm = QPixmap(icon_path)
-            scaled_pm = pm.scaled(32, 32, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            msg.setIconPixmap(scaled_pm)
-        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-        msg.setStyleSheet(DARK_STYLESHEET if self.is_dark_theme else LIGHT_STYLESHEET)
-        set_window_title_bar_dark(msg, self.is_dark_theme)
-        wire_message_box_buttons(msg)
-        return show_dialog(msg, modal=True)
+            dialog_icon = "warning"
+        return show_sized_message_dialog(self, title, text, dialog_icon, self.is_dark_theme, ("ok",))
     
     def _show_warning(self, title, text):
         return self._msg_box("warning", title, text)
@@ -5496,28 +6801,7 @@ class PowerBiExportWindow(QMainWindow):
         return self._msg_box("information", title, text)
     
     def _question_yes_no_cancel(self, title, text):
-        msg = QMessageBox(self)
-        msg.setWindowTitle(title)
-        msg.setText(text)
-        btn_yes = msg.addButton("Да", QMessageBox.ButtonRole.YesRole)
-        btn_no = msg.addButton("Нет", QMessageBox.ButtonRole.NoRole)
-        btn_cancel = msg.addButton("Отмена", QMessageBox.ButtonRole.RejectRole)
-        msg.setDefaultButton(btn_yes)
-        icon_path = _dialog_icon_path("warning", self.is_dark_theme)
-        if icon_path and os.path.exists(icon_path):
-            pm = QPixmap(icon_path)
-            scaled_pm = pm.scaled(32, 32, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            msg.setIconPixmap(scaled_pm)
-        msg.setStyleSheet(DARK_STYLESHEET if self.is_dark_theme else LIGHT_STYLESHEET)
-        set_window_title_bar_dark(msg, self.is_dark_theme)
-        msg.exec()
-        clicked = msg.clickedButton()
-        if clicked == btn_yes:
-            return "yes"
-        elif clicked == btn_no:
-            return "no"
-        else:
-            return "cancel"
+        return show_sized_message_dialog(self, title, text, "warning", self.is_dark_theme, ("yes", "no", "cancel"))
 
 
 class PowerBiSyncWorker(QThread):

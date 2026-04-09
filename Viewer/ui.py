@@ -783,15 +783,9 @@ class MainWindow(QMainWindow):
         grid.setContentsMargins(10, 10, 10, 10)
         grid.setSpacing(8)
 
-        # --- Header with back button + theme switch ---
+        # --- Header with theme switch ---
         header = QWidget(); header.setObjectName("header")
         hl = QHBoxLayout(header); hl.setContentsMargins(8, 8, 8, 8)
-        try:
-            self._btn_back = create_back_button(self, size=32, icon_dir=ICON_DIR)
-            self._btn_back.clicked.connect(lambda: go_to_main_menu(self))
-            hl.addWidget(self._btn_back, 0, Qt.AlignLeft)
-        except Exception:
-            self._btn_back = None
         hl.addStretch(1)
         self._logo_label = None
         try:
@@ -911,18 +905,14 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-        proj_row = QHBoxLayout()
-        self._configure_row_layout(proj_row)
-        proj_row.addWidget(QLabel("Проект:"))
-        self.proj_combo = QComboBox()
-        self.proj_combo.setMinimumWidth(360)
-        proj_row.addWidget(self.proj_combo, stretch=1)
+        btn_row = QHBoxLayout()
+        self._configure_row_layout(btn_row)
         self.load_projects_btn = QPushButton("Загрузить проекты")
         self.load_projects_btn.clicked.connect(self.load_projects)
-        proj_row.addWidget(self.load_projects_btn)
-        # Icons removed per request
-        vlayout.addLayout(proj_row)
-        self._lock_control_heights(self.proj_combo, self.load_projects_btn)
+        btn_row.addWidget(self.load_projects_btn)
+        btn_row.addStretch(1)
+        vlayout.addLayout(btn_row)
+        self._lock_control_heights(self.load_projects_btn)
 
         self.models_scroll = QScrollArea()
         self.models_scroll.setWidgetResizable(True)
@@ -931,12 +921,14 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         self.models_host = QWidget()
-        self.models_layout = QVBoxLayout(self.models_host)
-        self.models_layout.addStretch(1)
+        self.models_layout = QGridLayout(self.models_host)
+        self.models_layout.setColumnStretch(0, 1)
+        self.models_layout.setColumnStretch(1, 1)
+        self.models_layout.setHorizontalSpacing(12)
+        self.models_layout.setVerticalSpacing(8)
+        self.models_layout.setContentsMargins(4, 4, 4, 4)
         self.models_scroll.setWidget(self.models_host)
         vlayout.addWidget(self.models_scroll)
-
-        self.proj_combo.currentIndexChanged.connect(self._on_project_changed)
 
         # --- 2. Schemas/Attributes ---
         attr_group = QGroupBox("Атрибут")
@@ -1295,25 +1287,29 @@ class MainWindow(QMainWindow):
         if not data:
             _popup_error(self, "Не удалось загрузить проекты")
             return
-        self.proj_combo.clear()
-        for p in data:
-            self.proj_combo.addItem(p['name'], p['id'])
-        if data:
-            self.load_models(data[0]["id"])
-
-    def _on_project_changed(self, _idx):
-        pid = self._current_combo_id(self.proj_combo)
-        if pid is not None:
-            self.load_models(pid)
-
-    def load_models(self, proj_id):
-        for i in reversed(range(self.models_layout.count()-1)):
-            item = self.models_layout.itemAt(i)
-            w = item.widget()
-            if w: w.setParent(None)
+        self._all_viewer_projects = data
         self.checked_models.clear()
         self.model_titles.clear()
+        self._model_to_project = {}
+        while self.models_layout.count():
+            item = self.models_layout.takeAt(0)
+            w = item.widget()
+            if w: w.setParent(None)
+        for idx, p in enumerate(data):
+            col = idx % 2
+            row = idx // 2
+            col_widget = QWidget()
+            col_layout = QVBoxLayout(col_widget)
+            col_layout.setContentsMargins(0, 0, 0, 0)
+            col_layout.setSpacing(4)
+            proj_label = QLabel(f"<b>{p['name']}</b>")
+            proj_label.setStyleSheet("font-size: 10pt; padding: 2px 0;")
+            col_layout.addWidget(proj_label)
+            self._load_models_into(p['id'], col_layout)
+            col_layout.addStretch(1)
+            self.models_layout.addWidget(col_widget, row, col)
 
+    def _load_models_into(self, proj_id, layout):
         data = api_get(f"{self._get_external_base_url()}/api/jimc/projectid", EXTERNAL_HEADERS, {"projectId": proj_id})
         if not data:
             return
@@ -1321,10 +1317,11 @@ class MainWindow(QMainWindow):
             mid = m["id"]
             name = m.get("modelName", "Без названия")
             cb = QCheckBox(f"{name}")
-            cb.toggled.connect(self.refresh_container_highlights)  # обновлять при отметке
-            self.models_layout.insertWidget(self.models_layout.count()-1, cb)
+            cb.toggled.connect(self.refresh_container_highlights)
+            layout.addWidget(cb)
             self.checked_models[mid] = cb
             self.model_titles[mid] = name
+            self._model_to_project[mid] = proj_id
 
     # --- Schemas / Attributes ---
     def load_schemas_attrs(self):
@@ -1337,12 +1334,14 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Внимание", "Выберите хотя бы одну модель.")
             return
 
-        proj_id = self._current_combo_id(self.proj_combo)
-        if proj_id is None:
-            QMessageBox.critical(self, "Ошибка", "Сначала загрузите проекты и выберите проект.")
+        if not getattr(self, '_model_to_project', None):
+            QMessageBox.critical(self, "Ошибка", "Сначала загрузите проекты.")
             return
 
         for mid in models:
+            proj_id = self._model_to_project.get(mid)
+            if proj_id is None:
+                continue
             schemas = api_get(f"{self._get_external_base_url()}/api/attribute-schema/projectid-jimcid",
                               EXTERNAL_HEADERS, {"projectId": proj_id, "jimcId": mid}) or []
             for s in schemas:

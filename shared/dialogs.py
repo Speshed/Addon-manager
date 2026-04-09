@@ -339,6 +339,7 @@ def message_box(
     mb.setWindowFlags(mb.windowFlags() & ~QtCore.Qt.WindowType.WindowContextHelpButtonHint)
     apply_dialog_icon(mb)
     wire_message_box_buttons(mb)
+    _fit_message_box(mb)
     return mb.exec()
 
 
@@ -370,13 +371,36 @@ _original_QDialog_show = None
 _original_QDialog_open = None
 
 
+def _fit_message_box(message_box: QtWidgets.QMessageBox) -> None:
+    try:
+        message_box.setMinimumSize(520, 180)
+        for object_name in ("qt_msgbox_label", "qt_msgbox_informativelabel"):
+            label = message_box.findChild(QtWidgets.QLabel, object_name)
+            if label is not None:
+                label.setWordWrap(True)
+                label.setMinimumWidth(420)
+                label.setSizePolicy(
+                    QtWidgets.QSizePolicy.Policy.Expanding,
+                    QtWidgets.QSizePolicy.Policy.MinimumExpanding,
+                )
+                label.adjustSize()
+        layout = message_box.layout()
+        if layout is not None:
+            layout.activate()
+        message_box.adjustSize()
+    except Exception:
+        pass
+
+
 def _patched_message_box_exec(self):
     apply_dialog_icon(self)
+    _fit_message_box(self)
     return _original_QMessageBox_exec(self)
 
 
 def _patched_message_box_show(self):
     apply_dialog_icon(self)
+    _fit_message_box(self)
     return _original_QMessageBox_show(self)
 
 

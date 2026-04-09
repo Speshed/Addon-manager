@@ -854,7 +854,8 @@ class AppMainWindow(QMainWindow):
                  module_loaders=None, bim_sync=False,
                  show_template_download=False,
                  app_version="1.0.0", app_version_date="",
-                 app_version_changes=None):
+                 app_version_changes=None,
+                 skip_menu=False):
         super().__init__()
         self._app_title = app_title
         self._cards_data = cards_data or []
@@ -866,6 +867,7 @@ class AppMainWindow(QMainWindow):
         self._app_version = app_version
         self._app_version_date = app_version_date
         self._app_version_changes = app_version_changes or []
+        self._skip_menu = bool(skip_menu)
         self._is_dark = load_saved_theme(False)
         self._api_base_url = _normalize_api_base_url(
             os.environ.get("LARIX_API_BASE_URL", DEFAULT_API_BASE_URL)
@@ -885,8 +887,14 @@ class AppMainWindow(QMainWindow):
         except Exception:
             pass
 
-        set_back_to_menu_callback(self._show_main_menu)
-        self._show_main_menu()
+        if not self._skip_menu:
+            set_back_to_menu_callback(self._show_main_menu)
+
+        if self._skip_menu and self._cards_data:
+            first_mode = self._cards_data[0][0]
+            QTimer.singleShot(0, lambda: self._on_mode_selected(first_mode))
+        else:
+            self._show_main_menu()
 
     def _center_on_screen(self):
         try:

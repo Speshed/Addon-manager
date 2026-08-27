@@ -1,0 +1,357 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ExportProfilesCollection xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Profiles>
+    <BaseExportProfile xsi:type="SetExportProfile">
+      <Id>0</Id>
+      <Title>1</Title>
+      <ProfileItems>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10001</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId xsi:nil="true" />
+          <Title>01_Раздел КР - Стадия Р</Title>
+          <ConditionBlock Type="Block">
+            <Condition FieldIsNumeric="false" TextSpaceSensitive="true" IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10002</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId>10001</ParentId>
+          <Title>03_Конструкции строений</Title>
+          <ConditionBlock Type="Block">
+            <Condition FieldIsNumeric="false" TextSpaceSensitive="true" IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10003</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId>10002</ParentId>
+          <Title>03.01_Фундамент ж/б</Title>
+          <ConditionBlock Type="Block">
+            <Condition FieldIsNumeric="false" TextSpaceSensitive="true" IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10004</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId>10003</ParentId>
+          <Title>03.01.01.01_Фундаментная плита монолитная</Title>
+          <ConditionBlock Type="Block" LogicalOperator="Or">
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Категория:\" FieldIsNumeric="false" Value="Фундамент несущей конструкции" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="CADLib.Param.Экспликация.EXPLICATION_COMMENT" FieldIsNumeric="false" Value="IfcFooting" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Value="03.01.01.01" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              </ConditionsBlocks>
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10005</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId>10002</ParentId>
+          <Title>03.03_Вертикальные ж/б конструкции</Title>
+          <ConditionBlock Type="Block">
+            <Condition FieldIsNumeric="false" TextSpaceSensitive="true" IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10006</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId>10005</ParentId>
+          <Title>03.03.01.01_Стены ж/б монолитные</Title>
+          <ConditionBlock Type="Block" LogicalOperator="Or">
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Категория:\" FieldIsNumeric="false" Value="Стены" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="CADLib.Param.Экспликация.EXPLICATION_COMMENT" FieldIsNumeric="false" Value="IfcWall" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Value="03.03.01.01" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              </ConditionsBlocks>
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10007</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId>10005</ParentId>
+          <Title>03.03.01.03_Колонны ж/б монолитные</Title>
+          <ConditionBlock Type="Block" LogicalOperator="Or">
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Категория:\" FieldIsNumeric="false" Value="Несущие колонны" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="CADLib.Param.Экспликация.EXPLICATION_COMMENT" FieldIsNumeric="false" Value="IfcColumn" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Value="03.03.01.03" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              </ConditionsBlocks>
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10008</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId>10001</ParentId>
+          <Title>04_Инженерные сети</Title>
+          <ConditionBlock Type="Block">
+            <Condition FieldIsNumeric="false" TextSpaceSensitive="true" IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10009</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId>10008</ParentId>
+          <Title>04.02_Системы вентиляции</Title>
+          <ConditionBlock Type="Block">
+            <Condition FieldIsNumeric="false" TextSpaceSensitive="true" IsUndefinedFieldName="false" />
+            <ConditionsBlocks />
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10010</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId>10009</ParentId>
+          <Title>04.02.01_Воздуховоды</Title>
+          <ConditionBlock Type="Block" LogicalOperator="Or">
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Категория:\" FieldIsNumeric="false" Value="Воздуховоды" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="CADLib.Param.Экспликация.EXPLICATION_COMMENT" FieldIsNumeric="false" Value="IfcDuctSegment" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Value="04.02.01.01" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  <ConditionsBlock>
+                    <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Value="04.02.01.02" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  <ConditionsBlock>
+                    <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Value="04.02.01.07" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              </ConditionsBlocks>
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10011</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId>10009</ParentId>
+          <Title>04.02.03_Материалы изоляции воздуховодов</Title>
+          <ConditionBlock Type="Block" LogicalOperator="Or">
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Категория:\" FieldIsNumeric="false" Value="Изоляция воздуховодов" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="CADLib.Param.Экспликация.EXPLICATION_COMMENT" FieldIsNumeric="false" Value="IfcCovering" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Value="04.02.03.01" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              </ConditionsBlocks>
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10012</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId>10009</ParentId>
+          <Title>04.02.04_Воздухораспределительные устройства</Title>
+          <ConditionBlock Type="Block" LogicalOperator="Or">
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Категория:\" FieldIsNumeric="false" Value="Воздухораспределители" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="CADLib.Param.Экспликация.EXPLICATION_COMMENT" FieldIsNumeric="false" Value="IfcAirTerminal" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Value="04.02.04.03" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  <ConditionsBlock>
+                    <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Value="04.02.04.04" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              </ConditionsBlocks>
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="SetExportProfileItem">
+          <Id>10013</Id>
+          <IsFolder>true</IsFolder>
+          <ParentId>10009</ParentId>
+          <Title>04.02.05_Арматура воздуховодов</Title>
+          <ConditionBlock Type="Block" LogicalOperator="Or">
+            <Condition IsUndefinedFieldName="false" />
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Категория:\" FieldIsNumeric="false" Value="Арматура воздуховодов" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="CADLib.Param.Экспликация.EXPLICATION_COMMENT" FieldIsNumeric="false" Value="IfcDuctFitting" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              <ConditionsBlock Type="Block" LogicalOperator="Or">
+                <Condition IsUndefinedFieldName="false" />
+                <ConditionsBlocks>
+                  <ConditionsBlock>
+                    <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Value="04.02.05.01" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  <ConditionsBlock>
+                    <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Value="04.02.05.03" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  <ConditionsBlock>
+                    <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Value="04.02.05.05" IsUndefinedFieldName="false" />
+                    <ConditionsBlocks />
+                    </ConditionsBlock>
+                  </ConditionsBlocks>
+                </ConditionsBlock>
+              </ConditionsBlocks>
+            </ConditionBlock>
+          </BaseExportProfileItem>
+        </ProfileItems>
+      </BaseExportProfile>
+    </Profiles>
+  </ExportProfilesCollection>

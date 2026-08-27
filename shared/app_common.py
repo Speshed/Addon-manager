@@ -3,8 +3,6 @@ import sys
 import os
 import importlib
 import importlib.util
-import urllib.request
-import urllib.error
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGraphicsDropShadowEffect, QPushButton, QFileDialog, QMessageBox, QLineEdit, QStyle,
 )
@@ -16,7 +14,10 @@ from shared.theme_toggle import (
     load_saved_theme, enable_theme_sync, set_back_to_menu_callback,
     apply_dark_titlebar,
 )
-from shared.dialogs import show_dialog, wire_message_box_buttons
+from shared.dialogs import show_dialog, wire_message_box_buttons, warning_box, critical_box, information_box
+from shared.larix_api import normalize_base_url as _larix_normalize_base_url, check_connection as _larix_check_connection
+from shared.version import APP_VERSION, APP_VERSION_DATE, VERSION_HISTORY
+from shared.version_dialog import VersionHistoryWidget
 
 if getattr(sys, 'frozen', False):
     BASE_DIR = sys._MEIPASS
@@ -26,8 +27,6 @@ else:
 ICON_DIR = os.path.join(BASE_DIR, "icon")
 LOGO_LIGHT_REL = os.path.join("icon", "Manager-scaled.png")
 LOGO_DARK_REL = os.path.join("icon", "Manager-scaled_white.png")
-VIEWER_LOGO_LIGHT_REL = os.path.join("icon", "Larix Viewer_black.png")
-VIEWER_LOGO_DARK_REL = os.path.join("icon", "Larix Viewer_white.png")
 TITLEBAR_ICON_REL = os.path.join("icon", "logo.ico")
 DEFAULT_API_BASE_URL = "http://localhost:5000"
 _ACTIVE_API_CHECK_THREADS = set()
@@ -50,7 +49,7 @@ def _popup_error(parent, text: str, title: str = "Ошибка"):
         show_dialog(msg, modal=True)
     except Exception:
         try:
-            QMessageBox.critical(parent, title, text)
+            critical_box(parent, text, title)
         except Exception:
             pass
 
@@ -72,7 +71,7 @@ def _popup_info(parent, text: str, title: str = "Информация"):
         show_dialog(msg, modal=True)
     except Exception:
         try:
-            QMessageBox.information(parent, title, text)
+            information_box(parent, text, title)
         except Exception:
             pass
 
@@ -145,30 +144,12 @@ def _shutdown_api_check_threads() -> None:
 
 
 def _normalize_api_base_url(url: str) -> str:
-    s = (url or "").strip()
-    if not s:
-        return DEFAULT_API_BASE_URL
-    if "://" not in s:
-        s = "http://" + s
-    return s.rstrip("/")
+    return _larix_normalize_base_url(url or DEFAULT_API_BASE_URL)
 
 
 def _check_api_connection(base_url: str, timeout_sec: float = 2.0) -> bool:
-    test_urls = [
-        f"{base_url}/api/project/projects",
-        f"{base_url}/health",
-        f"{base_url}/api/health",
-    ]
-    for u in test_urls:
-        try:
-            req = urllib.request.Request(u, method="GET")
-            with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
-                code = int(getattr(resp, "status", 0) or 0)
-                if 200 <= code < 400:
-                    return True
-        except Exception:
-            pass
-    return False
+    # Current EST.WebApi: /getApiVersion is public, then /auth must succeed.
+    return _larix_check_connection(base_url, timeout=timeout_sec, require_auth=True)
 
 
 class ApiCheckWorker(QObject):
@@ -194,13 +175,6 @@ def get_logo_path(is_dark=False):
     fallback_name = "logo_white" if is_dark else "logo"
     return resolve_icon_path(fallback_name, ICON_DIR, app=app, tint_in_dark=False) or ""
 
-
-def get_viewer_logo_path(is_dark=False):
-    rel = VIEWER_LOGO_DARK_REL if is_dark else VIEWER_LOGO_LIGHT_REL
-    direct = os.path.join(BASE_DIR, rel)
-    if os.path.exists(direct):
-        return direct
-    return ""
 
 
 def _trim_transparent_pixmap(pm: QPixmap) -> QPixmap:
@@ -508,11 +482,12 @@ class ModeCard(QFrame):
 class AppMenuWidget(QWidget):
     mode_selected = Signal(str)
     api_base_changed = Signal(str)
+    version_requested = Signal()
 
     def __init__(self, *, is_dark=False, api_base_url=DEFAULT_API_BASE_URL,
                  cards_data=None, logo_func=None, logo_height=64,
-                 app_version="1.0.0", app_version_date="",
-                 app_version_changes=None,
+                 app_version=APP_VERSION, app_version_date=APP_VERSION_DATE,
+                 app_version_history=None,
                  show_template_download=False, parent=None):
         super().__init__(parent)
         self._is_dark = is_dark
@@ -531,7 +506,7 @@ class AppMenuWidget(QWidget):
         self._logo_height = logo_height
         self._app_version = app_version
         self._app_version_date = app_version_date
-        self._app_version_changes = app_version_changes or []
+        self._app_version_history = tuple(VERSION_HISTORY if app_version_history is None else app_version_history)
         self._show_template_download = show_template_download
         self._cards = []
         self._setup_ui()
@@ -555,7 +530,7 @@ class AppMenuWidget(QWidget):
         self._update_logo()
         main_layout.addWidget(self._logo_label)
 
-        title_label = QLabel("Выберите режим работы")
+        title_label = QLabel("Выберите раздел")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("font-size: 14pt; font-weight: 600;")
         main_layout.addWidget(title_label)
@@ -617,7 +592,7 @@ class AppMenuWidget(QWidget):
         self._version_link.setTextInteractionFlags(Qt.TextBrowserInteraction)
         self._version_link.setOpenExternalLinks(False)
         self._version_link.setCursor(QCursor(Qt.PointingHandCursor))
-        self._version_link.linkActivated.connect(lambda _link: self._download_version_info())
+        self._version_link.linkActivated.connect(lambda _link: self.version_requested.emit())
         version_row.addWidget(self._version_link, 0, Qt.AlignRight | Qt.AlignBottom)
         main_layout.addLayout(version_row)
         self._update_version_link_style()
@@ -719,7 +694,7 @@ class AppMenuWidget(QWidget):
         if ok:
             self.api_base_changed.emit(value)
         elif not self._api_check_silent:
-            QMessageBox.warning(self, "Сервер API", f"Не удалось подключиться к {value}")
+            warning_box(self, f"Не удалось подключиться к {value}", "Сервер API")
 
     def _on_api_check_timeout(self):
         if not self._api_check_busy:
@@ -807,6 +782,14 @@ class AppMenuWidget(QWidget):
             card.set_selected(card.mode_id == mode_id)
         QTimer.singleShot(150, lambda: self.mode_selected.emit(mode_id))
 
+    def clear_selection(self):
+        """Clear the highlighted card when returning to the main menu."""
+        for card in self._cards:
+            try:
+                card.set_selected(False)
+            except Exception:
+                pass
+
     def _download_template(self):
         try:
             from shared.excel_template import export_common_excel
@@ -826,35 +809,15 @@ class AppMenuWidget(QWidget):
         except Exception as e:
             _popup_error(self, str(e))
 
-    def _build_version_info_text(self) -> str:
-        lines = [f"Версия {self._app_version} от {self._app_version_date}"]
-        lines.extend(f"- {item}" for item in self._app_version_changes)
-        return "\n".join(lines) + "\n"
-
-    def _download_version_info(self):
-        default_name = f"Версия {self._app_version}.txt"
-        fn, _ = QFileDialog.getSaveFileName(
-            self, "Сохранить описание обновления", default_name, "Текстовые файлы (*.txt)",
-        )
-        if not fn:
-            return
-        if not fn.lower().endswith(".txt"):
-            fn += ".txt"
-        try:
-            with open(fn, "w", encoding="utf-8") as f:
-                f.write(self._build_version_info_text())
-            _popup_info(self, f"Описание обновления сохранено:\n{fn}", "Готово")
-        except Exception as e:
-            _popup_error(self, f"Не удалось сохранить описание обновления:\n{e}")
 
 
 class AppMainWindow(QMainWindow):
     def __init__(self, *, app_title="Larix",
                  cards_data=None, logo_func=None, logo_height=64,
-                 module_loaders=None, bim_sync=False,
+                 module_loaders=None, module_titles=None,
                  show_template_download=False,
-                 app_version="1.0.0", app_version_date="",
-                 app_version_changes=None,
+                 app_version=APP_VERSION, app_version_date=APP_VERSION_DATE,
+                 app_version_history=None,
                  skip_menu=False):
         super().__init__()
         self._app_title = app_title
@@ -862,11 +825,11 @@ class AppMainWindow(QMainWindow):
         self._logo_func = logo_func or get_logo_path
         self._logo_height = logo_height
         self._module_loaders = module_loaders or {}
-        self._bim_sync = bim_sync
+        self._module_titles = dict(module_titles or {})
         self._show_template_download = show_template_download
         self._app_version = app_version
         self._app_version_date = app_version_date
-        self._app_version_changes = app_version_changes or []
+        self._app_version_history = tuple(VERSION_HISTORY if app_version_history is None else app_version_history)
         self._skip_menu = bool(skip_menu)
         self._is_dark = load_saved_theme(False)
         self._api_base_url = _normalize_api_base_url(
@@ -875,6 +838,9 @@ class AppMainWindow(QMainWindow):
         os.environ["LARIX_API_BASE_URL"] = self._api_base_url
         self._current_module_window = None
         self._current_module_widget = None
+        # The main menu is intentionally persistent. Reusing the same widget
+        # avoids rebuilding icons, controls and API state on every Back click.
+        self._menu_widget = None
 
         try:
             app = QApplication.instance()
@@ -908,11 +874,9 @@ class AppMainWindow(QMainWindow):
         except Exception:
             pass
 
-    def _show_main_menu(self):
-        if self._current_module_widget is not None:
-            self._current_module_widget = None
-        self._current_module_window = None
-        self.setWindowTitle(self._app_title)
+    def _ensure_main_menu(self):
+        if self._menu_widget is not None:
+            return self._menu_widget
 
         menu = AppMenuWidget(
             is_dark=self._is_dark,
@@ -922,19 +886,76 @@ class AppMainWindow(QMainWindow):
             logo_height=self._logo_height,
             app_version=self._app_version,
             app_version_date=self._app_version_date,
-            app_version_changes=self._app_version_changes,
+            app_version_history=self._app_version_history,
             show_template_download=self._show_template_download,
             parent=self,
         )
         menu.mode_selected.connect(self._on_mode_selected)
         menu.api_base_changed.connect(self._on_api_base_changed)
+        menu.version_requested.connect(self._show_version_history)
         if hasattr(menu, 'theme_toggle'):
             menu.theme_toggle.toggled.connect(self._on_theme_toggled)
-        self.setCentralWidget(menu)
         self._menu_widget = menu
+        return menu
+
+    def _take_current_page(self):
+        """Detach the current page so QMainWindow does not delete it implicitly."""
+        try:
+            if self.centralWidget() is not None:
+                return self.takeCentralWidget()
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _dispose_page_later(widget):
+        if widget is None:
+            return
+        try:
+            widget.hide()
+        except Exception:
+            pass
+        try:
+            QTimer.singleShot(0, widget.deleteLater)
+        except Exception:
+            try:
+                widget.deleteLater()
+            except Exception:
+                pass
+
+    def _show_main_menu(self):
+        menu = self._ensure_main_menu()
+        current = self.centralWidget()
+
+        # Preserve the already-built menu. Any temporary module/history page is
+        # detached first and destroyed only after the menu is visible again.
+        old_page = None
+        if current is not menu:
+            old_page = self._take_current_page()
+            self.setCentralWidget(menu)
+
+        try:
+            menu.clear_selection()
+        except Exception:
+            pass
+        menu.show()
+        menu.raise_()
+        self.setWindowTitle(self._app_title)
         self.setMinimumSize(860, 640)
         self.resize(920, 700)
         self._center_on_screen()
+
+        # Force the ready menu to paint before releasing the previous page.
+        try:
+            menu.update()
+            QApplication.processEvents()
+        except Exception:
+            pass
+
+        self._current_module_widget = None
+        self._current_module_window = None
+        if old_page is not None and old_page is not menu:
+            self._dispose_page_later(old_page)
 
     def _on_theme_toggled(self, dark: bool):
         self._is_dark = dark
@@ -950,10 +971,23 @@ class AppMainWindow(QMainWindow):
         self._api_base_url = _normalize_api_base_url(value)
         os.environ["LARIX_API_BASE_URL"] = self._api_base_url
 
+    def _show_version_history(self):
+        self._current_module_widget = None
+        self._current_module_window = None
+        old_page = self._take_current_page()
+        page = VersionHistoryWidget(self._app_version_history, self)
+        page.back_requested.connect(self._show_main_menu)
+        self.setCentralWidget(page)
+        self.setWindowTitle(f"{self._app_title} — История версий")
+        self.setMinimumSize(760, 560)
+        self.resize(920, 700)
+        self._center_on_screen()
+
+        # The persistent main menu must never be deleted here.
+        if old_page is not None and old_page is not self._menu_widget:
+            self._dispose_page_later(old_page)
+
     def _on_mode_selected(self, mode_id: str):
-        if mode_id == "bim_sync" and self._bim_sync:
-            self._open_bim_sync_dialog()
-            return
         self._load_module(mode_id)
 
     def _load_module(self, mode_id: str):
@@ -979,22 +1013,27 @@ class AppMainWindow(QMainWindow):
             return
 
         self._current_module_widget = widget
+        old_page = self._take_current_page()
         self.setCentralWidget(widget)
 
-        module_titles = {}
-        for mid, (md, mf, ms, _) in self._module_loaders.items():
-            module_titles[mid] = f"Larix — {mid.replace('_', ' ').title()}"
-        module_titles["bim_sync"] = "Larix — Элементы"
-        title = module_titles.get(mode_id, self._app_title)
-        try:
-            win = self._current_module_window
-            if win is not None:
-                wt = (win.windowTitle() or "").strip()
-                if wt:
-                    title = wt
-        except Exception:
-            pass
-        self.setWindowTitle(title)
+        # The main menu remains alive in memory for an instant Back transition.
+        if old_page is not None and old_page is not self._menu_widget:
+            self._dispose_page_later(old_page)
+
+        # Prefer explicit, user-facing section titles supplied by the application.
+        # Falling back to the module window title is kept for reusable/third-party modules.
+        title = self._module_titles.get(mode_id)
+        if not title:
+            title = f"Larix — {mode_id.replace('_', ' ').title()}"
+            try:
+                win = self._current_module_window
+                if win is not None:
+                    wt = (win.windowTitle() or "").strip()
+                    if wt:
+                        title = wt
+            except Exception:
+                pass
+        self.setWindowTitle(title or self._app_title)
 
         target_w, target_h = 1120, 760
         min_w, min_h = 900, 620
@@ -1014,72 +1053,3 @@ class AppMainWindow(QMainWindow):
         self.setMinimumSize(max(760, min_w), max(560, min_h))
         self.resize(max(900, target_w), max(620, target_h))
         self._center_on_screen()
-
-    def _open_bim_sync_dialog(self):
-        try:
-            ModeSelectWidget = _load_symbol_from_dir("Sync", "ui", "ModeSelectWidget")
-            widget = ModeSelectWidget(is_dark=self._is_dark, parent=self)
-            widget.mode_selected.connect(self._on_bim_sync_mode_selected)
-            widget.back_requested.connect(self._show_main_menu)
-
-            self._current_module_widget = widget
-            self._current_module_window = None
-            self.setCentralWidget(widget)
-            self.setWindowTitle("Larix — Элементы")
-            self.setMinimumSize(600, 400)
-            self.resize(700, 500)
-            self._center_on_screen()
-        except Exception as e:
-            _popup_error(self, f"Не удалось открыть Элементы:\n{e}")
-
-    def _on_bim_sync_mode_selected(self, mode_id):
-        try:
-            mode_id = str(mode_id or "").strip().lower()
-            if not mode_id:
-                return
-
-            self._is_dark = bool(getattr(self._current_module_widget, "is_dark", self._is_dark))
-
-            if mode_id == "powerbi":
-                WindowClass = _load_symbol_from_dir("Sync", "ui", "PowerBiExportWindow")
-                win = WindowClass("csv")
-            elif mode_id == "parquet":
-                WindowClass = _load_symbol_from_dir("Sync", "ui", "PowerBiExportWindow")
-                win = WindowClass("parquet")
-            elif mode_id == "sqlite":
-                WindowClass = _load_symbol_from_dir("Sync", "ui", "PowerBiExportWindow")
-                win = WindowClass("sqlite")
-            else:
-                WindowClass = _load_symbol_from_dir("Sync", "ui", "BimSyncWindow")
-                win = WindowClass()
-
-            if self._is_dark and hasattr(win, "_toggle_theme"):
-                win._toggle_theme(True)
-                if hasattr(win, "theme_toggle"):
-                    win.theme_toggle.setChecked(True)
-
-            if hasattr(win, "back_requested"):
-                win.back_requested.connect(self._on_bim_sync_back)
-
-            widget = win.takeCentralWidget() if hasattr(win, "takeCentralWidget") else None
-            if widget is None:
-                widget = win.centralWidget()
-            if widget is None:
-                _popup_error(self, "Не удалось загрузить интерфейс Элементы.")
-                return
-
-            self._current_module_widget = widget
-            self._current_module_window = win
-            self.setCentralWidget(widget)
-            self.setWindowTitle((win.windowTitle() or "Larix — Элементы").strip())
-            try:
-                self.setMinimumSize(win.minimumSize())
-                self.resize(win.size())
-            except Exception:
-                pass
-            self._center_on_screen()
-        except Exception as e:
-            _popup_error(self, f"Не удалось загрузить режим Элементы:\n{e}")
-
-    def _on_bim_sync_back(self):
-        self._open_bim_sync_dialog()

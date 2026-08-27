@@ -17,7 +17,6 @@ import tempfile
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Tuple
 
-import requests
 
 try:
     import openpyxl
@@ -54,6 +53,12 @@ except Exception:
     PYSIDE = False
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
+APP_ROOT_DIR = os.path.dirname(APP_DIR)
+if APP_ROOT_DIR not in sys.path:
+    sys.path.insert(0, APP_ROOT_DIR)
+from shared.larix_api import get_api_client, normalize_base_url
+from shared.dialogs import critical_box, warning_box, information_box
+
 ICON_DIR = os.path.join(APP_DIR, "icon")
 LOGO_ICO_PATH = os.path.join(ICON_DIR, "logo.ico")
 
@@ -627,7 +632,7 @@ if PYSIDE:
             self._icon_dir = icon_dir
             self.setCursor(QtCore.Qt.PointingHandCursor)
             self.setFocusPolicy(QtCore.Qt.NoFocus)
-            self.setToolTip("Toggle theme")
+            self.setToolTip("Переключить тему")
             self.setMinimumSize(58, 26)
             self.setMaximumHeight(28)
             self._anim = QtCore.QPropertyAnimation(self, b"anim_t", self)
@@ -759,29 +764,16 @@ else:
 # ============================================================================
 
 # Базовый URL API по умолчанию
-INTERNAL_BASE_URL = "http://localhost:5000/api"
-
-# Заголовки HTTP запросов по умолчанию
-INTERNAL_HEADERS = {"accept": "*/*", "Content-Type": "application/json"}
+INTERNAL_BASE_URL = "http://localhost:5000"
 
 # URL эндпоинтов API
-INTERNAL_PROJECTS_URL = "/project/projects"
-INTERNAL_CONTAINERS_URL = "/imcContainer/getProjectImcContainers/{project_id}"
-INTERNAL_ELEMENTS_URL = "/imcElement/imcElements/{container_id}"
-INTERNAL_PARAM_DEFS_URL = "/imcParameterDefinition/imcParameterDefinitions"
-INTERNAL_PARAM_DEF_CREATE_URL = "/imcParameterDefinition/imcParameterDefinition"
-INTERNAL_PARAM_VALUES_URL = "/imcParameterValue/setAlternateValueByElements"
-INTERNAL_PARAM_VALUES_GET_URL = "/imcParameterValue/imcParameterValues/{element_id}"
-
-# ============================================================================
-# КОНСТАНТЫ ДЛЯ ПАРАМЕТРОВ
-# ============================================================================
-
-# Значение layer для создания параметра
-PARAMETER_LAYER = 2
-
-# Значение reportColumnType для создания параметра
-PARAMETER_REPORT_COLUMN_TYPE = 3
+INTERNAL_PROJECTS_URL = "/api/project/projects"
+INTERNAL_CONTAINERS_URL = "/api/imcContainer/getProjectImcContainers/{project_id}"
+INTERNAL_ELEMENTS_URL = "/api/imcElement/imcElements/{container_id}"
+INTERNAL_PARAM_DEFS_URL = "/api/imcParameterDefinition/imcParameterDefinitions/"
+INTERNAL_PARAM_DEF_CREATE_URL = "/api/imcParameterDefinition/imcParameterDefinition/"
+INTERNAL_PARAM_VALUES_URL = "/api/imcParameterValue/setAlternateValueByElements/"
+INTERNAL_PARAM_VALUES_GET_URL = "/api/imcParameterValue/imcParameterValues/{element_id}"
 
 # ============================================================================
 # РЕГУЛЯРНЫЕ ВЫРАЖЕНИЯ
@@ -792,14 +784,7 @@ _GUID_SUFFIX_RE = re.compile(r"^[0-9a-fA-F-]{36}-[0-9a-fA-F]{8}$")
 
 
 def _normalize_base_url(raw: str) -> str:
-    value = (raw or "").strip()
-    if not value:
-        return INTERNAL_BASE_URL
-    if value.isdigit():
-        return f"http://localhost:{value}/api"
-    if value.startswith("http://") or value.startswith("https://"):
-        return value.rstrip("/")
-    return f"http://{value}".rstrip("/")
+    return normalize_base_url(raw or INTERNAL_BASE_URL)
 
 
 def _set_internal_base_url(raw: str) -> None:
@@ -881,51 +866,23 @@ class ReportData:
 
 
 def api_get(url: str, headers: Dict[str, str], params: Optional[Dict[str, str]] = None, timeout: int = 10):
-    """
-    Выполняет GET запрос к API.
-
-    Args:
-        url: Полный URL запроса
-        headers: Заголовки HTTP запроса
-        params: Параметры запроса (query string)
-        timeout: Таймаут в секундах
-
-    Returns:
-        Распарсенный JSON ответ или None при ошибке
-
-    Побочные эффекты:
-        Нет
-    """
+    """Выполняет авторизованный GET через текущий EST.WebApi."""
     try:
-        # Отправляем GET запрос к API
-        r = requests.get(url, headers=headers, params=params, timeout=timeout)
-        r.raise_for_status()  # Вызывает исключение при статусе != 2xx
+        r = get_api_client(INTERNAL_BASE_URL).request(
+            "GET", url, params=params, timeout=timeout
+        )
+        r.raise_for_status()
         return r.json()
     except Exception:
         return None
 
 
 def api_post_json(url: str, headers: Dict[str, str], payload: Dict, timeout: int = 20) -> Tuple[bool, str]:
-    """
-    Выполняет POST запрос к API с JSON payload.
-
-    Args:
-        url: Полный URL запроса
-        headers: Заголовки HTTP запроса
-        payload: Данные для отправки в теле запроса (будут сериализованы в JSON)
-        timeout: Таймаут в секундах
-
-    Returns:
-        Кортеж (success, error_message):
-        - success: True если запрос успешен (статус 200, 201 или 204), иначе False
-        - error_message: Пустая строка при успехе, иначе текст ошибки
-
-    Побочные эффекты:
-        Отправляет HTTP запрос к серверу
-    """
+    """Выполняет авторизованный POST JSON через текущий EST.WebApi."""
     try:
-        # Отправляем POST запрос с JSON payload
-        r = requests.post(url, headers=headers, data=json.dumps(payload, ensure_ascii=False), timeout=timeout)
+        r = get_api_client(INTERNAL_BASE_URL).request(
+            "POST", url, json=payload, timeout=timeout
+        )
         if r.status_code in (200, 201, 204):
             return True, ""
         return False, r.text
@@ -1157,36 +1114,27 @@ def _find_parameter_code_in_system(code_normalized: str, params: List[Dict]) -> 
     Учитывает вариант с ведущим слешем и без него.
     Возвращает код который реально есть в системе.
     """
-    print(f"🔍 Поиск параметра в системе: {repr(code_normalized)}")
     
     # Сначала ищем точное совпадение
     for p in params:
         if p.get("code") == code_normalized:
-            print(f"   ✅ Найден точное совпадение: {repr(code_normalized)}")
             return code_normalized
     
     # Если код начинается с \, ищем без слеша
     if code_normalized.startswith("\\"):
         code_without_slash = code_normalized[1:]
-        print(f"   Проверяем вариант без слеша: {repr(code_without_slash)}")
         for p in params:
             if p.get("code") == code_without_slash:
-                print(f"   ✅ Найден вариант без слеша: {repr(code_without_slash)}")
                 return code_without_slash
-        print(f"   ❌ Вариант без слеша не найден")
     
     # Если код НЕ начинается с \, ищем со слешем
     if not code_normalized.startswith("\\"):
         code_with_slash = "\\" + code_normalized
-        print(f"   Проверяем вариант со слешем: {repr(code_with_slash)}")
         for p in params:
             if p.get("code") == code_with_slash:
-                print(f"   ✅ Найден вариант со слешем: {repr(code_with_slash)}")
                 return code_with_slash
-        print(f"   ❌ Вариант со слешем не найден")
     
     # Не нашли - возвращаем исходный
-    print(f"   ❌ Параметр не найден, возвращаем исходный: {repr(code_normalized)}")
     return code_normalized
 
 
@@ -1251,10 +1199,6 @@ def read_excel_payload(excel_path: str) -> Tuple[List[Change], List[ParameterDef
                 type_value = str(row[data_type_idx] or "").strip().lower()
                 is_numeric = type_value in ("число", "числовой", "numeric", "number", "integer", "int", "float", "double", "decimal")
             
-            # Лог нормализации (для диагностики)
-            if code_raw != code:
-                print(f"🔄 Normalized code: {repr(code_raw)} -> {repr(code)}")
-            
             if not elem_id or not code:
                 continue
             changes.append(Change(identifier=elem_id, code=code, old_value="", new_value=new_value, is_numeric=is_numeric, uom=""))
@@ -1270,10 +1214,6 @@ def read_excel_payload(excel_path: str) -> Tuple[List[Change], List[ParameterDef
             code_raw = str(row[param_idx] or "")
             code = _normalize_parameter_code(code_raw)
             new_value = str(row[value_idx] or "").strip()
-            
-            # Лог нормализации
-            if code_raw != code:
-                print(f"🔄 Normalized code: {repr(code_raw)} -> {repr(code)}")
             
             if not elem_id or not code:
                 continue
@@ -1304,10 +1244,6 @@ def read_excel_payload(excel_path: str) -> Tuple[List[Change], List[ParameterDef
         if numeric_idx is not None:
             type_value = str(row[numeric_idx] or "").strip().lower()
             is_numeric = type_value in ("число", "числовой", "numeric", "number", "integer", "int", "float", "double", "decimal")
-        
-        # Лог нормализации
-        if code_raw != code:
-            print(f"🔄 Normalized code: {repr(code_raw)} -> {repr(code)}")
         
         if not title:
             title = f"Created from Excel: {code}"
@@ -1555,66 +1491,45 @@ def ensure_parameter_definition(container_id: int, code: str, element_ids: List[
     Создает параметр если его нет в системе.
     Использует нормализованный code и корректный payload.
     """
-    print("=" * 80)
-    print(f"📋 СОЗДАНИЕ ПАРАМЕТРА")
-    print("=" * 80)
     
     # 1. Валидация входных данных
     is_valid, error_msg, normalized_value = _validate_parameter_payload(code, is_numeric, value, element_ids)
     if not is_valid:
-        print(f"❌ Ошибка валидации: {error_msg}")
-        print(f"   Code: {repr(code)}")
-        print(f"   isNumeric: {is_numeric}")
-        print(f"   Value: {repr(value)}")
-        print(f"   Element IDs: {element_ids}")
-        print("=" * 80)
         return False, error_msg
     
     # 2. Проверяем существование параметра в кэше
     if code in existing_codes:
-        print(f"📌 Параметр '{code}' уже существует в existing_codes")
-        print("=" * 80)
         return True, ""
     
     # 3. Загружаем параметры из API
     params = api_get(
-        f"{INTERNAL_BASE_URL}/imcParameterDefinition/imcParameterDefinitions",
+        f"{INTERNAL_BASE_URL}/api/imcParameterDefinition/imcParameterDefinitions/",
         {"accept": "application/json"},
         {"containerIds": container_id}
     ) or []
     
-    print(f"🔢 Всего параметров в контейнере {container_id}: {len(params)}")
     
     # 4. Находим реальный код параметра в системе (учитывая ведущий слеш)
     real_code = _find_parameter_code_in_system(code, params)
     
     if real_code in existing_codes:
-        print(f"📌 Параметр '{real_code}' уже существует в existing_codes (реальный код)")
-        print("=" * 80)
         return True, ""
     
     if any(p.get("code") == real_code for p in params):
-        print(f"📌 Параметр '{real_code}' уже существует в API (пропускаем создание)")
-        print(f"   Исходный код: {repr(code)}")
-        print(f"   Реальный код: {repr(real_code)}")
-        print("=" * 80)
         existing_codes.add(real_code)
         return True, ""
     
     # 5. Формируем payload - КОРРЕКТНО
     # ИСПОЛЬЗУЕМ real_code для создания, чтобы совпадало с существующими параметрами
     create_data = {
-        "code": real_code,
-        "isNumeric": is_numeric,
-        "layer": PARAMETER_LAYER,
-        "reportColumnType": PARAMETER_REPORT_COLUMN_TYPE,
-        "title": "Создан через Excel",
         "elementMaps": [
             {
-                "containerId": container_id,
-                "elementIds": element_ids
+                "containerId": int(container_id),
+                "elementIds": [int(element_id) for element_id in element_ids],
             }
-        ]
+        ],
+        "code": real_code,
+        "isNumeric": bool(is_numeric),
     }
     
     # Добавляем только нужное поле значения
@@ -1628,42 +1543,25 @@ def ensure_parameter_definition(container_id: int, code: str, element_ids: List[
         create_data["uom"] = uom.strip()
     
     # 6. Диагностический лог
-    print(f"   Code (из Excel): {repr(code)}")
-    print(f"   Real code (для создания): {repr(real_code)}")
-    print(f"   Коды совпадают? {code == real_code}")
-    print(f"   isNumeric: {is_numeric}")
-    print(f"   Value: {repr(normalized_value)}")
-    print(f"   Container ID: {container_id}")
-    print(f"   Element IDs: {element_ids}")
-    print(f"   Payload: {json.dumps(create_data, ensure_ascii=False, indent=2)}")
     
     # 7. Отправляем запрос
     try:
-        create_resp = requests.post(
-            f"{INTERNAL_BASE_URL}{INTERNAL_PARAM_DEF_CREATE_URL}",
-            headers={"Content-Type": "application/json"},
-            data=json.dumps(create_data, ensure_ascii=False)
+        create_resp = get_api_client(INTERNAL_BASE_URL).request(
+            "POST",
+            INTERNAL_PARAM_DEF_CREATE_URL,
+            json=create_data,
+            timeout=20,
         )
         
-        print(f"   Status: {create_resp.status_code}")
         
         if create_resp.status_code in (200, 201):
-            print(f"✅ Параметр '{real_code}' создан успешно")
             # Добавляем В ОБА кода (нормализованный и реальный)
             existing_codes.add(real_code)
             existing_codes.add(code)
-            print(f"   Добавлен в existing_codes: {repr(real_code)}")
-            print("=" * 80)
             return True, ""
         else:
-            print(f"❌ Ошибка создания параметра '{real_code}':")
-            print(f"   Status: {create_resp.status_code}")
-            print(f"   Response: {create_resp.text}")
-            print("=" * 80)
             return False, f"Status {create_resp.status_code}: {create_resp.text}"
     except Exception as exc:
-        print(f"❌ Исключение при создании параметра '{real_code}': {exc}")
-        print("=" * 80)
         return False, str(exc)
 
 
@@ -1678,51 +1576,24 @@ def update_parameter_values(
     Обновляет значение параметра для указанных элементов.
     Использует setAlternateValueByElements.
     """
-    print("=" * 80)
-    print(f"🔄 ОБНОВЛЕНИЕ ЗНАЧЕНИЯ ПАРАМЕТРА")
-    print("=" * 80)
     
     # 1. Валидация
     is_valid, error_msg, normalized_value = _validate_parameter_payload(code, is_numeric, value, element_ids)
     if not is_valid:
-        print(f"❌ Ошибка валидации: {error_msg}")
-        print(f"   Code: {repr(code)}")
-        print(f"   isNumeric: {is_numeric}")
-        print(f"   Value: {repr(value)}")
-        print(f"   Element IDs: {element_ids}")
-        print("=" * 80)
         return False, error_msg
     
     # 2. Проверяем что параметр существует
     params = api_get(
-        f"{INTERNAL_BASE_URL}/imcParameterDefinition/imcParameterDefinitions",
+        f"{INTERNAL_BASE_URL}/api/imcParameterDefinition/imcParameterDefinitions/",
         {"accept": "application/json"},
         {"containerIds": container_id}
     ) or []
     
-    print(f"📊 Всего параметров в контейнере {container_id}: {len(params)}")
-    print(f"🔍 Ищем код: {repr(code)}")
-    
-    # Показываем первые 5 параметров для диагностики
-    if params and len(params) <= 10:
-        print(f"📋 Все параметры:")
-        for p in params:
-            print(f"   - code={repr(p.get('code'))}, isNumeric={p.get('isNumeric')}")
-    elif params:
-        print(f"📋 Первые 5 параметров:")
-        for p in params[:5]:
-            print(f"   - code={repr(p.get('code'))}, isNumeric={p.get('isNumeric')}")
     
     real_code = _find_parameter_code_in_system(code, params)
     
-    print(f"🎯 Найден реальный код: {repr(real_code)}")
-    print(f"   Совпадает с искомым? {real_code == code}")
     
     if not any(p.get("code") == real_code for p in params):
-        print(f"❌ Параметр '{real_code}' не существует в контейнере {container_id}")
-        print(f"   Исходный код: {repr(code)}")
-        print(f"   Реальный код: {repr(real_code)}")
-        print("=" * 80)
         return False, f"Parameter '{real_code}' not found"
     
     # 3. Формируем payload
@@ -1744,37 +1615,22 @@ def update_parameter_values(
         update_data["stringValue"] = normalized_value
     
     # 4. Диагностический лог
-    print(f"   Code: {repr(code)}")
-    print(f"   Real code (from API): {repr(real_code)}")
-    print(f"   isNumeric: {is_numeric}")
-    print(f"   Value: {repr(normalized_value)}")
-    print(f"   Container ID: {container_id}")
-    print(f"   Element IDs: {element_ids}")
-    print(f"   Payload: {json.dumps(update_data, ensure_ascii=False, indent=2)}")
     
     # 5. Отправляем запрос
     try:
-        update_resp = requests.post(
-            f"{INTERNAL_BASE_URL}{INTERNAL_PARAM_VALUES_URL}",
-            headers=INTERNAL_HEADERS,
-            data=json.dumps(update_data, ensure_ascii=False)
+        update_resp = get_api_client(INTERNAL_BASE_URL).request(
+            "POST",
+            INTERNAL_PARAM_VALUES_URL,
+            json=update_data,
+            timeout=20,
         )
         
-        print(f"   Status: {update_resp.status_code}")
         
         if update_resp.status_code in (200, 201):
-            print(f"✅ Значение параметра '{real_code}' обновлено")
-            print("=" * 80)
             return True, ""
         else:
-            print(f"❌ Ошибка обновления параметра '{real_code}':")
-            print(f"   Status: {update_resp.status_code}")
-            print(f"   Response: {update_resp.text}")
-            print("=" * 80)
             return False, f"Status {update_resp.status_code}: {update_resp.text}"
     except Exception as exc:
-        print(f"❌ Исключение при обновлении параметра '{real_code}': {exc}")
-        print("=" * 80)
         return False, str(exc)
 
 
@@ -1814,45 +1670,22 @@ def create_parameter_definition_from_table(
     param_def: ParameterDef,
     element_id: Optional[int],
 ) -> Tuple[bool, str]:
-    """
-    Создаёт определение параметра из Excel таблицы.
+    """Создаёт определение параметра через актуальный CreateImcParameterDefinitionRequest."""
+    element_maps = []
+    if element_id is not None:
+        element_maps.append({
+            "containerId": int(container_id),
+            "elementIds": [int(element_id)],
+        })
 
-    Сначала пытается создать параметр без elementMaps.
-    Если не удаётся и element_id передан - пробует с elementMaps.
-
-    Args:
-        container_id: ID контейнера
-        param_def: Определение параметра
-        element_id: ID элемента для привязки (опционально)
-
-    Returns:
-        Кортеж (success, error_message)
-
-    Побочные эффекты:
-        Отправляет POST запрос к API
-    """
     create_data = {
+        "elementMaps": element_maps,
         "code": param_def.code,
-        "isNumeric": param_def.is_numeric,
-        "layer": PARAMETER_LAYER,
-        "reportColumnType": PARAMETER_REPORT_COLUMN_TYPE,
-        "title": param_def.title,
-        "uom": param_def.uom,
+        "isNumeric": bool(param_def.is_numeric),
     }
-    
-    # Первая попытка: создаём параметр без elementMaps
-    ok, err = api_post_json(
-        f"{INTERNAL_BASE_URL}{INTERNAL_PARAM_DEF_CREATE_URL}",
-        {"Content-Type": "application/json"},
-        create_data,
-    )
-    if ok:
-        return True, ""
-    
-    # Если неудача и есть element_id - пробуем с elementMaps
-    if element_id is None:
-        return False, err
-    create_data["elementMaps"] = [{"containerId": container_id, "elementIds": [element_id]}]
+    if param_def.uom:
+        create_data["uom"] = param_def.uom
+
     return api_post_json(
         f"{INTERNAL_BASE_URL}{INTERNAL_PARAM_DEF_CREATE_URL}",
         {"Content-Type": "application/json"},
@@ -2073,17 +1906,9 @@ def run_upload(
     for container_id, container_title in containers:
         # Загружаем element_map для обоих случаев (Excel и XML)
         # Для Excel: ID может быть nativeId/enuid/GUID вида "IfcElement/8b..."
-        print("=" * 80)
-        print(f"📦 Обработка контейнера: {container_title} (ID: {container_id})")
-        print("=" * 80)
         element_map = load_elements(container_id)
         if not element_map:
-            print(f"⚠️ Не удалось загрузить элементы для контейнера {container_id} ({container_title})")
-            print("=" * 80)
             continue
-        print(f"📊 Загружено элементов: {len(element_map)}")
-        print(f"📋 Пример идентификаторов: {list(element_map.keys())[:5]}")
-        print("=" * 80)
 
         per_container_changes: List[Tuple[Change, int]] = []
         element_values_cache: Dict[int, Dict[str, str]] = {}
@@ -2094,13 +1919,8 @@ def run_upload(
             # Identifier может быть: nativeId, enuid, uniqueId, nid, GUID вида "IfcElement/8b..."
             element_id = element_id_from_enuid(element_map, ch.identifier)
             if element_id is None:
-                print(f"⚠️ Элемент НЕ НАЙДЕН:")
-                print(f"   identifier из Excel: {repr(ch.identifier)}")
-                print(f"   Поиск по: direct, lowercase, IFC format (IfcElement/GUID), GUID base")
-                print(f"   Всего в element_map: {len(element_map)} ключей")
                 not_found.append(fmt_entry(container_title, ch))
                 continue
-            print(f"✅ Элемент найден: identifier={repr(ch.identifier)} -> element_id={element_id}")
             
             # Кэшируем значения параметров элемента
             if element_id not in element_values_cache:
@@ -2183,14 +2003,12 @@ def run_upload(
             if ok:
                 # Получаем real_code для обновления
                 params = api_get(
-                    f"{INTERNAL_BASE_URL}/imcParameterDefinition/imcParameterDefinitions",
+                    f"{INTERNAL_BASE_URL}/api/imcParameterDefinition/imcParameterDefinitions/",
                     {"accept": "application/json"},
                     {"containerIds": container_id}
                 ) or []
                 real_code = _find_parameter_code_in_system(code, params)
                 
-                print(f"🔄 Обновление параметра: code={repr(code)}, real_code={repr(real_code)}")
-                print(f"   Коды совпадают? {code == real_code}")
                 
                 # Параметр создан или существует, теперь обновляем значение
                 # Используем real_code для обновления!
@@ -2214,7 +2032,7 @@ if PYSIDE:
     class OutputWindow(QMainWindow):
         def __init__(self, parent=None):
             super().__init__(parent)
-            self.setWindowTitle("XML Uploader - Report")
+            self.setWindowTitle("Загрузка XML — отчёт")
             self.setMinimumWidth(720)
             try:
                 if os.path.exists(LOGO_ICO_PATH):
@@ -2333,7 +2151,7 @@ if PYSIDE:
     class MainWindow(QMainWindow):
         def __init__(self):
             super().__init__()
-            self.setWindowTitle("XML Uploader")
+            self.setWindowTitle("Загрузка XML")
             self.setMinimumWidth(780)
             try:
                 if os.path.exists(LOGO_ICO_PATH):
@@ -2530,11 +2348,11 @@ if PYSIDE:
             if not projects:
                 self._set_connection_status(False)
                 if show_error:
-                    QMessageBox.warning(self, "Ошибка", f"Не удалось подключиться к {INTERNAL_BASE_URL}")
+                    warning_box(self, f"Не удалось подключиться к {INTERNAL_BASE_URL}", "Ошибка")
                 return
             self._set_connection_status(True)
             if show_success:
-                QMessageBox.information(self, "Подключено", f"Успешное подключение: {INTERNAL_BASE_URL}")
+                information_box(self, f"Успешное подключение: {INTERNAL_BASE_URL}", "Подключено")
             self.project_combo.clear()
             
             def get_project_created_date(project):
@@ -2566,7 +2384,7 @@ if PYSIDE:
             try:
                 from ExcelTemplate import create_excel_template
             except ImportError:
-                QMessageBox.critical(self, "Ошибка", "Модуль Excel не найден")
+                critical_box(self, "Модуль Excel не найден", "Ошибка")
                 return
             
             # Открываем диалог сохранения с названием по умолчанию
@@ -2584,16 +2402,16 @@ if PYSIDE:
             try:
                 wb = create_excel_template()
                 wb.save(save_path)
-                QMessageBox.information(self, "Успех", f"Шаблон сохранен:\n{save_path}")
+                information_box(self, f"Шаблон сохранен:\n{save_path}", "Успех")
             except Exception as exc:
-                QMessageBox.critical(self, "Ошибка", f"Не удалось создать шаблон:\n{exc}")
+                critical_box(self, f"Не удалось создать шаблон:\n{exc}", "Ошибка")
 
         def _on_export_params_clicked(self):
             """Открывает диалог экспорта параметров"""
             try:
                 from ExportParameter import ExportParamsDialog
             except ImportError:
-                QMessageBox.critical(self, "Ошибка", "Модуль ExportParameter не найден")
+                critical_box(self, "Модуль ExportParameter не найден", "Ошибка")
                 return
             
             base_url = f"http://localhost:{self.base_url_edit.text().strip()}"
@@ -2632,11 +2450,11 @@ if PYSIDE:
             self._apply_base_url()
             file_path = self.file_edit.text().strip()
             if not file_path or not os.path.exists(file_path):
-                QMessageBox.critical(self, "Ошибка", "Укажите существующий файл (XML или Excel).")
+                critical_box(self, "Укажите существующий файл (XML или Excel).", "Ошибка")
                 return
             selected = [(cid, self.container_titles.get(cid, "")) for cid, cb in self.checked_containers.items() if cb.isChecked()]
             if not selected:
-                QMessageBox.critical(self, "Ошибка", "Выберите хотя бы один контейнер.")
+                critical_box(self, "Выберите хотя бы один контейнер.", "Ошибка")
                 return
 
             code, report_text, report_data = run_upload(file_path, selected)
@@ -2645,7 +2463,7 @@ if PYSIDE:
             self.output_window.raise_()
             self.output_window.activateWindow()
             if code != 0:
-                QMessageBox.warning(self, "Не удалось загрузить изменения", report_text.splitlines()[0])
+                warning_box(self, report_text.splitlines()[0], "Не удалось загрузить изменения")
 
 
 def main() -> int:

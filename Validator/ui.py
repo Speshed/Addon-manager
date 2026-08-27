@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Parameters_nik_ready_v2.py
 Изменения по запросу:
@@ -26,8 +26,12 @@ except Exception:
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.theme_toggle import ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu, load_saved_theme, enable_theme_sync
 import shared.theme_toggle as _theme
-from shared.dialogs import show_dialog, wire_dialog_button_box, wire_message_box_buttons
+from shared.dialogs import show_dialog, wire_dialog_button_box, wire_message_box_buttons, show_scrollable_details
+from shared.larix_api import api_get_json
 from shared.excel_parser import read_parameter_sheet
+from shared.adapter_excel import read_adapter_mapping
+from shared.adapter_picker import choose_adapter_sheet, pick_adapter_parameter
+from shared.guide import create_guide_button
 
 try:
     from Sets.ui import (
@@ -49,11 +53,6 @@ try:
     import pandas as pd
 except Exception:
     pd = None
-
-try:
-    import requests
-except Exception:
-    requests = None
 
 try:
     from shared.excel_template import export_common_excel
@@ -115,11 +114,20 @@ FILTER_FIELD_SUGGESTIONS = [
 
 
 class _FilterFieldRow(QtWidgets.QWidget):
-    def __init__(self, column_name: str, column_label: str = "", default_field: str = "", pick_api_callback=None, parent=None):
+    def __init__(
+        self,
+        column_name: str,
+        column_label: str = "",
+        default_field: str = "",
+        pick_api_callback=None,
+        pick_adapter_callback=None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.column_name = str(column_name or "").strip()
         self.column_label = str(column_label or self.column_name).strip()
         self._pick_api_callback = pick_api_callback
+        self._pick_adapter_callback = pick_adapter_callback
 
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -143,50 +151,38 @@ class _FilterFieldRow(QtWidgets.QWidget):
             line_edit.setPlaceholderText("FieldName для фильтра")
         layout.addWidget(self.cmb_field, 1)
 
-        self.btn_pick_api = QtWidgets.QPushButton("Выбрать из API...")
-        self.btn_pick_api.setMinimumWidth(140)
+        self.btn_pick_api = QtWidgets.QPushButton("Из API")
+        self.btn_pick_api.setMinimumWidth(105)
         layout.addWidget(self.btn_pick_api)
+
+        self.btn_pick_adapter = QtWidgets.QPushButton("Из адаптера")
+        self.btn_pick_adapter.setMinimumWidth(125)
+        layout.addWidget(self.btn_pick_adapter)
 
         self.chk_active.toggled.connect(self._refresh_state)
         self.btn_pick_api.clicked.connect(self._pick_api)
+        self.btn_pick_adapter.clicked.connect(self._pick_adapter)
         self._refresh_state(self.chk_active.isChecked())
 
     def _refresh_state(self, active: bool):
         self.cmb_field.setEnabled(active)
         self.btn_pick_api.setEnabled(active)
+        self.btn_pick_adapter.setEnabled(active)
         self.lbl_column.setStyleSheet("" if active else "color: #8a8a8a;")
 
     def _pick_api(self):
         if callable(self._pick_api_callback):
             self._pick_api_callback(self)
 
+    def _pick_adapter(self):
+        if callable(self._pick_adapter_callback):
+            self._pick_adapter_callback(self)
+
     def mapping_value(self) -> str:
         return str(self.cmb_field.currentText() or "").strip()
 
     def is_active(self) -> bool:
         return bool(self.chk_active.isChecked())
-
-
-class SingleSheetPickerDialog(_LarixSheetPickerDialog if _LarixSheetPickerDialog is not None else QtWidgets.QDialog):
-    def __init__(self, master: QtWidgets.QWidget, existing_path: str = "", existing_sheet: str = ""):
-        if _LarixSheetPickerDialog is None:
-            raise RuntimeError("Диалог выбора листа недоступен")
-        super().__init__(master, existing_path, [existing_sheet] if existing_sheet else [])
-
-    def _accept(self):
-        self._selected_sheets = []
-        for i in range(self.lst_sheets.count()):
-            it = self.lst_sheets.item(i)
-            if it.checkState() == QtCore.Qt.Checked:
-                self._selected_sheets.append(it.text())
-        if len(self._selected_sheets) != 1:
-            show_error_dialog("Выберите ровно один лист.", title="Внимание", parent=self, modal=True)
-            return
-        self.accept()
-
-    def result(self):
-        path, sheets = super().result()
-        return path, (sheets[0] if sheets else "")
 
 
 class MultiSheetPickerDialog(_LarixSheetPickerDialog if _LarixSheetPickerDialog is not None else QtWidgets.QDialog):
@@ -1225,22 +1221,22 @@ def _deepcopy_dict(d: dict) -> dict:
 
 def fetch_api_param_types(container_ids=None) -> dict:
     """Возвращает { 'СК10.Площадь': True, ... } по API."""
-    if requests is None:
-        return {}
-    url = f"{get_api_base()}/api/imcParameterDefinition/imcParameterDefinitions"
     try:
         ids = container_ids or SELECTED_CONTAINER_IDS
-        r = requests.get(url, params={'containerIds': ids}, headers={'accept': 'application/json'}, timeout=10)
-        if r.status_code == 200:
-            out = {}
-            for it in (r.json() or []):
-                code = (it or {}).get('code')
-                if code:
-                    out[code] = bool((it or {}).get('isNumeric', False))
-            return out
+        data = api_get_json(
+            get_api_base(),
+            "/api/imcParameterDefinition/imcParameterDefinitions/",
+            params=[("containerIds", int(cid)) for cid in ids],
+            timeout=10,
+        ) or []
+        out = {}
+        for it in data:
+            code = (it or {}).get('code')
+            if code:
+                out[code] = bool((it or {}).get('isNumeric', False))
+        return out
     except Exception:
-        pass
-    return {}
+        return {}
 
 def _is_dark_theme_local() -> bool:
     app = QtWidgets.QApplication.instance()
@@ -1486,19 +1482,18 @@ def load_session_mapping_json(excel_path: str) -> dict:
     return {}
 
 def fetch_global_component(gcid: int):
-    if requests is None: return None
-    url = f"{get_api_base()}/api/globalComponent/globalComponent/{int(gcid)}"
     xsi_ns = "http://www.w3.org/2001/XMLSchema-instance"
     xsd_ns = "http://www.w3.org/2001/XMLSchema"
     ET.register_namespace('xsi', xsi_ns)
     ET.register_namespace('xsd', xsd_ns)
     try:
-        r = requests.get(url, headers={'accept': 'application/json'}, timeout=10)
-        if r.status_code == 200:
-            return r.json()
+        return api_get_json(
+            get_api_base(),
+            f"/api/globalComponent/globalComponent/{int(gcid)}",
+            timeout=10,
+        )
     except Exception:
-        pass
-    return None
+        return None
 
 
 def _load_parameter_sheet_layout(excel_path: str, sheet_name: str):
@@ -1996,100 +1991,15 @@ def _append_classifier_pair_filter_conditions(parent_el, code_field: str, desc_f
             _append_filter_conditions(inner, [(desc_field, [desc_value])])
 
 def _import_adapter_mapping(parent, excel_path: str) -> dict:
-    if pd is None:
-        _popup_error(parent, "Требуется пакет pandas для импорта адаптера.")
-        return {}
-    if not excel_path:
-        show_warning_dialog("Сначала выберите Excel-файл.", title="Внимание", parent=parent)
-        return {}
-    path, _ = QtWidgets.QFileDialog.getOpenFileName(parent, "Выбор адаптера", "", "Excel (*.xlsx *.xls)")
-    if not path:
+    path, sheet = choose_adapter_sheet(parent, excel_path, title="Выбор адаптера")
+    if not path or not sheet:
         return {}
     try:
-        xls = pd.ExcelFile(path)
-        sheets = list(xls.sheet_names)
-    except Exception as e:
-        _popup_error(parent, f"Не удалось открыть файл:\n{e}")
-        return {}
-    if not sheets:
-        _popup_error(parent, "В файле нет листов.")
-        return {}
-    if len(sheets) == 1:
-        sheet = sheets[0]
-    else:
-        sheet, ok = QtWidgets.QInputDialog.getItem(parent, "Выбор листа", "Лист:", sheets, 0, False)
-        if not ok or not sheet:
-            return {}
-    try:
-        df_raw = pd.read_excel(path, sheet_name=sheet, header=None)
-    except Exception as e:
-        _popup_error(parent, f"Не удалось прочитать лист:\n{e}")
+        return read_adapter_mapping(path, sheet)
+    except Exception as exc:
+        _popup_error(parent, f"Не удалось прочитать адаптер:\n{exc}")
         return {}
 
-    group_name = ""
-    header_row = None
-    for r_idx in range(len(df_raw)):
-        row = df_raw.iloc[r_idx]
-        for c_idx, val in enumerate(row):
-            if isinstance(val, str) and val.strip().lower() == "укажите группу параметров:":
-                try:
-                    next_val = row.iloc[c_idx + 1]
-                    if isinstance(next_val, str):
-                        group_name = next_val.strip()
-                    else:
-                        group_name = str(next_val).strip() if pd.notna(next_val) else ""
-                except Exception:
-                    group_name = ""
-                break
-        if header_row is not None:
-            break
-        row_vals = [str(v).strip().lower() for v in row.tolist() if pd.notna(v)]
-        if "наименование параметра" in row_vals and "параметры" in row_vals:
-            header_row = r_idx
-    if header_row is None:
-        _popup_error(parent, "Не удалось найти строку заголовков ('Наименование параметра' и 'Параметры').")
-        return {}
-
-    try:
-        df = pd.read_excel(path, sheet_name=sheet, header=header_row)
-    except Exception as e:
-        _popup_error(parent, f"Не удалось прочитать таблицу:\n{e}")
-        return {}
-
-    def _find_col(cols, needle):
-        needle = needle.strip().lower()
-        for col in cols:
-            if str(col).strip().lower() == needle:
-                return col
-        return None
-
-    col_param = _find_col(df.columns, "параметры")
-    col_name = _find_col(df.columns, "наименование параметра")
-    col_group = _find_col(df.columns, "группа параметров")
-    if not col_param or not col_name:
-        _popup_error(parent, "Не найдены столбцы 'Параметры' и 'Наименование параметра'.")
-        return {}
-
-    mapping: dict[str, dict] = {}
-    for _, row in df.iterrows():
-        raw_param = row.get(col_param, "")
-        raw_name = row.get(col_name, "")
-        if pd.isna(raw_param) or pd.isna(raw_name):
-            continue
-        param = str(raw_param).strip()
-        name = str(raw_name).strip()
-        if not param or not name:
-            continue
-        grp = ""
-        if col_group:
-            raw_grp = row.get(col_group, "")
-            if pd.notna(raw_grp):
-                grp = str(raw_grp).strip()
-        if not grp:
-            grp = group_name
-        full_name = f"{grp}.{name}" if grp else name
-        mapping[param] = {"code": full_name, "isNumeric": False}
-    return mapping
 
 # ----------------- Генерация PV -----------------
 def excel_to_pv_profile(
@@ -2104,6 +2014,7 @@ def excel_to_pv_profile(
     auto_number=False,
     build_filters=True,
     grouped=False,
+    merge_sheets=False,
 ):
     if pd is None:
         return False, "ERROR: Требуется пакет pandas"
@@ -2125,8 +2036,7 @@ def excel_to_pv_profile(
                         # Разделяем коды по запятой
                         codes_list = [c.strip() for c in codes_str.split(',') if c.strip()]
                         codes_map[section_name] = codes_list
-            except Exception as ex:
-                print(f"Warning: Could not read classifier codes: {ex}")
+            except Exception:
                 codes_map = {}
 
         sheet_payloads = []
@@ -2142,16 +2052,7 @@ def excel_to_pv_profile(
             "xmlns:xsd": "http://www.w3.org/2001/XMLSchema",
             "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
         })
-        profiles = ET.SubElement(root, "Profiles")
-        for profile_idx, payload in enumerate(sheet_payloads):
-            base_profile = ET.SubElement(profiles, "BaseExportProfile", {"xsi:type": "ParameterValidationExportProfile"})
-            ET.SubElement(base_profile, "Id").text = str(profile_idx)
-            title_text = profile_title if len(sheet_payloads) == 1 else f"{profile_title} - {payload['sheet_name']}"
-            ET.SubElement(base_profile, "Title").text = title_text
-            items = ET.SubElement(base_profile, "ProfileItems")
-            item_id = 1838
-            folder_idx = 0
-
+        def _append_payload_to_profile(items, payload, item_id, folder_idx):
             id_map: dict[str, int] = {}
 
             # 1) Create all folder nodes first (needed for ParentId map)
@@ -2289,9 +2190,34 @@ def excel_to_pv_profile(
                     cond_signal.append(_empty_messages())
                     ET.SubElement(single_cond, "ConditionsBlocks")
 
+            return item_id, folder_idx
+
+        profiles = ET.SubElement(root, "Profiles")
+        if merge_sheets and len(sheet_payloads) > 1:
+            profile_groups = [sheet_payloads]
+        else:
+            profile_groups = [[payload] for payload in sheet_payloads]
+
+        for profile_idx, payload_group in enumerate(profile_groups):
+            base_profile = ET.SubElement(profiles, "BaseExportProfile", {"xsi:type": "ParameterValidationExportProfile"})
+            ET.SubElement(base_profile, "Id").text = str(profile_idx)
+            if len(profile_groups) == 1:
+                title_text = profile_title
+            else:
+                title_text = f"{profile_title} - {payload_group[0]['sheet_name']}"
+            ET.SubElement(base_profile, "Title").text = title_text
+            items = ET.SubElement(base_profile, "ProfileItems")
+            item_id = 1838
+            folder_idx = 0
+            validation_codes: set[tuple[str, bool]] = set()
+
+            for payload in payload_group:
+                item_id, folder_idx = _append_payload_to_profile(items, payload, item_id, folder_idx)
+                validation_codes.update(payload.get("validation_codes", set()) or set())
+
             validation_params = ET.SubElement(base_profile, "ValidationParameters")
             param_id = 505
-            for code, is_numeric in sorted(payload["validation_codes"]):
+            for code, is_numeric in sorted(validation_codes):
                 param_id += 1
                 dto = ET.SubElement(validation_params, "ValidationParameterDto")
                 ET.SubElement(dto, "Id").text = str(param_id)
@@ -2319,14 +2245,13 @@ def excel_to_pv_profile(
                     all_warnings.append(text)
                 else:
                     all_warnings.append(f"Лист '{payload.get('sheet_name')}', {text}")
-        if all_warnings:
-            print("WARNINGS:")
-            for w in all_warnings:
-                print("-", w)
         if len(sheet_payloads) == 1:
             msg = f"OK: Профиль '{profile_title}' из листа '{sheet_payloads[0]['sheet_name']}' сохранён: {output_pv_path}"
+        elif merge_sheets:
+            merged_names = ", ".join(str(payload.get("sheet_name") or "") for payload in sheet_payloads)
+            msg = f"OK: В один профиль '{profile_title}' объединены выбранные листы ({len(sheet_payloads)}): {merged_names}. Файл сохранён: {output_pv_path}"
         else:
-            msg = f"OK: Файл '{output_pv_path}' содержит {len(sheet_payloads)} отдельных профилей по выбранным листам"
+            msg = f"OK: Созданы отдельные профили по выбранным листам ({len(sheet_payloads)}). Файл сохранён: {output_pv_path}"
         if all_warnings:
             msg += "\nWARNINGS:\n" + "\n".join([f"- {w}" for w in all_warnings])
         return True, msg
@@ -2567,14 +2492,17 @@ class MappingDialog(QtWidgets.QDialog):
 
     def _load_api_params(self) -> list:
         items = []
-        if requests is None: return items
-        url = f"{get_api_base()}/api/imcParameterDefinition/imcParameterDefinitions"
         try:
-            r = requests.get(url, params={'containerIds': SELECTED_CONTAINER_IDS}, headers={'accept': 'application/json'}, timeout=10)
-            if r.status_code == 200:
-                for it in (r.json() or []):
-                    code = (it or {}).get('code')
-                    if code: items.append({'code': code, 'isNumeric': bool((it or {}).get('isNumeric', False))})
+            data = api_get_json(
+                get_api_base(),
+                "/api/imcParameterDefinition/imcParameterDefinitions/",
+                params=[("containerIds", int(cid)) for cid in SELECTED_CONTAINER_IDS],
+                timeout=10,
+            ) or []
+            for it in data:
+                code = (it or {}).get('code')
+                if code:
+                    items.append({'code': code, 'isNumeric': bool((it or {}).get('isNumeric', False))})
         except Exception:
             pass
         try:
@@ -2855,14 +2783,17 @@ class MappingDialogLarix(QtWidgets.QDialog):
 
     def _load_api_params(self) -> list:
         items = []
-        if requests is None: return items
-        url = f"{get_api_base()}/api/imcParameterDefinition/imcParameterDefinitions"
         try:
-            r = requests.get(url, params={'containerIds': SELECTED_CONTAINER_IDS}, headers={'accept': 'application/json'}, timeout=10)
-            if r.status_code == 200:
-                for it in (r.json() or []):
-                    code = (it or {}).get('code')
-                    if code: items.append({'code': code, 'isNumeric': bool((it or {}).get('isNumeric', False))})
+            data = api_get_json(
+                get_api_base(),
+                "/api/imcParameterDefinition/imcParameterDefinitions/",
+                params=[("containerIds", int(cid)) for cid in SELECTED_CONTAINER_IDS],
+                timeout=10,
+            ) or []
+            for it in data:
+                code = (it or {}).get('code')
+                if code:
+                    items.append({'code': code, 'isNumeric': bool((it or {}).get('isNumeric', False))})
         except Exception:
             pass
         try:
@@ -3022,7 +2953,7 @@ class PairPickerDialog(QtWidgets.QDialog):
         row_ok = QtWidgets.QHBoxLayout(); v.addLayout(row_ok)
         row_ok.addStretch(1)
         self.btn_cancel = QtWidgets.QPushButton("Отмена")
-        self.btn_ok = QtWidgets.QPushButton("OK")
+        self.btn_ok = QtWidgets.QPushButton("ОК")
         self.btn_ok.setDefault(True)
         self.btn_ok.setAutoDefault(True)
         row_ok.addWidget(self.btn_cancel); row_ok.addWidget(self.btn_ok)
@@ -3745,14 +3676,8 @@ class ProjectSelectionWindow(QtWidgets.QDialog):
         self._update_header_checkbox_state()
 
     def load_projects(self):
-        if requests is None:
-            self.log("requests не установлен")
-            return
-        url = f"{get_api_base()}/api/project/projects"
         try:
-            r = requests.get(url, headers={"accept": "application/json"})
-            r.raise_for_status()
-            data = r.json()
+            data = api_get_json(get_api_base(), "/api/project/projects", timeout=30)
             if isinstance(data, list):
                 self.project_list = [(p.get("id"), p.get("title")) for p in data]
                 self.project_list.sort(key=lambda x: str(x[1] or "").lower())
@@ -3782,26 +3707,22 @@ class ProjectSelectionWindow(QtWidgets.QDialog):
         if not pid:
             self.log("Не выбран проект")
             return
-        if requests is None:
-            self.log("requests не установлен")
-            return
-        url = f"{get_api_base()}/api/imcContainer/getProjectImcContainers/{pid}"
         try:
-            r = requests.get(url, headers={"accept": "application/json"})
-            if r.status_code == 200:
-                data = r.json()
-                containers = [(it.get("id"), it.get("title")) for it in (data if isinstance(data, list) else [data])]
-                for cid, title in containers:
-                    item = QtWidgets.QTreeWidgetItem(self.tree_containers)
-                    item.setText(1, title)
-                    item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
-                    item.setCheckState(0, QtCore.Qt.Unchecked)
-                    item.setData(0, QtCore.Qt.UserRole, cid)
-                self.tree_containers.setFilter(self.ed_search.text())
-                self._update_header_checkbox_state()
-                self.log(f"Загружено {len(containers)} моделей")
-            else:
-                self.log(f"Ошибка: {r.status_code}")
+            data = api_get_json(
+                get_api_base(),
+                f"/api/imcContainer/getProjectImcContainers/{int(pid)}",
+                timeout=30,
+            )
+            containers = [(it.get("id"), it.get("title")) for it in (data if isinstance(data, list) else [data])]
+            for cid, title in containers:
+                item = QtWidgets.QTreeWidgetItem(self.tree_containers)
+                item.setText(1, title)
+                item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
+                item.setCheckState(0, QtCore.Qt.Unchecked)
+                item.setData(0, QtCore.Qt.UserRole, cid)
+            self.tree_containers.setFilter(self.ed_search.text())
+            self._update_header_checkbox_state()
+            self.log(f"Загружено {len(containers)} моделей")
         except Exception as e:
             self.log(f"Ошибка: {e}")
 
@@ -3860,6 +3781,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._btn_back.clicked.connect(lambda: go_to_main_menu(self))
         header.addWidget(self._btn_back)
         header.addStretch(1)
+        self._guide_button = create_guide_button(self, "parameters", icon_dir=ICON_DIR)
+        header.addWidget(self._guide_button)
         self._theme_toggle = ThemeToggle(self)
         self._theme_toggle.setChecked(is_dark_theme(QtWidgets.QApplication.instance()))
         self._theme_toggle.toggled.connect(self._on_theme_toggled)
@@ -3913,7 +3836,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ed_excel_summary = QtWidgets.QLineEdit("Не выбрано")
         self.ed_excel_summary.setReadOnly(True)
         src_row.addWidget(self.ed_excel_summary, 1)
-        self.btn_pick_excel = QtWidgets.QPushButton("Выбрать...")
+        self.btn_pick_excel = QtWidgets.QPushButton("Выбрать")
         src_row.addWidget(self.btn_pick_excel)
 
         # Таблица выбора Excel файлов (4 строки x 3 столбца)
@@ -4013,10 +3936,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self._cb_grouped_tooltip_disabled = "Сначала включите «Фильтры» для активации этой опции."
         self.cb_grouped.setToolTip(self._cb_grouped_tooltip_disabled)
         settings_box.addWidget(self.cb_grouped)
+        self.cb_merge_sheets = QtWidgets.QCheckBox("Объединить листы в один профиль")
+        self.cb_merge_sheets.setChecked(False)
+        self.cb_merge_sheets.setEnabled(False)
+        self.cb_merge_sheets.setToolTip(
+            "Если выбрано несколько листов, объединяет их содержимое в один профиль. "
+            "Если выключено — для каждого листа создаётся отдельный профиль."
+        )
+        settings_box.addWidget(self.cb_merge_sheets)
         settings_box.addStretch(1)
         self._setup_checkbox_disabled_style()
         self.cb_filter.toggled.connect(self._on_filter_toggle)
+        self.cb_merge_sheets.toggled.connect(lambda _checked: self._update_excel_summary())
         self._enable_settings_checkboxes(False)
+        self._refresh_merge_sheets_state()
 
         # --- Выбор моделей (как такая же полоса) ---
         grp_models = QtWidgets.QGroupBox("Выбор моделей"); v.addWidget(grp_models)
@@ -4135,15 +4068,30 @@ class MainWindow(QtWidgets.QMainWindow):
             return f"Проект: {SELECTED_PROJECT_TITLE} • моделей выбрано: {len(SELECTED_CONTAINER_IDS)}"
         return "Не выбрано"
 
+    def _refresh_merge_sheets_state(self):
+        cb = getattr(self, "cb_merge_sheets", None)
+        if cb is None:
+            return
+        multi = len(getattr(self, "sheet_names", []) or []) > 1
+        cb.setEnabled(multi)
+        if not multi and cb.isChecked():
+            cb.setChecked(False)
+
     def _update_excel_summary(self):
+        self._refresh_merge_sheets_state()
         if self.input_file and self.sheet_names:
             if len(self.sheet_names) == 1:
                 summary = self.sheet_names[0]
+                mode_summary = "1 профиль"
             elif len(self.sheet_names) <= 3:
                 summary = ", ".join(self.sheet_names)
+                merge = bool(getattr(self, "cb_merge_sheets", None) and self.cb_merge_sheets.isChecked())
+                mode_summary = "1 объединённый профиль" if merge else f"{len(self.sheet_names)} отдельных профиля"
             else:
                 summary = f"{', '.join(self.sheet_names[:3])} и ещё {len(self.sheet_names) - 3}"
-            self.ed_excel_summary.setText(f"{os.path.basename(self.input_file)}: {summary}")
+                merge = bool(getattr(self, "cb_merge_sheets", None) and self.cb_merge_sheets.isChecked())
+                mode_summary = "1 объединённый профиль" if merge else f"{len(self.sheet_names)} отдельных профилей"
+            self.ed_excel_summary.setText(f"{os.path.basename(self.input_file)}: {summary} • {mode_summary}")
         else:
             self.ed_excel_summary.setText("Не выбрано")
 
@@ -4172,6 +4120,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_auto.setStyleSheet(dis_qss)
         self.cb_filter.setStyleSheet(dis_qss)
         self.cb_grouped.setStyleSheet(dis_qss)
+        if hasattr(self, "cb_merge_sheets"):
+            self.cb_merge_sheets.setStyleSheet(dis_qss)
 
     def _enable_settings_checkboxes(self, enable: bool):
         self.cb_auto.setEnabled(enable)
@@ -4230,6 +4180,13 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         _open_api_picker(self, lambda code: row.cmb_field.setCurrentText(code))
 
+    def _open_adapter_select_for_filter_row(self, row: _FilterFieldRow):
+        if row is None:
+            return
+        code = pick_adapter_parameter(self, self.input_file)
+        if code:
+            row.cmb_field.setCurrentText(code)
+
     def _reload_filter_fields(self):
         self._clear_filter_rows()
         self._current_sheet_layout = None
@@ -4256,6 +4213,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     column_label,
                     default_field,
                     self._open_api_select_for_filter_row,
+                    self._open_adapter_select_for_filter_row,
                     self.filter_wrap,
                 )
                 _configure_combo_popup(row.cmb_field)
@@ -4441,8 +4399,21 @@ class MainWindow(QtWidgets.QMainWindow):
             auto_number=self.cb_auto.isChecked(),
             build_filters=self.cb_filter.isChecked(),
             grouped=self.cb_grouped.isChecked(),
+            merge_sheets=self.cb_merge_sheets.isChecked(),
         )
-        show_info_dialog(msg, title="Готово" if ok else "Ошибка", parent=self)
+        if ok and "\nWARNINGS:\n" in msg:
+            summary, warning_text = msg.split("\nWARNINGS:\n", 1)
+            warnings = [line[2:] if line.startswith("- ") else line for line in warning_text.splitlines() if line.strip()]
+            clean_summary = summary.replace("OK: ", "", 1).strip()
+            show_scrollable_details(
+                self,
+                f"{clean_summary}\n\nПредупреждений: {len(warnings)}",
+                warnings,
+                title="Готово с предупреждениями",
+                copy_text=msg,
+            )
+        else:
+            show_info_dialog(msg.replace("OK: ", "", 1), title="Готово" if ok else "Ошибка", parent=self)
 
 class MainWindowMaster(MainWindow):
     pass

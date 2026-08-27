@@ -13,6 +13,7 @@
 """
 
 import os
+import sys
 from typing import Any, Dict, List, Optional
 
 # PySide6 для GUI (основная библиотека)
@@ -22,11 +23,11 @@ except Exception:
     # Fallback на PyQt5 если PySide6 недоступен
     from PyQt5 import QtWidgets, QtGui, QtCore
 
-# Библиотека для HTTP запросов
-try:
-    import requests
-except Exception:
-    requests = None
+# Доступ к общему авторизованному клиенту Larix API
+_APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _APP_ROOT not in sys.path:
+    sys.path.insert(0, _APP_ROOT)
+from shared.larix_api import api_get_json
 
 # Путь к директории с иконками
 try:
@@ -58,6 +59,8 @@ PARAM_TYPE_TEXT = "текст"
 # ============================================================================
 # КЛАССЫ
 # ============================================================================
+
+from shared.dialogs import critical_box, warning_box, information_box
 
 class ExportParamsDialog(QtWidgets.QDialog):
     """
@@ -232,19 +235,11 @@ class ExportParamsDialog(QtWidgets.QDialog):
             - Обновляет self.status_label
         """
         try:
-            # Проверка наличия библиотеки requests
-            if requests is None:
-                raise RuntimeError("Нужен requests: pip install requests")
-
-            # Формируем URL для получения списка проектов
-            url = f"{self.base_url.rstrip('/')}/api/project/projects"
-
-            # Отправляем GET запрос к API
-            resp = requests.get(url, timeout=REQUEST_TIMEOUT_SHORT)
-            resp.raise_for_status()  # Вызывает исключение при статусе != 200
-
-            # Парсим JSON ответ
-            data = resp.json() or []
+            data = api_get_json(
+                self.base_url,
+                "/api/project/projects",
+                timeout=REQUEST_TIMEOUT_SHORT,
+            ) or []
 
             # Цикл по списку: формируем список проектов с полями id и title
             self._projects = [
@@ -270,7 +265,7 @@ class ExportParamsDialog(QtWidgets.QDialog):
         except Exception as e:
             # Обработка ошибок загрузки
             self.status_label.setText(f"Ошибка загрузки проектов: {e}")
-            QtWidgets.QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить проекты:\n{e}")
+            critical_box(self, f"Не удалось загрузить проекты:\n{e}", "Ошибка")
 
     def _on_project_changed(self):
         """
@@ -306,18 +301,11 @@ class ExportParamsDialog(QtWidgets.QDialog):
             - Очищает список параметров
         """
         try:
-            if requests is None:
-                raise RuntimeError("Нужен requests: pip install requests")
-
-            # Формируем URL для получения контейнеров проекта
-            url = f"{self.base_url.rstrip('/')}/api/imcContainer/getProjectImcContainers/{project_id}"
-
-            # Отправляем GET запрос
-            resp = requests.get(url, timeout=REQUEST_TIMEOUT_SHORT)
-            resp.raise_for_status()
-
-            # Парсим JSON ответ
-            data = resp.json() or []
+            data = api_get_json(
+                self.base_url,
+                f"/api/imcContainer/getProjectImcContainers/{int(project_id)}",
+                timeout=REQUEST_TIMEOUT_SHORT,
+            ) or []
 
             # Формируем список контейнеров с полями id и title
             self._containers = [
@@ -347,7 +335,7 @@ class ExportParamsDialog(QtWidgets.QDialog):
 
         except Exception as e:
             self.status_label.setText(f"Ошибка загрузки моделей: {e}")
-            QtWidgets.QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить модели:\n{e}")
+            critical_box(self, f"Не удалось загрузить модели:\n{e}", "Ошибка")
 
     def _load_params(self):
         """
@@ -371,26 +359,21 @@ class ExportParamsDialog(QtWidgets.QDialog):
         # Проверяем, что выбран хотя бы один контейнер
         if not selected_containers:
             self.status_label.setText("Выберите модель")
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Выберите модель для загрузки параметров")
+            warning_box(self, "Выберите модель для загрузки параметров", "Внимание")
             return
 
         try:
-            if requests is None:
-                raise RuntimeError("Нужен requests: pip install requests")
-
             # Загружаем параметры из всех выбранных контейнеров
             all_params = []
             # Цикл по выбранным контейнерам: загружаем параметры для каждого
             for container in selected_containers:
-                container_id = container["id"]
-                # Формируем URL для получения параметров контейнера
-                url = f"{self.base_url.rstrip('/')}/api/imcParameterDefinition/imcParameterDefinitions"
-                # Отправляем GET запрос с параметром containerIds
-                resp = requests.get(url, params=[("containerIds", container_id)], timeout=REQUEST_TIMEOUT_SHORT)
-                resp.raise_for_status()
-
-                # Парсим JSON ответ
-                data = resp.json() or []
+                container_id = int(container["id"])
+                data = api_get_json(
+                    self.base_url,
+                    "/api/imcParameterDefinition/imcParameterDefinitions/",
+                    params=[("containerIds", container_id)],
+                    timeout=REQUEST_TIMEOUT_SHORT,
+                ) or []
                 all_params.extend(data)
 
             # Сохраняем все параметры
@@ -404,7 +387,7 @@ class ExportParamsDialog(QtWidgets.QDialog):
 
         except Exception as e:
             self.status_label.setText(f"Ошибка загрузки параметров: {e}")
-            QtWidgets.QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить параметры:\n{e}")
+            critical_box(self, f"Не удалось загрузить параметры:\n{e}", "Ошибка")
 
     def _filter_params(self):
         """
@@ -551,7 +534,7 @@ class ExportParamsDialog(QtWidgets.QDialog):
 
         # Проверяем, что выбраны модели
         if not selected_containers:
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Выберите модель")
+            warning_box(self, "Выберите модель", "Внимание")
             return
 
         # Показываем диалог сохранения файла
@@ -572,13 +555,10 @@ class ExportParamsDialog(QtWidgets.QDialog):
             from openpyxl.styles import Font, Alignment
             from openpyxl.worksheet.table import Table, TableStyleInfo
         except ImportError:
-            QtWidgets.QMessageBox.critical(self, "Ошибка", "Нужен openpyxl: pip install openpyxl")
+            critical_box(self, "Нужен openpyxl: pip install openpyxl", "Ошибка")
             return
 
         try:
-            if requests is None:
-                raise RuntimeError("Нужен requests: pip install requests")
-
             # Список для сбора данных
             data = []
 
@@ -588,10 +568,11 @@ class ExportParamsDialog(QtWidgets.QDialog):
             for container in selected_containers:
                 container_id = container["id"]
                 # Загружаем элементы контейнера
-                url = f"{self.base_url.rstrip('/')}/api/imcElement/imcElements/{container_id}"
-                resp = requests.get(url, timeout=REQUEST_TIMEOUT_LONG)
-                resp.raise_for_status()
-                elements_data = resp.json() or []
+                elements_data = api_get_json(
+                    self.base_url,
+                    f"/api/imcElement/imcElements/{int(container_id)}",
+                    timeout=REQUEST_TIMEOUT_LONG,
+                ) or []
                 elements = elements_data if isinstance(elements_data, list) else elements_data.get("items", [])
 
                 # Накапливаем общее количество элементов
@@ -605,10 +586,11 @@ class ExportParamsDialog(QtWidgets.QDialog):
                 container_id = container["id"]
 
                 # Загружаем элементы контейнера
-                url = f"{self.base_url.rstrip('/')}/api/imcElement/imcElements/{container_id}"
-                resp = requests.get(url, timeout=REQUEST_TIMEOUT_LONG)
-                resp.raise_for_status()
-                elements_data = resp.json() or []
+                elements_data = api_get_json(
+                    self.base_url,
+                    f"/api/imcElement/imcElements/{int(container_id)}",
+                    timeout=REQUEST_TIMEOUT_LONG,
+                ) or []
                 elements = elements_data if isinstance(elements_data, list) else elements_data.get("items", [])
 
                 # Обновляем статус бар (прогресс)
@@ -629,10 +611,11 @@ class ExportParamsDialog(QtWidgets.QDialog):
 
                     # Получаем все параметры элемента
                     try:
-                        param_url = f"{self.base_url.rstrip('/')}/api/imcParameterValue/imcParameterValues/{real_id}"
-                        param_resp = requests.get(param_url, timeout=REQUEST_TIMEOUT_SHORT)
-                        param_resp.raise_for_status()
-                        param_data_el = param_resp.json() or []
+                        param_data_el = api_get_json(
+                            self.base_url,
+                            f"/api/imcParameterValue/imcParameterValues/{int(real_id)}",
+                            timeout=REQUEST_TIMEOUT_SHORT,
+                        ) or []
                         param_values_list = param_data_el if isinstance(param_data_el, list) else param_data_el.get("items", [])
 
                         # Для каждого выбранного параметра проверяем значение у элемента
@@ -667,9 +650,8 @@ class ExportParamsDialog(QtWidgets.QDialog):
                                 "Тип данных": PARAM_TYPE_NUMERIC if is_numeric else PARAM_TYPE_TEXT
                             })
 
-                    except Exception as e:
-                        # Логируем ошибку, но продолжаем обработку
-                        print(f"Ошибка при получении параметров элемента {native_id}: {e}")
+                    except Exception:
+                        # Ошибка отдельного элемента не должна прерывать экспорт.
                         continue
 
             # Создаём Excel файл
@@ -717,13 +699,13 @@ class ExportParamsDialog(QtWidgets.QDialog):
 
             # Обновляем статус бар и показываем сообщение об успехе
             self.status_label.setText(f"Экспортировано {len(data)} записей")
-            QtWidgets.QMessageBox.information(
+            information_box(
                 self,
+                f"Файл сохранён:\n{path}\n\nЗаписей: {len(data)}",
                 "Успех",
-                f"Файл сохранён:\n{path}\n\nЗаписей: {len(data)}"
             )
 
         except Exception as e:
             # Обработка ошибок экспорта
             self.status_label.setText(f"Ошибка экспорта: {e}")
-            QtWidgets.QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить файл:\n{e}")
+            critical_box(self, f"Не удалось сохранить файл:\n{e}", "Ошибка")

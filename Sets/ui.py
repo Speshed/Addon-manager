@@ -32,18 +32,16 @@ from shared.theme_toggle import (
     RowHoverDelegate, install_viewport_row_highlighter,
     nik_icon, PALETTE,
 )
-from shared.dialogs import show_dialog, wire_message_box_buttons
+from shared.dialogs import show_dialog, wire_message_box_buttons, warning_box
+from shared.larix_api import api_get_json
+from shared.guide import create_guide_button
+from shared.adapter_picker import pick_adapter_parameter
 
 # Third-party (optional)
 try:
     import pandas as pd
 except Exception:
     pd = None
-
-try:
-    import requests
-except Exception:
-    requests = None
 
 # ---- Embedded Nik Style (from nik_style.py) ----
 class Palette:
@@ -1705,38 +1703,19 @@ class Section(QtWidgets.QGroupBox):
         self.frame_l = lay
 
 # ----------------- API helpers -----------------
-def _check_requests():
-    if requests is None:
-        raise RuntimeError("Нужен 'requests': pip install requests")
-
-
-def _api_get(url: str, **kwargs):
-    _check_requests()
-    r = requests.get(url, timeout=30, **kwargs)
-    r.raise_for_status()
-    try:
-        return r.json()
-    except Exception:
-        return json.loads(r.text)
-
-
 def api_get_projects(base_url: str) -> List[Dict[str, Any]]:
-    url = f"{base_url.rstrip('/')}/api/project/projects"
-    data = _api_get(url) or []
+    data = api_get_json(base_url, "/api/project/projects", timeout=30) or []
     return [{"id": x.get("id"), "title": x.get("title") or x.get("name") or f"ID {x.get('id')}"} for x in data]
 
 
 def api_get_containers(base_url: str, project_id: int) -> List[Dict[str, Any]]:
-    url = f"{base_url.rstrip('/')}/api/imcContainer/getProjectImcContainers/{project_id}"
-    data = _api_get(url) or []
+    data = api_get_json(base_url, f"/api/imcContainer/getProjectImcContainers/{int(project_id)}", timeout=30) or []
     return [{"id": x.get("id"), "title": x.get("title") or f"ID {x.get('id')}"} for x in data]
 
 
 def api_get_parameters(base_url: str, container_ids: List[int]) -> List[Dict[str, Any]]:
-    url = f"{base_url.rstrip('/')}/api/imcParameterDefinition/imcParameterDefinitions"
-    params = [("containerIds", cid) for cid in container_ids]
-    data = _api_get(url, params=params) or []
-    return data
+    params = [("containerIds", int(cid)) for cid in container_ids]
+    return api_get_json(base_url, "/api/imcParameterDefinition/imcParameterDefinitions/", params=params, timeout=30) or []
 
 # ----------------- Диалоги API -----------------
 def _apply_dark_titlebar_win(widget):
@@ -1961,6 +1940,9 @@ class ApiSelectDialog(QtWidgets.QDialog):
             typ = "число" if r.get("isNumeric") else "текст"
             it0 = QtWidgets.QTableWidgetItem(title); it0.setTextAlignment(QtCore.Qt.AlignVCenter | QtCore.Qt.AlignLeft)
             it1 = QtWidgets.QTableWidgetItem(typ);   it1.setTextAlignment(QtCore.Qt.AlignVCenter | QtCore.Qt.AlignLeft)
+            tooltip = title or typ
+            it0.setToolTip(tooltip)
+            it1.setToolTip(tooltip)
             self.tbl.setItem(row, 0, it0); self.tbl.setItem(row, 1, it1)
 
     def _on_params_header_menu(self, pos: QtCore.QPoint):
@@ -1998,6 +1980,8 @@ class ApiSelectDialog(QtWidgets.QDialog):
         self.cmb_projects.clear()
         for p in self._projects:
             self.cmb_projects.addItem(p["title"])
+            idx = self.cmb_projects.count() - 1
+            self.cmb_projects.setItemData(idx, p["title"], QtCore.Qt.ToolTipRole)
         if self._projects:
             self.cmb_projects.setCurrentIndex(0)
             self._refresh_containers()
@@ -2030,6 +2014,7 @@ class ApiSelectDialog(QtWidgets.QDialog):
         self.lst_cont.addItem(item_all)
         for c in self._containers:
             item = QtWidgets.QListWidgetItem(c["title"])
+            item.setToolTip(c["title"])
             item.setFlags(item.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(QtCore.Qt.CheckState.Unchecked)
             self.lst_cont.addItem(item)
@@ -2692,7 +2677,7 @@ class SheetPickerDialog(QtWidgets.QDialog):
 
         row_file = QtWidgets.QHBoxLayout()
         root.addLayout(row_file)
-        self.btn_file = QtWidgets.QPushButton("Выбрать книгу...")
+        self.btn_file = QtWidgets.QPushButton("Выбрать книгу")
         row_file.addWidget(self.btn_file)
         self.ed_path = QtWidgets.QLineEdit()
         self.ed_path.setReadOnly(True)
@@ -2722,7 +2707,7 @@ class SheetPickerDialog(QtWidgets.QDialog):
         root.addLayout(row_ok)
         row_ok.addStretch(1)
         self.btn_cancel = QtWidgets.QPushButton("Отмена")
-        self.btn_ok = QtWidgets.QPushButton("OK")
+        self.btn_ok = QtWidgets.QPushButton("ОК")
         self.btn_ok.setDefault(True)
         self.btn_ok.setAutoDefault(True)
         row_ok.addWidget(self.btn_cancel)
@@ -2752,6 +2737,7 @@ class SheetPickerDialog(QtWidgets.QDialog):
             sheets = ["Лист1"]
         for name in sheets:
             it = QtWidgets.QListWidgetItem(name)
+            it.setToolTip(name)
             it.setFlags(it.flags() | QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
             it.setCheckState(QtCore.Qt.Checked if name in self._selected_sheets else QtCore.Qt.Unchecked)
             self.lst_sheets.addItem(it)
@@ -2781,10 +2767,18 @@ class SheetPickerDialog(QtWidgets.QDialog):
 
 
 class _ParamMappingRow(QtWidgets.QWidget):
-    def __init__(self, column_name: str, default_value: str, pick_api_callback: Callable[["_ParamMappingRow"], None], parent=None):
+    def __init__(
+        self,
+        column_name: str,
+        default_value: str,
+        pick_api_callback: Callable[["_ParamMappingRow"], None],
+        pick_adapter_callback: Callable[["_ParamMappingRow"], None],
+        parent=None,
+    ):
         super().__init__(parent)
         self.column_name = str(column_name or "")
         self._pick_api_callback = pick_api_callback
+        self._pick_adapter_callback = pick_adapter_callback
 
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -2809,14 +2803,20 @@ class _ParamMappingRow(QtWidgets.QWidget):
             line_edit.setPlaceholderText("Ожидание excel")
         layout.addWidget(self.cmb_field, 1)
 
-        self.btn_pick_api = QtWidgets.QPushButton("Выбрать из API...")
-        self.btn_pick_api.setMinimumWidth(140)
+        self.btn_pick_api = QtWidgets.QPushButton("Из API")
+        self.btn_pick_api.setMinimumWidth(105)
         sp = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
         self.btn_pick_api.setSizePolicy(sp)
         layout.addWidget(self.btn_pick_api)
 
+        self.btn_pick_adapter = QtWidgets.QPushButton("Из адаптера")
+        self.btn_pick_adapter.setMinimumWidth(125)
+        self.btn_pick_adapter.setSizePolicy(sp)
+        layout.addWidget(self.btn_pick_adapter)
+
         self.chk_active.toggled.connect(self._refresh_active_style)
         self.btn_pick_api.clicked.connect(lambda: self._pick_api_callback(self))
+        self.btn_pick_adapter.clicked.connect(lambda: self._pick_adapter_callback(self))
         self._refresh_active_style(self.chk_active.isChecked())
 
     def _refresh_active_style(self, active: bool):
@@ -2824,6 +2824,7 @@ class _ParamMappingRow(QtWidgets.QWidget):
         self.lbl_column.setStyleSheet(color)
         self.cmb_field.setEnabled(active)
         self.btn_pick_api.setEnabled(active)
+        self.btn_pick_adapter.setEnabled(active)
 
     def mapping_value(self) -> str:
         return sanitize_str(self.cmb_field.currentText())
@@ -2862,6 +2863,8 @@ class ContentWidget(QtWidgets.QWidget):
         self._btn_back.clicked.connect(lambda: go_to_main_menu(self.window()))
         brand_box.addWidget(self._btn_back)
         brand_box.addStretch(1)
+        self._guide_button = create_guide_button(self, "sets", icon_dir=DEFAULT_ICON_DIR)
+        brand_box.addWidget(self._guide_button)
         self._theme_toggle = ThemeToggle(self)
         self._theme_toggle.setChecked(is_dark_theme(QtWidgets.QApplication.instance()))
         self._theme_toggle.toggled.connect(self._on_theme_toggled)
@@ -2883,7 +2886,7 @@ class ContentWidget(QtWidgets.QWidget):
         self.ed_sel_summary = QtWidgets.QLineEdit("Не выбрано")
         self.ed_sel_summary.setReadOnly(True)
         grp_src_l.addWidget(self.ed_sel_summary, 0, 1)
-        self.btn_pick = QtWidgets.QPushButton("Выбрать...")
+        self.btn_pick = QtWidgets.QPushButton("Выбрать")
         grp_src_l.addWidget(self.btn_pick, 0, 2)
 
         sec_params = Section("Параметры из Excel", self)
@@ -2927,10 +2930,19 @@ class ContentWidget(QtWidgets.QWidget):
         self._cb_grouped_tooltip_disabled = "Сначала включите «Фильтр» для активации этой опции."
         self.cb_grouped.setToolTip(self._cb_grouped_tooltip_disabled)
         g.addWidget(self.cb_grouped, 0, 2)
+        self.cb_merge_sheets = QtWidgets.QCheckBox("Объединить листы в один профиль")
+        self.cb_merge_sheets.setChecked(False)
+        self.cb_merge_sheets.setEnabled(False)
+        self.cb_merge_sheets.setToolTip(
+            "Если выбрано несколько листов, объединяет их в один профиль. "
+            "Если выключено — для каждого листа создаётся отдельный профиль."
+        )
+        g.addWidget(self.cb_merge_sheets, 0, 3)
         
         self._setup_checkbox_disabled_style()
         
         self.cb_filter.toggled.connect(self._on_filter_toggled)
+        self.cb_merge_sheets.toggled.connect(lambda _checked: self._update_source_summary())
 
         btns = QtWidgets.QVBoxLayout()
         self.btn_generate = QtWidgets.QPushButton("Сгенерировать профиль")
@@ -2970,6 +2982,7 @@ class ContentWidget(QtWidgets.QWidget):
         self.cb_auto.setStyleSheet(dis_qss)
         self.cb_filter.setStyleSheet(dis_qss)
         self.cb_grouped.setStyleSheet(dis_qss)
+        self.cb_merge_sheets.setStyleSheet(dis_qss)
 
     def _enable_settings_checkboxes(self, enable: bool):
         self.cb_auto.setEnabled(enable)
@@ -2983,6 +2996,22 @@ class ContentWidget(QtWidgets.QWidget):
         else:
             self.cb_grouped.setEnabled(False)
             self.cb_grouped.setToolTip(self._cb_grouped_tooltip_disabled)
+        self._refresh_merge_sheets_state()
+
+    def _refresh_merge_sheets_state(self):
+        enabled = bool(self._excel_path and len(self._selected_sheets) > 1)
+        self.cb_merge_sheets.setEnabled(enabled)
+        if not enabled:
+            self.cb_merge_sheets.setChecked(False)
+
+    def _update_source_summary(self):
+        if not self._selected_sheets:
+            self.ed_sel_summary.setText("Не выбрано")
+            return
+        suffix = ""
+        if len(self._selected_sheets) > 1:
+            suffix = " • 1 объединённый профиль" if self.cb_merge_sheets.isChecked() else f" • {len(self._selected_sheets)} отдельных профиля"
+        self.ed_sel_summary.setText(f"{Path(self._excel_path).name}: {', '.join(self._selected_sheets)}{suffix}")
 
     @staticmethod
     def _normalize_col_name(name: str) -> str:
@@ -3084,7 +3113,8 @@ class ContentWidget(QtWidgets.QWidget):
                 col,
                 self._default_field_for_column(col),
                 self._open_api_select_for_row,
-                self._params_widget,
+                self._open_adapter_select_for_row,
+                parent=self._params_widget,
             )
             self._param_rows.append(row)
             self._params_inner.addWidget(row)
@@ -3112,12 +3142,11 @@ class ContentWidget(QtWidgets.QWidget):
         ok = dlg.exec() if hasattr(dlg, "exec") else dlg.exec_()
         if ok:
             self._excel_path, self._selected_sheets = dlg.result()
-            if self._selected_sheets:
-                self.ed_sel_summary.setText(f"{Path(self._excel_path).name}: {', '.join(self._selected_sheets)}")
-            else:
-                self.ed_sel_summary.setText("Не выбрано")
+            self._refresh_merge_sheets_state()
+            self._update_source_summary()
             self._load_column_params()
             self._enable_settings_checkboxes(True)
+            self._refresh_merge_sheets_state()
 
     def _load_column_params(self):
         self._excel_param_columns = []
@@ -3207,6 +3236,16 @@ class ContentWidget(QtWidgets.QWidget):
             return
         self._open_api_select(lambda code: row.cmb_field.setCurrentText(code))
 
+    def _open_adapter_select_for_row(self, row: _ParamMappingRow):
+        if row is None:
+            return
+        # If the selected workbook contains an «Адаптер» sheet, the picker
+        # opens it immediately. Otherwise the user can choose another workbook.
+        initial_path = self._excel_path if self._excel_path and os.path.isfile(self._excel_path) else ""
+        code = pick_adapter_parameter(self, initial_path=initial_path)
+        if code:
+            row.cmb_field.setCurrentText(code)
+
     def generate_clicked(self):
         try:
             if pd is None:
@@ -3215,12 +3254,12 @@ class ContentWidget(QtWidgets.QWidget):
             title = (self.ed_title.text() or "Профиль").strip()
             
             if not self._excel_path or not self._selected_sheets:
-                QtWidgets.QMessageBox.warning(self, "Внимание", "Выберите Excel файл и лист.")
+                warning_box(self, "Выберите Excel файл и лист.", "Внимание")
                 return
 
             auto_cols = self.get_selected_columns()
             if not auto_cols:
-                QtWidgets.QMessageBox.warning(self, "Внимание", "Не найдены параметры в Excel (со 2-го столбца до LOI).")
+                warning_box(self, "Не найдены параметры в Excel (со 2-го столбца до LOI).", "Внимание")
                 return
 
             out_path = self._pick_out_file(title)
@@ -3244,37 +3283,46 @@ class ContentWidget(QtWidgets.QWidget):
                 "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
             })
             profiles = ET.SubElement(root, "Profiles")
-            base_el = ET.SubElement(profiles, "BaseExportProfile", {"xsi:type": "SetExportProfile"})
-            ET.SubElement(base_el, "Id").text = "0"
-            ET.SubElement(base_el, "Title").text = title
-            profile_items = ET.SubElement(base_el, "ProfileItems")
+            merge_sheets = bool(self.cb_merge_sheets.isChecked() and len(self._selected_sheets) > 1)
 
-            group_idx = 0
-            for sheet in self._selected_sheets:
-                header_row = self._header_rows_by_sheet.get(sheet)
-                if header_row is None:
-                    header_row = self._detect_header_row_index(self._excel_path, sheet)
-                df = pd.read_excel(self._excel_path, sheet_name=sheet, header=header_row, dtype=object)
-                next_id, group_idx = df_to_items_gui(
-                    df, profile_items,
-                    id_start=next_id,
-                    profile_title=title,
-                    group_column=group_col,
-                    category_column=cat_col,
-                    ifc_column=ifc_col,
-                    auto_number=auto_number,
-                    build_filters=build_filters,
-                    field_name_category=FIELD_NAME_DEFAULT_CATEGORY,
-                    field_name_ifc=FIELD_NAME_DEFAULT_IFC,
-                    filter_mode="both",
-                    classif_map=None,
-                    classif_column=classif_col,
-                    field_name_classif=FIELD_NAME_DEFAULT_CLASSIF,
-                    group_idx_start=group_idx,
-                    param_field_map=param_field_map,
-                    active_param_columns=list(param_field_map.keys()),
-                    grouped=grouped,
-                )
+            if merge_sheets:
+                profile_groups = [list(self._selected_sheets)]
+            else:
+                profile_groups = [[sheet] for sheet in self._selected_sheets]
+
+            for profile_index, sheet_group in enumerate(profile_groups):
+                profile_name = title if merge_sheets or len(profile_groups) == 1 else f"{title} - {sheet_group[0]}"
+                base_el = ET.SubElement(profiles, "BaseExportProfile", {"xsi:type": "SetExportProfile"})
+                ET.SubElement(base_el, "Id").text = str(profile_index)
+                ET.SubElement(base_el, "Title").text = profile_name
+                profile_items = ET.SubElement(base_el, "ProfileItems")
+                group_idx = 0
+
+                for sheet in sheet_group:
+                    header_row = self._header_rows_by_sheet.get(sheet)
+                    if header_row is None:
+                        header_row = self._detect_header_row_index(self._excel_path, sheet)
+                    df = pd.read_excel(self._excel_path, sheet_name=sheet, header=header_row, dtype=object)
+                    next_id, group_idx = df_to_items_gui(
+                        df, profile_items,
+                        id_start=next_id,
+                        profile_title=profile_name,
+                        group_column=group_col,
+                        category_column=cat_col,
+                        ifc_column=ifc_col,
+                        auto_number=auto_number,
+                        build_filters=build_filters,
+                        field_name_category=FIELD_NAME_DEFAULT_CATEGORY,
+                        field_name_ifc=FIELD_NAME_DEFAULT_IFC,
+                        filter_mode="both",
+                        classif_map=None,
+                        classif_column=classif_col,
+                        field_name_classif=FIELD_NAME_DEFAULT_CLASSIF,
+                        group_idx_start=group_idx,
+                        param_field_map=param_field_map,
+                        active_param_columns=list(param_field_map.keys()),
+                        grouped=grouped,
+                    )
 
             indent_xml(root)
             ET.ElementTree(root).write(out_path, encoding="utf-8", xml_declaration=True)

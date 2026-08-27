@@ -19,6 +19,8 @@ from shared.theme_toggle import (
     _tint_pixmap,
 )
 from shared.dialogs import wire_dialog_button_box
+from shared.larix_api import api_get_json
+from shared.guide import create_guide_button
 
 # ----------------- Тема и логотип -----------------
 BG = "#FFFFFF"
@@ -469,37 +471,23 @@ class BindingsHeaderView(QtWidgets.QHeaderView):
         painter.drawPixmap(target, pm)
 
 # ----------------- HTTP helpers -------------------
-try:
-    import requests
-except Exception:
-    requests = None
-
-def _need_requests():
-    if requests is None:
-        raise RuntimeError("Не установлен requests. Установи: pip install requests")
-
-def _http_get(url: str, params=None, timeout=60):
-    _need_requests()
-    r = requests.get(url, headers={"accept": "application/json"}, params=params, timeout=timeout)
-    if r.status_code >= 400:
-        raise RuntimeError(f"GET {url} -> {r.status_code}\n{r.text}")
-    try:
-        return r.json()
-    except Exception:
-        return json.loads(r.text or "null")
 
 def api_get_projects(base_url: str) -> List[Dict[str, Any]]:
-    data = _http_get(f"{base_url.rstrip('/')}/api/project/projects") or []
+    data = api_get_json(base_url, "/api/project/projects", timeout=60) or []
     return [{"id": p.get("id"), "title": p.get("title") or p.get("name") or f"ID {p.get('id')}"} for p in data]
 
+
 def api_get_containers(base_url: str, project_id: int) -> List[Dict[str, Any]]:
-    data = _http_get(f"{base_url.rstrip('/')}/api/imcContainer/getProjectImcContainers/{project_id}") or []
+    data = api_get_json(base_url, f"/api/imcContainer/getProjectImcContainers/{int(project_id)}", timeout=60) or []
     return [{"id": c.get("id"), "title": c.get("title") or f"ID {c.get('id')}"} for c in data]
 
+
 def api_get_params_for_container(base_url: str, container_id: int) -> List[Dict[str, Any]]:
-    data = _http_get(
-        f"{base_url.rstrip('/')}/api/imcParameterDefinition/imcParameterDefinitions",
-        params=[("containerIds", int(container_id))]
+    data = api_get_json(
+        base_url,
+        "/api/imcParameterDefinition/imcParameterDefinitions/",
+        params=[("containerIds", int(container_id))],
+        timeout=60,
     ) or []
     rows = []
     for r in data:
@@ -509,9 +497,9 @@ def api_get_params_for_container(base_url: str, container_id: int) -> List[Dict[
         })
     return rows
 
+
 def api_get_global_component(base_url: str, comp_type: int = 1) -> dict:
-    url = f"{base_url.rstrip('/')}/api/globalComponent/globalComponent/{int(comp_type)}"
-    return _http_get(url) or {}
+    return api_get_json(base_url, f"/api/globalComponent/globalComponent/{int(comp_type)}", timeout=60) or {}
 
 def flatten_global_attributes_with_types(gc: dict) -> List[Tuple[str, Optional[bool]]]:
     out: List[Tuple[str, Optional[bool]]] = []
@@ -798,6 +786,7 @@ class ModelFilterDialog(QtWidgets.QDialog):
         sel = set(models) if selected is None else set(selected)
         for m in models:
             it = QtWidgets.QListWidgetItem(m)
+            it.setToolTip(m)
             it.setFlags(it.flags() | QtCore.Qt.ItemIsUserCheckable)
             it.setCheckState(QtCore.Qt.Checked if m in sel else QtCore.Qt.Unchecked)
             self.list.addItem(it)
@@ -952,6 +941,8 @@ class MainWin(QtWidgets.QMainWindow):
         self._btn_back.clicked.connect(lambda: go_to_main_menu(self))
         header_h_layout.addWidget(self._btn_back)
         header_h_layout.addStretch()
+        self._guide_button = create_guide_button(self, "adapters", icon_dir=ICON_DIR)
+        header_h_layout.addWidget(self._guide_button)
         self._theme_toggle = ThemeToggle(self)
         self._theme_toggle.setChecked(is_dark_theme(QtWidgets.QApplication.instance()))
         self._theme_toggle.toggled.connect(self._on_theme_toggled)
@@ -1665,6 +1656,8 @@ class MainWin(QtWidgets.QMainWindow):
         self.comboProject.clear()
         for p in self.projects:
             self.comboProject.addItem(p["title"])
+            idx = self.comboProject.count() - 1
+            self.comboProject.setItemData(idx, p["title"], QtCore.Qt.ToolTipRole)
         self.containers.clear()
         self.per_model_params.clear()
         self.tableParams.setRowCount(0)
@@ -1701,6 +1694,8 @@ class MainWin(QtWidgets.QMainWindow):
         combo_proj.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContentsOnFirstShow)
         for p in self.projects:
             combo_proj.addItem(p["title"])
+            idx = combo_proj.count() - 1
+            combo_proj.setItemData(idx, p["title"], QtCore.Qt.ToolTipRole)
         if self.comboProject.currentIndex() >= 0:
             combo_proj.setCurrentIndex(self.comboProject.currentIndex())
         proj_layout.addWidget(proj_label)
@@ -1720,7 +1715,9 @@ class MainWin(QtWidgets.QMainWindow):
             try:
                 containers = sorted(api_get_containers(self.base(), pid), key=lambda c: (c["title"] or "").lower())
                 for c in containers:
-                    lst.addItem(c["title"])
+                    item = QtWidgets.QListWidgetItem(c["title"])
+                    item.setToolTip(c["title"])
+                    lst.addItem(item)
                 lst._containers = containers
             except Exception as e:
                 show_error_dialog(dlg, "API", f"Не удалось получить модели:\n{e}")
@@ -1814,8 +1811,12 @@ class MainWin(QtWidgets.QMainWindow):
         self.param_models_map.clear()
         for i, (code, isnum, models) in enumerate(rows):
             self.tableParams.insertRow(i)
-            self.tableParams.setItem(i, 0, QtWidgets.QTableWidgetItem(code))
-            self.tableParams.setItem(i, 1, QtWidgets.QTableWidgetItem(isnum))
+            it0 = QtWidgets.QTableWidgetItem(code)
+            it0.setToolTip(code)
+            it1 = QtWidgets.QTableWidgetItem(isnum)
+            it1.setToolTip(code)
+            self.tableParams.setItem(i, 0, it0)
+            self.tableParams.setItem(i, 1, it1)
             if len(models) > 1:
                 display_text = f"{models[0]}..."
             else:
@@ -1901,6 +1902,7 @@ class MainWin(QtWidgets.QMainWindow):
 
         for model in models:
             item = QtWidgets.QListWidgetItem(model)
+            item.setToolTip(model)
             item.setFlags(item.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(QtCore.Qt.CheckState.Checked if model in current else QtCore.Qt.CheckState.Unchecked)
             list_widget.addItem(item)

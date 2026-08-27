@@ -5,11 +5,6 @@ import tempfile
 from typing import Callable
 import sys
 
-_DIALOG_DEBUG = True
-
-def _dialog_log(msg: str):
-    if _DIALOG_DEBUG:
-        print(f"[DIALOG] {msg}", file=sys.stderr, flush=True)
 
 try:
     from PySide6 import QtCore, QtWidgets, QtGui
@@ -132,7 +127,6 @@ def _show_message_box(
     title: str,
     icon_name: str,
 ) -> int:
-    _dialog_log(f"_show_message_box called: parent={parent}, title={title}")
     
     # Use custom QDialog like in Adapters/ui.py - it works there
     dlg = QtWidgets.QDialog(parent)
@@ -175,11 +169,9 @@ def _show_message_box(
     wire_dialog_button_box(btn_box, dlg.accept)
     vlayout.addWidget(btn_box, 0, QtCore.Qt.AlignmentFlag.AlignRight)
     
-    _dialog_log(f"  Dialog created, about to exec()")
     
     result = dlg.exec()
     
-    _dialog_log(f"  exec() returned: {result}")
     
     return result
 
@@ -220,7 +212,38 @@ def _find_standard_button(container, owner, name: str):
     return None
 
 
+_STANDARD_BUTTON_TEXTS = {
+    "Ok": "ОК",
+    "Cancel": "Отмена",
+    "Close": "Закрыть",
+    "Yes": "Да",
+    "No": "Нет",
+    "Save": "Сохранить",
+    "Open": "Открыть",
+    "Apply": "Применить",
+    "Reset": "Сбросить",
+    "Retry": "Повторить",
+    "Ignore": "Игнорировать",
+    "Abort": "Прервать",
+    "Discard": "Не сохранять",
+    "RestoreDefaults": "По умолчанию",
+    "Help": "Справка",
+}
+
+
+def localize_standard_buttons(container, owner) -> None:
+    """Set Russian captions for Qt standard buttons without relying on Qt translations."""
+    for name, text in _STANDARD_BUTTON_TEXTS.items():
+        button = _find_standard_button(container, owner, name)
+        if button is not None:
+            try:
+                button.setText(text)
+            except Exception:
+                pass
+
+
 def wire_message_box_buttons(msg_box: QtWidgets.QMessageBox) -> None:
+    localize_standard_buttons(msg_box, QtWidgets.QMessageBox)
     if bool(msg_box.property("_dialog_buttons_wired")):
         return
     msg_box.setProperty("_dialog_buttons_wired", True)
@@ -269,31 +292,26 @@ def wire_dialog_button_box(
     on_accept: Callable[[], None] | None = None,
     on_reject: Callable[[], None] | None = None,
 ) -> None:
-    _dialog_log(f"wire_dialog_button_box called: on_accept={on_accept}, on_reject={on_reject}")
+    localize_standard_buttons(button_box, QtWidgets.QDialogButtonBox)
     
     ok_button = _find_standard_button(button_box, QtWidgets.QDialogButtonBox, "Ok")
-    _dialog_log(f"  OK button found: {ok_button}")
     
     if ok_button is not None:
         if on_accept is not None:
             ok_button.clicked.connect(on_accept)
-            _dialog_log(f"  Connected OK.clicked to {on_accept}")
         try:
             ok_button.setDefault(True)
             ok_button.setAutoDefault(True)
-            _dialog_log(f"  Set OK button as default")
         except Exception:
             pass
 
     cancel_button = _find_standard_button(button_box, QtWidgets.QDialogButtonBox, "Cancel")
     if cancel_button is not None and on_reject is not None:
         cancel_button.clicked.connect(on_reject)
-        _dialog_log(f"  Connected Cancel.clicked to {on_reject}")
 
     close_button = _find_standard_button(button_box, QtWidgets.QDialogButtonBox, "Close")
     if close_button is not None and on_reject is not None:
         close_button.clicked.connect(on_reject)
-        _dialog_log(f"  Connected Close.clicked to {on_reject}")
 
 
 def show_dialog(dialog: QtWidgets.QDialog, *, modal: bool = True):
@@ -394,12 +412,14 @@ def _fit_message_box(message_box: QtWidgets.QMessageBox) -> None:
 
 def _patched_message_box_exec(self):
     apply_dialog_icon(self)
+    localize_standard_buttons(self, QtWidgets.QMessageBox)
     _fit_message_box(self)
     return _original_QMessageBox_exec(self)
 
 
 def _patched_message_box_show(self):
     apply_dialog_icon(self)
+    localize_standard_buttons(self, QtWidgets.QMessageBox)
     _fit_message_box(self)
     return _original_QMessageBox_show(self)
 
@@ -440,3 +460,73 @@ def install_dialog_icon_patch():
 
 
 install_dialog_icon_patch()
+
+
+def show_scrollable_details(
+    parent,
+    summary: str,
+    details: list[str] | tuple[str, ...] | str,
+    title: str = "Результат",
+    *,
+    copy_text: str | None = None,
+) -> int:
+    """Show a resizable in-app result dialog with scrollable selectable details."""
+    if isinstance(details, str):
+        detail_lines = [line for line in details.splitlines() if line.strip()]
+    else:
+        detail_lines = [str(line) for line in details if str(line).strip()]
+
+    dlg = QtWidgets.QDialog(parent)
+    dlg.setWindowTitle(title)
+    try:
+        dlg.setWindowFlags(dlg.windowFlags() & ~QtCore.Qt.WindowType.WindowContextHelpButtonHint)
+    except Exception:
+        pass
+    dlg.resize(760, 520)
+    dlg.setMinimumSize(560, 360)
+    apply_dialog_icon(dlg)
+
+    root = QtWidgets.QVBoxLayout(dlg)
+    root.setContentsMargins(18, 18, 18, 18)
+    root.setSpacing(12)
+
+    lbl = QtWidgets.QLabel(str(summary or ""))
+    lbl.setWordWrap(True)
+    try:
+        lbl.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+    except Exception:
+        try:
+            lbl.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        except Exception:
+            pass
+    root.addWidget(lbl)
+
+    text = QtWidgets.QPlainTextEdit()
+    text.setReadOnly(True)
+    text.setPlainText("\n".join(f"• {line}" for line in detail_lines))
+    root.addWidget(text, 1)
+
+    buttons_row = QtWidgets.QHBoxLayout()
+    buttons_row.addStretch(1)
+    btn_copy = QtWidgets.QPushButton("Копировать всё")
+    btn_close = QtWidgets.QPushButton("Закрыть")
+    buttons_row.addWidget(btn_copy)
+    buttons_row.addWidget(btn_close)
+    root.addLayout(buttons_row)
+
+    full_text = copy_text
+    if full_text is None:
+        full_text = str(summary or "")
+        if detail_lines:
+            full_text += "\n\n" + "\n".join(f"- {line}" for line in detail_lines)
+
+    def _copy():
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            app.clipboard().setText(full_text or "")
+
+    btn_copy.clicked.connect(_copy)
+    btn_close.clicked.connect(dlg.accept)
+    btn_close.setDefault(True)
+
+    return dlg.exec() if hasattr(dlg, "exec") else dlg.exec_()

@@ -1,10 +1,6 @@
 PySide6
 pandas
 requests
+cryptography
 openpyxl
-pyodbc
-tenacity
-urllib3
-certifi
-pyarrow
 PyInstaller

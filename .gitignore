@@ -23,12 +23,12 @@ dist/
 *.log
 *.har
 
-# Local databases / generated sync data
+# Local databases / generated data
 *.db
 *.sqlite
 *.sqlite3
 
-# Local export data from BIM Sync
+# User-generated exports
 Новая папка/
 exports/
 export/

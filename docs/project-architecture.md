@@ -2,7 +2,7 @@
 
 ## 1. Краткое назначение проекта
 
-Проект представляет собой набор desktop-инструментов Larix на Python/PySide6 для работы с BIM/платформенными данными: менеджер плагинов, просмотр статусов, генерация XML/профилей из Excel и синхронизация данных во внешние хранилища. Основные пользователи - специалисты, которым нужно настраивать адаптеры, наборы, матрицы, профили параметров и выгружать/синхронизировать данные Larix. Основной сценарий - запустить GUI, выбрать модуль, подключиться к локальному или внешнему API, импортировать Excel/API-данные и получить XML/Excel/DB/файловый результат. Технологии определяются по импортам и `build_exe.bat`: `PySide6`, `pandas`, `requests`, `openpyxl`, `pyodbc`, `tenacity`, `pyarrow`, `certifi`, `pyinstaller`.
+Проект представляет собой набор desktop-инструментов Larix на Python/PySide6 для работы с BIM/платформенными данными: менеджер плагинов, просмотр статусов, генерация XML/профилей из Excel и синхронизация данных во внешние хранилища. Основные пользователи - специалисты, которым нужно настраивать адаптеры, наборы, матрицы, профили параметров и выгружать/синхронизировать данные Larix. Основной сценарий - запустить GUI, выбрать модуль, подключиться к локальному или внешнему API, импортировать Excel/API-данные и получить XML/Excel/DB/файловый результат. Технологии определяются по импортам, `requirements.txt` и `build_main.bat`: `PySide6`, `pandas`, `requests`, `openpyxl`, `pyodbc`, `tenacity`, `pyarrow`, `certifi`, `pyinstaller`.
 
 ## 2. Быстрый старт для будущего ИИ-агента
 
@@ -21,12 +21,11 @@
 | Область | Путь | Назначение |
 |---|---|---|
 | Объединённый GUI | `main.py` | Монолитная точка входа с главным меню Manager/Viewer и динамической загрузкой модулей. |
-| Manager GUI | `manager_main.py` | Отдельный запуск Larix Plugin Manager; использует `shared/app_common.py` и загружает `Adapters`, `Sets`, `Matrix`, `Validator`. |
-| Viewer GUI | `viewer_main.py` | Отдельный запуск Larix Viewer; использует `shared/app_common.py`, `Viewer` и режим BIM Sync через `Sync`. |
+| Manager GUI | `manager_main.py` | Опциональный отдельный запуск Larix Plugin Manager; использует `shared/app_common.py` и загружает `Adapters`, `Sets`, `Matrix`, `Validator`. |
 | Общая оболочка GUI | `shared/app_common.py` | Общие карточки режимов, проверка API, логотипы, загрузка окон модулей. |
 | Import XML tool | `importxml/XML.py` | Самостоятельный GUI/CLI-like инструмент для загрузки изменений из XML/Excel в API. |
-| Сборка | `build_exe.bat` | Windows-скрипт PyInstaller для сборки `Larix_Plugin_Manager.exe` и `Larix_Viewer.exe`. |
-| PyInstaller spec | `Larix_Plugin_Manager.spec`, `Larix_Viewer.spec` | Сгенерированные спецификации сборки с локальными абсолютными путями; не являются основной точкой настройки. |
+| Сборка | `build_main.bat` | Windows-скрипт PyInstaller для сборки объединённого `Larix_Main.exe`. |
+| PyInstaller spec | `*.spec` | Сгенерированные файлы PyInstaller; исключены из Git и не являются основной точкой настройки. |
 
 ## 4. Структура проекта
 
@@ -34,7 +33,6 @@
 |---|---|
 | `main.py` | Старшая/монолитная GUI-оболочка с меню и загрузкой модулей. |
 | `manager_main.py` | Узкая точка входа для Manager. |
-| `viewer_main.py` | Узкая точка входа для Viewer. |
 | `shared/` | Общие UI-компоненты, тема, диалоги, Excel-парсер, генерация Excel-шаблонов. |
 | `Adapters/ui.py` | Редактор адаптеров и XML-сериализация маппинга параметров. |
 | `Sets/ui.py` | Управление наборами/профилями Larix, импорт Excel/API, генерация XML-структур. |
@@ -49,7 +47,6 @@
 | `Sync/check.py` | Вспомогательная проверка parquet-файлов. |
 | `importxml/` | Отдельный инструмент для XML/Excel-импорта и генерации Excel-шаблона. |
 | `icon/` | Общие изображения, логотипы и иконки UI; включаются в PyInstaller-сборку. |
-| `ARCHITECTURE.md` | Старый архитектурный документ; новый канонический файл - `docs/project-architecture.md`. |
 
 ## 5. Архитектурные слои
 
@@ -65,9 +62,9 @@ Services / Integrations
 Storage / Files / External APIs
 ```
 
-**UI / Desktop**: `main.py`, `manager_main.py`, `viewer_main.py`, `shared/app_common.py`, `Adapters/ui.py`, `Sets/ui.py`, `Matrix/ui.py`, `Validator/ui.py`, `Viewer/ui.py`, `Sync/ui.py`. Отвечает за PySide6-окна, карточки режимов, диалоги, ввод токенов/URL и пользовательские действия. Нежелательно добавлять сюда тяжёлую новую бизнес-логику без необходимости: многие файлы уже совмещают UI и обработку данных.
+**UI / Desktop**: `main.py`, `manager_main.py`, `shared/app_common.py`, `Adapters/ui.py`, `Sets/ui.py`, `Matrix/ui.py`, `Validator/ui.py`, `Viewer/ui.py`, `Sync/ui.py`. Отвечает за PySide6-окна, карточки режимов, диалоги, ввод токенов/URL и пользовательские действия. Нежелательно добавлять сюда тяжёлую новую бизнес-логику без необходимости: многие файлы уже совмещают UI и обработку данных.
 
-**Orchestration / Application Layer**: `shared/app_common.py`, функции загрузки модулей в `main.py`, `manager_main.py`, `viewer_main.py`, worker-классы в `Matrix/ui.py` и `Sync/ui.py`. Отвечает за запуск сценариев, QThread, переключение режимов и передачу параметров между UI и обработчиками. Нежелательна жёсткая привязка новых модулей к конкретному окну, если уже есть динамическая загрузка через loader-таблицы.
+**Orchestration / Application Layer**: `shared/app_common.py`, функции загрузки модулей в `main.py`, `manager_main.py`, worker-классы в `Matrix/ui.py` и `Sync/ui.py`. Отвечает за запуск сценариев, QThread, переключение режимов и передачу параметров между UI и обработчиками. Нежелательна жёсткая привязка новых модулей к конкретному окну, если уже есть динамическая загрузка через loader-таблицы.
 
 **Domain / Core Logic**: `Adapters/ui.py`, `Sets/ui.py`, `Matrix/ui.py`, `Validator/ui.py`, `Validator/Parameters.py`, `shared/excel_parser.py`, `shared/excel_template.py`, `importxml/XML.py`. Отвечает за разбор Excel/XML, построение профилей, матриц, адаптеров и валидационных структур. Нежелательно менять форматы XML/Excel/PV без отдельного согласования.
 
@@ -93,19 +90,19 @@ Storage / Files / External APIs
 | `shared/app_common.py` | Создаёт главное окно, проверяет API, загружает выбранный модуль. |
 | `shared/theme_toggle.py` | Единая тема, иконки, back-кнопки и синхронизация темы. |
 
-### 6.2 Запуск Viewer и BIM Sync
+### 6.2 Viewer и BIM Sync
 
-Что делает: открывает Viewer-приложение со статусами и доступом к синхронизации элементов.
+Что делает: из объединённого `main.py` открывает просмотр статусов и инструменты синхронизации элементов.
 
 Цепочка файлов:
 
-`viewer_main.py` -> `shared/app_common.py` -> `Viewer/ui.py` / `Sync/ui.py`
+`main.py` -> `Viewer/ui.py` / `Sync/ui.py`
 
 Ключевые модули:
 
 | Путь | Роль |
 |---|---|
-| `viewer_main.py` | Описывает карточки Viewer и включает BIM Sync режим. |
+| `main.py` | Содержит карточки Viewer и переход в BIM Sync режим. |
 | `Viewer/ui.py` | Авторизация, работа со статусами и Viewer API. |
 | `Viewer/keycloak_auth.py` | Keycloak login/refresh token. |
 | `Sync/ui.py` | Синхронизация проектов, моделей, элементов и экспорт данных. |
@@ -149,7 +146,7 @@ Storage / Files / External APIs
 
 Цепочка файлов:
 
-`viewer_main.py` -> `shared/app_common.py` -> `Sync/ui.py` -> `Sync/odbc.py` / `Sync/tls.py`
+`main.py` -> `Sync/ui.py` -> `Sync/odbc.py` / `Sync/tls.py`
 
 Ключевые модули:
 
@@ -179,8 +176,8 @@ Storage / Files / External APIs
 
 | Путь | Тип | Назначение | Коммитить? |
 |---|---|---|---|
-| `build_exe.bat` | Build script | Сборка двух EXE через PyInstaller. | Да |
-| `Larix_Plugin_Manager.spec`, `Larix_Viewer.spec` | Build artifact/config | Сгенерированные PyInstaller spec с абсолютными локальными путями. | Нет |
+| `build_main.bat` | Build script | Сборка объединённого `Larix_Main.exe` через PyInstaller. | Да |
+| `*.spec` | Build artifact/config | Сгенерированные PyInstaller spec-файлы. | Нет |
 | `icon/` | Static assets | Иконки и логотипы для UI и сборки. | Да |
 | `Validator/icon/`, `importxml/icon/` | Дублированные static assets | Локальные копии иконок для отдельных модулей. | Да, если нужны этим модулям |
 | `bim_sync.log` | Лог | Runtime-лог синхронизации. | Нет |
@@ -191,7 +188,7 @@ Storage / Files / External APIs
 | `*.xlsx`, `*.pv` в корне | Данные/примеры | Рабочие Excel/PV-файлы; назначение зависит от сценария. | Только если это осознанные примеры |
 | `.env` или аналоги | Секреты/локальная среда | В проекте не найден как tracked-файл; переменные читаются через `os.environ`. | Нет |
 
-Отдельный риск: `requirements.txt` и `.gitignore` сейчас отсутствуют в рабочем дереве, хотя ранее использовались как конфиги проекта. Если это не намеренное удаление, их стоит восстановить отдельной задачей.
+`requirements.txt` фиксирует список необходимых Python-пакетов, а корневой `.gitignore` исключает сборочные, временные и пользовательские файлы.
 
 ## 8. Команды проекта
 
@@ -199,23 +196,22 @@ Storage / Files / External APIs
 |---|---|
 | Запуск объединённого GUI | `py -3 main.py` |
 | Запуск Manager | `py -3 manager_main.py` |
-| Запуск Viewer | `py -3 viewer_main.py` |
-| Сборка Manager и Viewer EXE | `build_exe.bat` |
+| Сборка объединённого EXE | `build_main.bat` |
 
-Установку зависимостей, тесты, линтинг и форматирование не удалось надёжно определить по текущим файлам проекта. `build_exe.bat` проверяет наличие `PySide6`, `pandas`, `requests`, `openpyxl`, `pyodbc`, `tenacity` и опционально `pyarrow`, но файла зависимостей сейчас нет.
+Python-зависимости перечислены в `requirements.txt`. Автоматизированные тесты, линтинг и форматирование по текущим файлам проекта не настроены.
 
 ## 9. Важные ограничения и хрупкие места
 
 | Область | Что учитывать |
 |---|---|
 | `shared/app_common.py`, `main.py` | Динамическая загрузка модулей через `importlib` и извлечение `centralWidget`; изменение сигнатур окон может сломать навигацию. |
-| `manager_main.py`, `viewer_main.py` | Loader-таблицы задают соответствие карточек и классов модулей; менять ID/имена классов только синхронно с UI-модулями. |
+| `manager_main.py` | Loader-таблица отдельного Manager задаёт соответствие карточек и классов модулей; менять ID/имена классов только синхронно с UI-модулями. |
 | `shared/theme_toggle.py` | Общая система темы и иконок влияет на все GUI-модули. |
 | `Adapters/ui.py`, `Sets/ui.py`, `Matrix/ui.py`, `Validator/ui.py`, `Sync/ui.py` | Большие файлы совмещают UI, API и доменную логику; локальная правка может иметь широкий эффект. |
 | `Validator/ui.py` и `Validator/Parameters.py` | Похоже на дублирование логики параметров; перед правками проверять, какой файл реально используется. |
 | `Sync/ui.py` | Много интеграций: API, SQL Server, SQLite, Parquet, Power BI, потоки и retry; менять по минимальному diff. |
 | `Viewer/keycloak_auth.py` | Авторизация Keycloak и refresh token; нельзя менять endpoints/client settings без проверки Viewer и Sync. |
-| `build_exe.bat` | Сборка зависит от путей модулей, hidden imports и наличия `pyarrow`/`pyodbc`; любые изменения проверять сборкой. |
+| `build_main.bat` | Сборка зависит от путей модулей, hidden imports и наличия `pyarrow`/`pyodbc`; любые изменения проверять сборкой. |
 | `icon/` | Пути к иконкам зашиты в коде и spec/build script; удаление/переименование ломает UI и сборку. |
 | Русские строки/кодировки | В терминальном выводе некоторые строки могут отображаться как mojibake; не делать массовую перекодировку файлов без явной задачи. |
 

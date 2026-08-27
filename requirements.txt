@@ -1,0 +1,10 @@
+PySide6
+pandas
+requests
+openpyxl
+pyodbc
+tenacity
+urllib3
+certifi
+pyarrow
+PyInstaller

@@ -29,7 +29,7 @@ import shared.theme_toggle as _theme
 from shared.dialogs import show_dialog, wire_dialog_button_box, wire_message_box_buttons, show_scrollable_details
 from shared.larix_api import api_get_json
 from shared.excel_parser import read_parameter_sheet
-from shared.adapter_excel import read_adapter_mapping
+from shared.adapter_excel import read_adapter_mapping, find_adapter_mapping_duplicates
 from shared.adapter_picker import choose_adapter_sheet, pick_adapter_parameter
 from shared.guide import create_guide_button
 
@@ -1995,7 +1995,22 @@ def _import_adapter_mapping(parent, excel_path: str) -> dict:
     if not path or not sheet:
         return {}
     try:
-        return read_adapter_mapping(path, sheet)
+        duplicates = find_adapter_mapping_duplicates(path, sheet)
+        mapping = read_adapter_mapping(path, sheet)
+        if duplicates:
+            details = []
+            for key, codes in duplicates.items():
+                details.append(f"{key}: " + " → ".join(codes))
+            show_scrollable_details(
+                parent,
+                (
+                    "В колонке «Параметры» найдены повторяющиеся значения. "
+                    "Для автосопоставления будет использована последняя строка каждого совпадения."
+                ),
+                details,
+                title="Повторяющиеся сопоставления",
+            )
+        return mapping
     except Exception as exc:
         _popup_error(parent, f"Не удалось прочитать адаптер:\n{exc}")
         return {}

@@ -23,7 +23,7 @@ except Exception:
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.theme_toggle import ThemeToggle, theme, is_dark_theme, create_back_button, go_to_main_menu, resolve_icon_path, load_saved_theme, enable_theme_sync
-from shared.dialogs import show_warning, localize_standard_buttons
+from shared.dialogs import show_warning, localize_standard_buttons, show_scrollable_details
 from shared.larix_api import api_get_json
 from shared.adapter_picker import pick_adapter_parameter
 from shared.guide import create_guide_button
@@ -952,6 +952,7 @@ def build_filter_condition_blocks_xml(param_field: str, raw_value) -> str:
 # -----------------------------
 class GeneratorWorker(QtCore.QObject):
     log = Signal(str)
+    warning = Signal(str)
     done = Signal(str)
     failed = Signal(str)
 
@@ -1128,10 +1129,14 @@ class GeneratorWorker(QtCore.QObject):
                 if name not in category_map:
                     missing_sets.append(name)
             if missing_sets:
-                self.log.emit(
-                    "В файле наборов не найдены описания для "
-                    f"{len(missing_sets)} наборов из матрицы. Для них проверки будут созданы без фильтров."
+                missing_text = ", ".join(missing_sets)
+                warning_text = (
+                    f"Лист «{sheet_matrix}»: в листе наборов не найдены "
+                    f"{len(missing_sets)} набор(а): {missing_text}. "
+                    "Проверки для них созданы без фильтров."
                 )
+                self.log.emit(warning_text)
+                self.warning.emit(warning_text)
 
         # Group by prefixes from 'Наборы' (без номеров)
         groups = defaultdict(list)
@@ -1596,14 +1601,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_enable_filter.setChecked(False)
         f.addWidget(self.cb_enable_filter, 0, 0, 1, 3)
 
-        # Наборы берутся из того же Excel-файла, который выбран выше.
-        self.lbl_nabory = self._make_form_label("Excel-файл", height=form_row_height)
+        # По умолчанию наборы берутся из общего Excel, но старый сценарий
+        # с отдельным файлом наборов также поддерживается.
+        self.lbl_nabory = self._make_form_label("Excel-файл наборов", height=form_row_height)
         self.ed_nabory = self._tune_form_control(QtWidgets.QLineEdit(), height=form_row_height)
         self.ed_nabory.setReadOnly(True)
+        self.ed_nabory.setPlaceholderText("По умолчанию используется общий Excel-файл")
         self.btn_nabory = self._tune_form_control(QtWidgets.QPushButton("Выбрать"), height=form_row_height)
-        self.btn_nabory.hide()
-        self.lbl_nabory.hide()
-        self.ed_nabory.hide()
+        self.btn_nabory.clicked.connect(self._pick_nabory)
+        f.addWidget(self.lbl_nabory, 1, 0)
+        f.addWidget(self.ed_nabory, 1, 1)
+        f.addWidget(self.btn_nabory, 1, 2)
 
         self.lbl_sheet_nabory = self._make_form_label("Лист наборов", height=form_row_height)
         self.cb_sheet_nabory = self._tune_form_control(QtWidgets.QComboBox(), height=form_row_height)
@@ -1615,8 +1623,8 @@ class MainWindow(QtWidgets.QMainWindow):
         spn = self.cb_sheet_nabory.sizePolicy()
         spn.setHorizontalPolicy(QtWidgets.QSizePolicy.Fixed)
         self.cb_sheet_nabory.setSizePolicy(spn)
-        f.addWidget(self.lbl_sheet_nabory, 1, 0)
-        f.addWidget(self.cb_sheet_nabory, 1, 1)
+        f.addWidget(self.lbl_sheet_nabory, 2, 0)
+        f.addWidget(self.cb_sheet_nabory, 2, 1)
 
         self.lbl_filter_param = self._make_form_label("Параметр фильтрации", height=form_row_height)
         self.cmb_filter_param = self._tune_form_control(QtWidgets.QComboBox(), height=form_row_height)
@@ -1646,9 +1654,9 @@ class MainWindow(QtWidgets.QMainWindow):
         filter_buttons_layout.addWidget(self.btn_select_adapter)
         filter_buttons_layout.addStretch(1)
 
-        f.addWidget(self.lbl_filter_param, 2, 0)
-        f.addWidget(self.cmb_filter_param, 2, 1)
-        f.addWidget(filter_buttons, 2, 2)
+        f.addWidget(self.lbl_filter_param, 3, 0)
+        f.addWidget(self.cmb_filter_param, 3, 1)
+        f.addWidget(filter_buttons, 3, 2)
 
         root.addWidget(self.sec_filter)
 
@@ -1915,8 +1923,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_filter_controls_visual_state(enabled)
 
     def _pick_nabory(self):
-        # Отдельный файл наборов больше не нужен: используется выбранный общий Excel.
-        return
+        if not self.cb_enable_filter.isChecked():
+            return
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            _get_visible_parent(self), "Выберите Excel-файл наборов", "", "Excel (*.xlsx *.xls)"
+        )
+        if not path:
+            return
+        self.ed_nabory.setText(path)
+        self._populate_sheets(path, self.cb_sheet_nabory)
 
     def _pick_matrix(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -1992,7 +2007,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_select_from_adapter(self):
         """Выбирает параметр, который создаётся Excel-адаптером."""
-        initial_path = self.ed_nabory.text().strip() or self.ed_matrix.text().strip()
+        initial_path = self.ed_matrix.text().strip() or self.ed_nabory.text().strip()
         code = pick_adapter_parameter(_get_visible_parent(self), initial_path)
         if code:
             self.cmb_filter_param.setCurrentText(code)
@@ -2003,7 +2018,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _start_generation(self):
         build_filters = self.cb_enable_filter.isChecked()
         matrix = self.ed_matrix.text().strip()
-        nabory = matrix if build_filters else ""
+        nabory = (self.ed_nabory.text().strip() or matrix) if build_filters else ""
         profile_title = (self.ed_title.text() or "").strip() or "Матрица"
         param_field = ((self.cmb_filter_param.currentText() or "").strip() or "Категория:\\") if build_filters else ""
 
@@ -2013,8 +2028,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if not os.path.exists(matrix):
             show_warning(_get_visible_parent(self), "Выберите корректный Excel-файл.", "Файл не найден")
             return
+        if build_filters and not os.path.exists(nabory):
+            show_warning(_get_visible_parent(self), "Выберите корректный Excel-файл наборов.", "Файл не найден")
+            return
         if build_filters and not sheet_nabory:
-            show_warning(_get_visible_parent(self), "Выберите лист наборов из этого Excel-файла.", "Не выбран лист")
+            show_warning(_get_visible_parent(self), "Выберите лист наборов.", "Не выбран лист")
             return
         if not sheet_matrix:
             show_warning(_get_visible_parent(self), "Выберите хотя бы один лист матрицы.", "Не выбраны листы")
@@ -2029,6 +2047,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._pending_success_path: str | None = None
         self._pending_error_msg: str | None = None
+        self._pending_warnings: list[str] = []
 
         self.thread = QtCore.QThread(self)
         self.worker = GeneratorWorker(
@@ -2040,6 +2059,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
 
+        self.worker.warning.connect(self._on_worker_warning)
         self.worker.done.connect(self._on_done)
         self.worker.failed.connect(self._on_failed)
         self.worker.done.connect(self.thread.quit)
@@ -2048,6 +2068,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.worker.failed.connect(self.worker.deleteLater)
         self.thread.finished.connect(self._on_thread_finished)
         self.thread.start()
+
+    def _on_worker_warning(self, message: str):
+        message = str(message or "").strip()
+        if message and message not in self._pending_warnings:
+            self._pending_warnings.append(message)
 
     def _on_done(self, out_path: str):
         self._pending_success_path = out_path
@@ -2061,8 +2086,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_generate.setEnabled(True)
         success_path = getattr(self, "_pending_success_path", None)
         error_msg = getattr(self, "_pending_error_msg", None)
+        warnings = list(getattr(self, "_pending_warnings", []) or [])
         self._pending_success_path = None
         self._pending_error_msg = None
+        self._pending_warnings = []
         
         
         if self.thread:
@@ -2071,15 +2098,34 @@ class MainWindow(QtWidgets.QMainWindow):
             self.worker = None
         
         if success_path:
-            QtCore.QTimer.singleShot(0, lambda path=success_path: self._show_generation_result(success_path=path))
+            QtCore.QTimer.singleShot(
+                0,
+                lambda path=success_path, items=warnings: self._show_generation_result(
+                    success_path=path, warnings=items
+                ),
+            )
         elif error_msg:
             QtCore.QTimer.singleShot(0, lambda message=error_msg: self._show_generation_result(error_message=message))
 
-    def _show_generation_result(self, success_path: str | None = None, error_message: str | None = None):
+    def _show_generation_result(
+        self,
+        success_path: str | None = None,
+        error_message: str | None = None,
+        warnings: list[str] | None = None,
+    ):
         parent = _get_visible_parent(self)
         if success_path:
             label = "Файлы созданы" if "\n" in success_path else "Файл создан"
-            _popup_info(parent, f"{label}:\n{success_path}", "Готово")
+            warning_items = [str(item) for item in (warnings or []) if str(item).strip()]
+            if warning_items:
+                show_scrollable_details(
+                    parent,
+                    f"{label}:\n{success_path}\n\nПрофиль создан, но есть предупреждения:",
+                    warning_items,
+                    title="Готово с предупреждениями",
+                )
+            else:
+                _popup_info(parent, f"{label}:\n{success_path}", "Готово")
         elif error_message:
             _popup_error(parent, error_message)
 

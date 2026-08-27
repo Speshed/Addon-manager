@@ -124,6 +124,35 @@ def read_adapter_mapping(path: str, sheet_name: str) -> dict[str, dict]:
     return mapping
 
 
+
+
+def find_adapter_mapping_duplicates(path: str, sheet_name: str) -> dict[str, list[str]]:
+    """Return duplicate LOI mapping keys and target parameter codes.
+
+    The same rule is used as in ``read_adapter_mapping``: the key comes from
+    the ``Параметры`` column, with ``Наименование параметра`` as a fallback.
+    """
+    grouped: dict[str, list[str]] = {}
+    for item in read_adapter_parameters(path, sheet_name):
+        key = (item.source_key or item.name).strip()
+        if not key:
+            continue
+        grouped.setdefault(key, []).append(item.code)
+
+    duplicates: dict[str, list[str]] = {}
+    for key, codes in grouped.items():
+        unique_codes: list[str] = []
+        seen_codes: set[str] = set()
+        for code in codes:
+            marker = str(code).casefold()
+            if marker in seen_codes:
+                continue
+            seen_codes.add(marker)
+            unique_codes.append(str(code))
+        if len(unique_codes) > 1:
+            duplicates[key] = unique_codes
+    return duplicates
+
 def prefer_adapter_sheet(sheet_names: Iterable[str]) -> str:
     names = [str(name) for name in sheet_names]
     for name in names:

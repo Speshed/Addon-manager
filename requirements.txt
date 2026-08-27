@@ -1,9 +1,0 @@
-PySide6
-pandas
-requests
-openpyxl
-pyodbc
-tenacity
-pyarrow
-certifi
-pyinstaller

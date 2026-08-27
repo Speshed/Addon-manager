@@ -1603,6 +1603,7 @@ def _build_sheet_categories(layout, sheet_name: str, mode: str, filter_field_map
     section_col = layout.role_columns.get("section") or (str(df.columns[0]).strip() if len(df.columns) > 0 else "")
     category_col = layout.role_columns.get("category") or (str(df.columns[1]).strip() if len(df.columns) > 1 else "")
     classif_col = layout.role_columns.get("classif_code") or ""
+    classif_desc_col = layout.role_columns.get("classif_desc") or ""
     loi_cols = [c for c in layout.param_columns if str(c).strip()]
     if not section_col or not loi_cols:
         raise ValueError(f"Лист '{sheet_name}': не удалось определить структуру Excel-шаблона")
@@ -1622,47 +1623,231 @@ def _build_sheet_categories(layout, sheet_name: str, mode: str, filter_field_map
             s = s.replace("__", "_")
         return s.strip("_")
 
-    section_data: dict[str, dict[str, object]] = {}
-    validation_codes: set[tuple[str, bool]] = set()
-    for _, row in df.iterrows():
-        section = str(row.get(section_col, "") or "").strip()
-        if not section:
-            continue
-        revit_cat = str(row.get(category_col, "")).strip() if category_col and pd.notna(row.get(category_col, "")) else ""
-        row_classifier_codes = []
-        if classif_col and classif_col in row and pd.notna(row[classif_col]):
-            row_classifier_codes = [c.strip() for c in str(row[classif_col]).split(",") if c.strip()]
+    def _excel_row_number(df_row_index: int) -> int:
+        # 1-based row number in Excel
+        base = int(getattr(layout, "data_start_row", 0) or 0)
+        return base + int(df_row_index) + 1
 
-        if section not in section_data:
-            section_data[section] = {
+    nodes_by_key: dict[str, dict[str, object]] = {}
+    ordered_nodes: list[dict[str, object]] = []
+    warnings: list[str] = []
+    validation_codes: set[tuple[str, bool]] = set()
+
+    def _get_or_create_node(kind: str, key: str, title: str, parent_key: str | None, order: int) -> dict[str, object]:
+        node = nodes_by_key.get(key)
+        if node is None:
+            node = {
+                "kind": kind,
+                "key": key,
+                "title": title,
+                "parent_key": parent_key,
                 "revit_categories": set(),
                 "classifier_codes": set(),
+                "classifier_pairs": [],
                 "filter_values": {},
                 "params": {},
+                "children": [],
+                "order": order,
             }
+            nodes_by_key[key] = node
+            ordered_nodes.append(node)
+            if parent_key and parent_key in nodes_by_key:
+                try:
+                    nodes_by_key[parent_key]["children"].append(key)
+                except Exception:
+                    pass
+        else:
+            # keep first "order"/"parent_key"/"title" as created
+            pass
+        return node
 
-        section_data[section]["classifier_codes"].update(row_classifier_codes)
-        section_data[section]["classifier_codes"].update(codes_map.get(section, []))
+    order_counter = 0
+    classifier_stack: dict[int, str] = {}
+    existing_classifier_keys: set[str] = set()
+    hash_stack: dict[int, str] = {}
+    hash_child_counters: dict[str, int] = {}
+    current_classifier: dict[str, object] | None = None
+    # Plain text grouping inside a classifier (acts as effective level 1).
+    active_plain_parent_key: str | None = None
 
-        for col_name in selected_filter_map:
-            values = _split_filter_values(row.get(col_name, ""))
-            if col_name == classif_col and section in codes_map:
-                for code in codes_map.get(section, []):
-                    if code and code not in values:
-                        values.append(code)
-            if not values:
-                continue
-            bucket = section_data[section]["filter_values"].setdefault(col_name, [])
-            for value in values:
-                if value not in bucket:
-                    bucket.append(value)
+    def _find_classifier_parent_key(code: str) -> str | None:
+        parts = [p for p in str(code or "").split(".") if p]
+        for size in range(len(parts) - 1, 0, -1):
+            candidate = ".".join(parts[:size])
+            if candidate in existing_classifier_keys:
+                return candidate
+        return None
 
+    for row_idx, row in df.iterrows():
+        raw_section = str(row.get(section_col, "") or "").strip()
+        if not raw_section:
+            continue
+        excel_row = _excel_row_number(int(row_idx))
+
+        classifier_info = _parse_classifier_row(raw_section)
+        hash_info = None if classifier_info else _parse_hash_row(raw_section)
+
+        current_node: dict[str, object] | None = None
+        if classifier_info:
+            key = classifier_info["code"]
+            # Keep full original classifier string in Title (with code + "_")
+            title = raw_section
+            level = int(classifier_info["level"])
+            parent_key = _find_classifier_parent_key(str(key))
+
+            order_counter += 1
+            current_node = _get_or_create_node(kind="classifier", key=key, title=title, parent_key=parent_key, order=order_counter)
+
+            classifier_stack[level] = key
+            existing_classifier_keys.add(str(key))
+            for k in list(classifier_stack.keys()):
+                if k > level:
+                    classifier_stack.pop(k, None)
+            hash_stack.clear()
+            current_classifier = current_node
+            active_plain_parent_key = None
+
+        elif hash_info:
+            parsed_level = int(hash_info["level"])
+            title = str(hash_info["title"] or "").strip()
+
+            parent_key: str | None
+            if active_plain_parent_key:
+                # Plain text becomes effective level 1 inside classifier,
+                # so hash-levels shift by +1.
+                level = parsed_level + 1
+                if parsed_level == 1:
+                    parent_key = active_plain_parent_key
+                else:
+                    parent_key = hash_stack.get(level - 1)
+                    if parent_key is None:
+                        warnings.append(
+                            f"Лист '{sheet_name}', строка {excel_row}: не найден родитель для уровня {parsed_level} (hash, с plain-parent), привязка к '{active_plain_parent_key}'"
+                        )
+                        parent_key = active_plain_parent_key
+            else:
+                level = parsed_level
+                if level == 1:
+                    parent_key = str(current_classifier["key"]) if current_classifier else None
+                    if parent_key is None:
+                        warnings.append(f"Лист '{sheet_name}', строка {excel_row}: hash-группа без родительского классификатора")
+                else:
+                    parent_key = hash_stack.get(level - 1)
+                    if parent_key is None:
+                        fallback_parent = str(current_classifier["key"]) if current_classifier else None
+                        warnings.append(
+                            f"Лист '{sheet_name}', строка {excel_row}: не найден родитель для уровня {level} (hash), привязка к '{fallback_parent or 'root'}'"
+                        )
+                        parent_key = fallback_parent
+
+            parent_key_for_id = parent_key if parent_key is not None else "__root__"
+            local_index = hash_child_counters.get(parent_key_for_id, 0) + 1
+            hash_child_counters[parent_key_for_id] = local_index
+            key = _make_hash_key(str(parent_key_for_id), int(local_index))
+
+            order_counter += 1
+            current_node = _get_or_create_node(kind="hash", key=key, title=title, parent_key=parent_key, order=order_counter)
+
+            hash_stack[level] = key
+            for k in list(hash_stack.keys()):
+                if k > level:
+                    hash_stack.pop(k, None)
+
+        else:
+            # Plain text inside current classifier becomes a top text level,
+            # and subsequent hash rows should nest under it (effective levels shift).
+            if current_classifier is not None:
+                level = 1
+                parent_key = str(current_classifier.get("key") or "") or None
+                parent_key_for_id = parent_key if parent_key is not None else "__root__"
+                local_index = hash_child_counters.get(parent_key_for_id, 0) + 1
+                hash_child_counters[parent_key_for_id] = local_index
+                key = _make_hash_key(str(parent_key_for_id), int(local_index))
+                title = raw_section
+
+                order_counter += 1
+                current_node = _get_or_create_node(kind="hash", key=key, title=title, parent_key=parent_key, order=order_counter)
+
+                active_plain_parent_key = key
+                hash_stack.clear()
+                hash_stack[level] = key
+            else:
+                # Backward-compatible flat behavior for old templates without classifier/# hierarchy
+                flat_key = raw_section
+                flat_title = _strip_numeric_prefix(raw_section)
+                order_counter += 1
+                current_node = _get_or_create_node(kind="legacy", key=flat_key, title=flat_title, parent_key=None, order=order_counter)
+
+        if current_node is None:
+            continue
+
+        revit_cat = str(row.get(category_col, "")).strip() if category_col and pd.notna(row.get(category_col, "")) else ""
         if revit_cat:
             for cat_part in revit_cat.split(','):
                 cat_part = cat_part.strip()
                 if cat_part:
-                    section_data[section]["revit_categories"].add(cat_part)
+                    current_node["revit_categories"].add(cat_part)
 
+        # classifier codes bucket (kept for compatibility / diagnostics)
+        row_classifier_codes = []
+        if classif_col and classif_col in row and pd.notna(row[classif_col]):
+            row_classifier_codes = _split_comma_values(row[classif_col])
+        current_node["classifier_codes"].update(row_classifier_codes)
+        # Support codes_map only for legacy flat section name keys
+        current_node["classifier_codes"].update(codes_map.get(str(current_node["key"]), []))
+
+        # Filters
+        code_values, desc_values = None, None
+        pairs_valid = False
+        if classif_col or classif_desc_col:
+            code_values, desc_values = _classifier_code_desc_values(
+                row.get(classif_col, "") if classif_col else "",
+                row.get(classif_desc_col, "") if classif_desc_col else "",
+                excel_row,
+                warnings,
+            )
+            if code_values:
+                if len(desc_values) == len(code_values):
+                    pairs_valid = True
+                elif len(desc_values) == 1 and len(code_values) > 1:
+                    pairs_valid = True
+                    desc_values = [desc_values[0] for _ in code_values]
+
+            if pairs_valid and classif_col and classif_desc_col:
+                existing = {(p.get("code"), p.get("description")) for p in (current_node.get("classifier_pairs") or [])}
+                for c, d in zip(code_values or [], desc_values or []):
+                    cc = str(c or "").strip()
+                    dd = str(d or "").strip()
+                    if (cc, dd) not in existing and (cc or dd):
+                        current_node["classifier_pairs"].append({"code": cc, "description": dd})
+                        existing.add((cc, dd))
+
+        for col_name in selected_filter_map:
+            if col_name == classif_col:
+                if pairs_valid:
+                    values = list(code_values or [])
+                else:
+                    values = _split_filter_values(row.get(col_name, ""))
+                if str(current_node["key"]) in codes_map:
+                    for extra_code in codes_map.get(str(current_node["key"]), []):
+                        if extra_code and extra_code not in values:
+                            values.append(extra_code)
+            elif col_name == classif_desc_col:
+                if pairs_valid:
+                    values = list(desc_values or [])
+                else:
+                    values = _split_filter_values(row.get(col_name, ""))
+            else:
+                values = _split_filter_values(row.get(col_name, ""))
+
+            if not values:
+                continue
+            bucket = current_node["filter_values"].setdefault(col_name, [])
+            for value in values:
+                if value not in bucket:
+                    bucket.append(value)
+
+        # Parameters (+ columns)
         for col in loi_cols:
             if col in row and pd.notna(row[col]) and str(row[col]).strip() == '+':
                 if isinstance(GLOBAL_PARAM_MAPPING, dict) and col in GLOBAL_PARAM_MAPPING:
@@ -1672,29 +1857,26 @@ def _build_sheet_categories(layout, sheet_name: str, mode: str, filter_field_map
                     code = f"\\{_norm_code(col) or col}"
                     is_numeric = col in ["Площадь", "Объем", "Длина", "Ширина", "Высота", "Масса"]
 
-                if col not in section_data[section]["params"]:
-                    section_data[section]["params"][col] = {
+                if col not in current_node["params"]:
+                    current_node["params"][col] = {
                         "title": col,
                         "field_name": code,
                         "is_numeric": is_numeric,
                     }
                 validation_codes.add((code, is_numeric))
 
-    categories = []
-    for section, data in section_data.items():
-        if data["params"]:
-            categories.append({
-                "title": section,
-                "revit_categories": sorted(list(data["revit_categories"])),
-                "classifier_codes": sorted(list(data["classifier_codes"])),
-                "filter_values": dict(data["filter_values"]),
-                "params": list(data["params"].values()),
-            })
+    # Keep key name "categories" for compatibility with excel_to_pv_profile()
+    categories = ordered_nodes
     return {
         "sheet_name": sheet_name,
         "selected_filter_map": selected_filter_map,
         "categories": categories,
         "validation_codes": validation_codes,
+        "warnings": warnings,
+        "classif_filter": {
+            "code_col": classif_col,
+            "desc_col": classif_desc_col,
+        },
     }
 
 
@@ -1705,6 +1887,113 @@ def _has_numeric_title_prefix(value: str) -> bool:
 def _strip_numeric_prefix(value: str) -> str:
     text = str(value or "").strip()
     return re.sub(r"^\d+(?:\.\d+)*_", "", text)
+
+def _parse_classifier_row(value: str):
+    text = str(value or "").strip()
+    m = re.match(r"^(?P<code>\d{2}(?:\.\d{2})*)_(?P<title>.*)$", text)
+    if not m:
+        return None
+    code = (m.group("code") or "").strip()
+    title = (m.group("title") or "").strip()
+    level = len([p for p in code.split(".") if p])
+    return {"code": code, "title": title, "level": level}
+
+def _parse_hash_row(value: str):
+    text = str(value or "").strip()
+    if not text:
+        return None
+
+    m = re.match(r"^(?P<level>\d+)\s*#\s*(?P<title>.+)$", text)
+    if m:
+        level = int(m.group("level"))
+        title = (m.group("title") or "").strip()
+        if not title or level <= 0:
+            return None
+        return {"level": level, "title": title}
+
+    m = re.match(r"^(?P<hashes>#{1,})\s*(?P<title>.+)$", text)
+    if not m:
+        return None
+    level = len(m.group("hashes") or "")
+    title = (m.group("title") or "").strip()
+    if not title:
+        return None
+    return {"level": level, "title": title}
+
+def _make_hash_key(parent_key: str, local_index: int) -> str:
+    idx = int(local_index)
+    if idx < 0:
+        idx = 0
+    suffix = f"{idx:02d}"
+    parent = str(parent_key or "").strip()
+    if "#" in parent:
+        return f"{parent}.{suffix}"
+    return f"{parent}#{suffix}"
+
+def _split_comma_values(raw) -> list[str]:
+    if raw is None:
+        return []
+    text = str(raw).strip()
+    if not text or text.lower() == "nan":
+        return []
+    values: list[str] = []
+    seen: set[str] = set()
+    for item in text.split(","):
+        value = item.strip()
+        if value and value not in seen:
+            seen.add(value)
+            values.append(value)
+    return values
+
+def _classifier_code_desc_values(code_raw, desc_raw, excel_row_number: int, warnings: list[str]):
+    codes = _split_comma_values(code_raw)
+    descs = _split_comma_values(desc_raw)
+    if not codes and not descs:
+        return [], []
+
+    if len(descs) == len(codes):
+        return codes, descs
+    if len(descs) == 1 and len(codes) > 1:
+        return codes, [descs[0] for _ in codes]
+
+    warnings.append(
+        f"строка {excel_row_number}: количество кодов классификатора не совпадает с количеством описаний (codes={len(codes)}, descs={len(descs)})"
+    )
+    return codes, descs
+
+def _append_classifier_pair_filter_conditions(parent_el, code_field: str, desc_field: str, pairs: list[dict[str, str]]):
+    code_field = str(code_field or "").strip()
+    desc_field = str(desc_field or "").strip()
+    if not code_field and not desc_field:
+        return
+    for pair in pairs or []:
+        code_value = str((pair or {}).get("code") or "").strip()
+        desc_value = str((pair or {}).get("description") or "").strip()
+        if not code_value and not desc_value:
+            continue
+
+        pair_block = ET.SubElement(parent_el, "ConditionsBlock", {
+            "Type": "Block", "LogicalOperator": "Or", "IsNegative": "false", "IsEnabled": "true"
+        })
+        pair_signal = ET.SubElement(pair_block, "Signal")
+        pair_signal.append(_empty_messages())
+        pair_condition = ET.SubElement(pair_block, "Condition", {
+            "FieldName": "",
+            "FieldIsNumeric": "false",
+            "Operator": "Equal",
+            "Value": "",
+            "TextCaseSensitive": "false",
+            "TextSpaceSensitive": "false",
+            "IsUndefinedFieldName": "false"
+        })
+        pair_condition_signal = ET.SubElement(pair_condition, "Signal")
+        pair_condition_signal.append(_empty_messages())
+        inner = ET.SubElement(pair_block, "ConditionsBlocks")
+
+        if code_field and code_value:
+            _append_filter_conditions(inner, [(code_field, [code_value])])
+        if desc_field and desc_value:
+            _append_filter_conditions(inner, [(desc_field, [desc_value])])
 
 def _import_adapter_mapping(parent, excel_path: str) -> dict:
     if pd is None:
@@ -1776,6 +2065,7 @@ def _import_adapter_mapping(parent, excel_path: str) -> dict:
 
     col_param = _find_col(df.columns, "параметры")
     col_name = _find_col(df.columns, "наименование параметра")
+    col_group = _find_col(df.columns, "группа параметров")
     if not col_param or not col_name:
         _popup_error(parent, "Не найдены столбцы 'Параметры' и 'Наименование параметра'.")
         return {}
@@ -1790,7 +2080,14 @@ def _import_adapter_mapping(parent, excel_path: str) -> dict:
         name = str(raw_name).strip()
         if not param or not name:
             continue
-        full_name = f"{group_name}.{name}" if group_name else name
+        grp = ""
+        if col_group:
+            raw_grp = row.get(col_group, "")
+            if pd.notna(raw_grp):
+                grp = str(raw_grp).strip()
+        if not grp:
+            grp = group_name
+        full_name = f"{grp}.{name}" if grp else name
         mapping[param] = {"code": full_name, "isNumeric": False}
     return mapping
 
@@ -1837,7 +2134,7 @@ def excel_to_pv_profile(
             payload = _build_sheet_categories(layout, current_sheet_name, mode, filter_field_map, codes_map)
             sheet_payloads.append(payload)
 
-        if not any(payload["categories"] for payload in sheet_payloads):
+        if not any(any((node.get("params") or {}) for node in payload["categories"]) for payload in sheet_payloads):
             return False, "ERROR: Не найдено ни одного раздела с параметрами на выбранных листах"
 
         # Генерация XML
@@ -1855,19 +2152,28 @@ def excel_to_pv_profile(
             item_id = 1838
             folder_idx = 0
 
-            for cat in payload["categories"]:
+            id_map: dict[str, int] = {}
+
+            # 1) Create all folder nodes first (needed for ParentId map)
+            for node in payload["categories"]:
                 item_id += 1
-                parent_id = item_id
+                node_id = item_id
+                node_key = str(node.get("key") or "")
+                id_map[node_key] = node_id
+
                 folder = ET.SubElement(items, "BaseExportProfileItem", {"xsi:type": "ParameterValidationExportProfileItem"})
-                ET.SubElement(folder, "Id").text = str(parent_id)
-                ET.SubElement(folder, "ParentId", {"xsi:nil": "true"})
-                folder_idx += 1
-                folder_title = cat['title']
-                clean_title = _strip_numeric_prefix(folder_title)
-                if auto_number:
-                    folder_title = f"{folder_idx:02d}_{clean_title}"
+                ET.SubElement(folder, "Id").text = str(node_id)
+
+                parent_key = node.get("parent_key")
+                if parent_key and str(parent_key) in id_map:
+                    ET.SubElement(folder, "ParentId").text = str(id_map[str(parent_key)])
                 else:
-                    folder_title = clean_title
+                    ET.SubElement(folder, "ParentId", {"xsi:nil": "true"})
+
+                folder_title = str(node.get("title") or "").strip()
+                if auto_number and not parent_key and str(node.get("kind") or "") == "legacy":
+                    folder_idx += 1
+                    folder_title = f"{folder_idx:02d}_{folder_title}"
                 ET.SubElement(folder, "Title").text = folder_title
                 ET.SubElement(folder, "IsFolder").text = "true"
                 ET.SubElement(folder, "ExtFieldParamCodes")
@@ -1886,11 +2192,24 @@ def excel_to_pv_profile(
                 cb = ET.SubElement(fcb, "ConditionsBlocks")
 
                 if build_filters:
+                    classif_cols = payload.get("classif_filter", {}) or {}
+                    code_col = classif_cols.get("code_col") or ""
+                    desc_col = classif_cols.get("desc_col") or ""
+                    code_field = payload["selected_filter_map"].get(code_col) if code_col else ""
+                    desc_field = payload["selected_filter_map"].get(desc_col) if desc_col else ""
+                    pairs = list(node.get("classifier_pairs") or [])
+                    use_pairs = bool(pairs and code_field and desc_field)
+
                     filter_pairs = []
                     for col_name, field_name in payload["selected_filter_map"].items():
-                        values = list((cat.get('filter_values') or {}).get(col_name, []) or [])
+                        if use_pairs and col_name in (code_col, desc_col):
+                            continue
+                        values = list((node.get('filter_values') or {}).get(col_name, []) or [])
                         if values:
                             filter_pairs.append((field_name, values))
+
+                    if use_pairs:
+                        _append_classifier_pair_filter_conditions(cb, code_field, desc_field, pairs)
                     if grouped:
                         _append_grouped_filter_conditions(cb, filter_pairs)
                     else:
@@ -1910,7 +2229,13 @@ def excel_to_pv_profile(
                 vcb_condition_signal.append(_info_message("Имя не указано"))
                 ET.SubElement(vcb, "ConditionsBlocks")
 
-                for param in cat['params']:
+            # 2) Add parameter nodes as children
+            for node in payload["categories"]:
+                node_key = str(node.get("key") or "")
+                parent_id = id_map.get(node_key)
+                if not parent_id:
+                    continue
+                for param in (node.get("params") or {}).values():
                     item_id += 1
                     child = ET.SubElement(items, "BaseExportProfileItem", {"xsi:type": "ParameterValidationExportProfileItem"})
                     ET.SubElement(child, "Id").text = str(item_id)
@@ -1984,9 +2309,27 @@ def excel_to_pv_profile(
         pretty_xml = pretty_xml.replace('/>', ' />')
         with open(output_pv_path, 'w', encoding='utf-8') as f:
             f.write(pretty_xml)
+        all_warnings: list[str] = []
+        for payload in sheet_payloads:
+            for w in payload.get("warnings", []) or []:
+                text = str(w or "").strip()
+                if not text:
+                    continue
+                if text.lower().startswith("лист '"):
+                    all_warnings.append(text)
+                else:
+                    all_warnings.append(f"Лист '{payload.get('sheet_name')}', {text}")
+        if all_warnings:
+            print("WARNINGS:")
+            for w in all_warnings:
+                print("-", w)
         if len(sheet_payloads) == 1:
-            return True, f"OK: Профиль '{profile_title}' из листа '{sheet_payloads[0]['sheet_name']}' сохранён: {output_pv_path}"
-        return True, f"OK: Файл '{output_pv_path}' содержит {len(sheet_payloads)} отдельных профилей по выбранным листам"
+            msg = f"OK: Профиль '{profile_title}' из листа '{sheet_payloads[0]['sheet_name']}' сохранён: {output_pv_path}"
+        else:
+            msg = f"OK: Файл '{output_pv_path}' содержит {len(sheet_payloads)} отдельных профилей по выбранным листам"
+        if all_warnings:
+            msg += "\nWARNINGS:\n" + "\n".join([f"- {w}" for w in all_warnings])
+        return True, msg
     except Exception as ex:
         return False, f"ERROR: Ошибка генерации: {ex}"
 

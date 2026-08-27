@@ -1474,6 +1474,7 @@ def _import_adapter_mapping(parent, excel_path: str) -> dict:
 
     col_param = _find_col(df.columns, "параметры")
     col_name = _find_col(df.columns, "наименование параметра")
+    col_group = _find_col(df.columns, "группа параметров")
     if not col_param or not col_name:
         _popup_error(parent, "Не найдены столбцы 'Параметры' и 'Наименование параметра'.")
         return {}
@@ -1488,7 +1489,14 @@ def _import_adapter_mapping(parent, excel_path: str) -> dict:
         name = str(raw_name).strip()
         if not param or not name:
             continue
-        full_name = f"{group_name}.{name}" if group_name else name
+        grp = ""
+        if col_group:
+            raw_grp = row.get(col_group, "")
+            if pd.notna(raw_grp):
+                grp = str(raw_grp).strip()
+        if not grp:
+            grp = group_name
+        full_name = f"{grp}.{name}" if grp else name
         mapping[param] = {"code": full_name, "isNumeric": False}
     return mapping
 

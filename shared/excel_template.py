@@ -322,36 +322,50 @@ def export_common_excel(json_path: str, output_path: str) -> None:
     adapter_rows = data.get("Адаптер", [])
     if adapter_rows:
         ws = wb.create_sheet("Адаптер")
-        header_row = adapter_rows[0] if adapter_rows else {}
-        header_keys = list(header_row.keys())
+        old_name_key = "Укажите группу параметров:"
+        old_type_key = "IBIM"
+        header_keys = [
+            "Группа параметров",
+            "Наименование параметра",
+            "Тип параметра",
+            "Список параметров",
+            "Замена с",
+            "Замена на",
+            "Параметры",
+        ]
         if header_keys:
-            cell = ws.cell(1, 1, header_keys[0])
-            cell.font = bold_font
-            cell = ws.cell(1, 2, "IBIM")
-            cell.font = bold_font
-
             for col, key in enumerate(header_keys, start=1):
-                cell = ws.cell(2, col, header_row.get(key, ""))
+                cell = ws.cell(1, col, key)
                 cell.font = white_bold_font
                 cell.fill = fill_blue_header
                 cell.alignment = align_center
 
-            out_row = 3
+            out_row = 2
             for idx, row in enumerate(adapter_rows[1:], start=0):
+                row_values = {
+                    "Группа параметров": "IBIM",
+                    "Наименование параметра": row.get(old_name_key, ""),
+                    "Тип параметра": row.get(old_type_key, ""),
+                    "Список параметров": row.get("Список параметров", ""),
+                    "Замена с": row.get("Замена с", ""),
+                    "Замена на": row.get("Замена на", ""),
+                    "Параметры": row.get("Параметры", ""),
+                }
                 for col, key in enumerate(header_keys, start=1):
-                    cell = ws.cell(out_row, col, row.get(key, ""))
+                    cell = ws.cell(out_row, col, row_values.get(key, ""))
                     cell.alignment = align_left_top
                     if idx % 2 == 0:
                         cell.fill = fill_light_blue
                 out_row += 1
 
-            ws.column_dimensions["A"].width = 32
-            ws.column_dimensions["B"].width = 14
-            ws.column_dimensions["C"].width = 50
-            ws.column_dimensions["D"].width = 24
-            ws.column_dimensions["E"].width = 20
-            ws.column_dimensions["F"].width = 25
-            _apply_border(ws, 2, out_row - 1, 1, max(1, len(header_keys)))
+            ws.column_dimensions["A"].width = 18
+            ws.column_dimensions["B"].width = 32
+            ws.column_dimensions["C"].width = 14
+            ws.column_dimensions["D"].width = 50
+            ws.column_dimensions["E"].width = 24
+            ws.column_dimensions["F"].width = 20
+            ws.column_dimensions["G"].width = 25
+            _apply_border(ws, 1, out_row - 1, 1, max(1, len(header_keys)))
             _apply_base_font(ws, 1, ws.max_row, 1, ws.max_column)
             _apply_wrap(ws, 1, ws.max_row, 1, ws.max_column)
 

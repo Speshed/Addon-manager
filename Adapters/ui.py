@@ -2492,7 +2492,7 @@ class _ExcelSheetSelectDialog(QtWidgets.QDialog):
         return [name for name, checked in self._check_states.items() if checked]
 
 
-def _parse_excel_sheet(ws, default_group_from_cell: str = "") -> tuple[dict, dict, dict, list[str]]:
+def _parse_excel_sheet(ws) -> tuple[dict, dict, dict, list[str]]:
     """
     Парсит один лист Excel и возвращает данные для объединения.
     
@@ -2555,30 +2555,6 @@ def _parse_excel_sheet(ws, default_group_from_cell: str = "") -> tuple[dict, dic
     if not header_row:
         return {}, {}, {}, ["Не найдена строка заголовков (ожидаются: Наименование параметра / Тип параметра / Список параметров)"]
     
-    default_group = default_group_from_cell
-    if not default_group:
-        for rr in range(1, min(ws.max_row, 8) + 1):
-            for cc in range(1, min(ws.max_column, 8) + 1):
-                raw = ws.cell(row=rr, column=cc).value
-                if not raw:
-                    continue
-                s = str(raw).strip()
-                low = s.lower()
-                if "групп" in low:
-                    val = None
-                    if ":" in s:
-                        after = s.split(":", 1)[1].strip()
-                        val = after if after else None
-                    if not val:
-                        right = ws.cell(row=rr, column=cc+1).value
-                        if right:
-                            val = str(right).strip()
-                    if val:
-                        default_group = val
-                        break
-            if default_group:
-                break
-    
     queues_dict: dict = {}
     attr_types: dict = {}
     attr_groups: dict = {}
@@ -2598,20 +2574,25 @@ def _parse_excel_sheet(ws, default_group_from_cell: str = "") -> tuple[dict, dic
             r += 1
             continue
         
-        if not (name or plist or ptype or grp):
+        if not (name or plist or ptype or rep_from or rep_to or grp):
+            r += 1
+            continue
+
+        if not grp:
+            errors.append(f"Строка {r}: не заполнена колонка \"Группа параметров\"")
             r += 1
             continue
         
         isnum = True if "чис" in ptype else False
-        full_name = f"{(grp or default_group)}.{name}" if (grp or default_group) else name
+        full_name = f"{grp}.{name}" if grp else name
         
         if full_name not in queues_dict:
             queues_dict[full_name] = BindingQueue(attribute_full_name=full_name)
             queues_dict[full_name].bindings = []
         
         attr_types[full_name] = isnum
-        if (grp or default_group):
-            attr_groups[full_name] = (grp or default_group)
+        if grp:
+            attr_groups[full_name] = grp
         
         lefts = _split_list(rep_from)
         rights = _split_list(rep_to)

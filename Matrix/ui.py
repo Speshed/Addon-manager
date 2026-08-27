@@ -1534,8 +1534,8 @@ class MainWindow(QtWidgets.QMainWindow):
         def mk_spin(default):
             sb = QtWidgets.QDoubleSpinBox()
             sb.setRange(0.0, 999.0)
-            sb.setDecimals(2)
-            sb.setSingleStep(0.01)
+            sb.setDecimals(3)
+            sb.setSingleStep(0.001)
             sb.setSuffix(" м.")
             sb.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
             sb.setAlignment(QtCore.Qt.AlignLeft)

@@ -1,0 +1,3022 @@
+<?xml version="1.0"?>
+<ExportProfilesCollection xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Profiles>
+    <BaseExportProfile xsi:type="CollisionsExportProfile">
+      <Id>0</Id>
+      <Title>Матрица</Title>
+      <ProfileItems>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>11300</Id>
+          <ParentId xsi:nil="true" />
+          <Title>01_АР ~ 01_АР / Пересечение</Title>
+          <IsFolder>true</IsFolder>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6446</Id>
+          <ParentId>11300</ParentId>
+          <Title>1.01_АР_Кладка ~ 1.01_АР_Кладка</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.2}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6447</Id>
+          <ParentId>11300</ParentId>
+          <Title>1.01_АР_Кладка ~ 1.02_АР_Перегородки</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.2}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6448</Id>
+          <ParentId>11300</ParentId>
+          <Title>1.01_АР_Кладка ~ 1.03_АР_Фасад</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.1}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6450</Id>
+          <ParentId>11300</ParentId>
+          <Title>1.02_АР_Перегородки ~ 1.02_АР_Перегородки</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.3}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6451</Id>
+          <ParentId>11300</ParentId>
+          <Title>1.02_АР_Перегородки ~ 1.03_АР_Фасад</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.2}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6453</Id>
+          <ParentId>11300</ParentId>
+          <Title>1.03_АР_Фасад ~ 1.03_АР_Фасад</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.2}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>11301</Id>
+          <ParentId xsi:nil="true" />
+          <Title>01_АР ~ 01_АР / Дублирование</Title>
+          <IsFolder>true</IsFolder>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6445</Id>
+          <ParentId>11301</ParentId>
+          <Title>1.01_АР_Кладка ~ 1.01_АР_Кладка</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.DuplicationValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6449</Id>
+          <ParentId>11301</ParentId>
+          <Title>1.02_АР_Перегородки ~ 1.02_АР_Перегородки</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.DuplicationValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6452</Id>
+          <ParentId>11301</ParentId>
+          <Title>1.03_АР_Фасад ~ 1.03_АР_Фасад</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.DuplicationValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>11302</Id>
+          <ParentId xsi:nil="true" />
+          <Title>01_АР ~ 02_КР / Пересечение</Title>
+          <IsFolder>true</IsFolder>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6454</Id>
+          <ParentId>11302</ParentId>
+          <Title>1.01_АР_Кладка ~ 2.02_КР_Стены</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.3}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6455</Id>
+          <ParentId>11302</ParentId>
+          <Title>1.01_АР_Кладка ~ 2.01_КР_Фундаменты</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.1.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.1.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.4" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.5" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.6" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.2}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6456</Id>
+          <ParentId>11302</ParentId>
+          <Title>1.02_АР_Перегородки ~ 2.02_КР_Стены</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.2}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6457</Id>
+          <ParentId>11302</ParentId>
+          <Title>1.02_АР_Перегородки ~ 2.01_КР_Фундаменты</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.СП.3.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.4" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.5" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.6" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.1}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6458</Id>
+          <ParentId>11302</ParentId>
+          <Title>1.03_АР_Фасад ~ 2.02_КР_Стены</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.2}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6459</Id>
+          <ParentId>11302</ParentId>
+          <Title>1.03_АР_Фасад ~ 2.01_КР_Фундаменты</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.4" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.5" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.6" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.3}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>11303</Id>
+          <ParentId xsi:nil="true" />
+          <Title>02_КР ~ 02_КР / Пересечение</Title>
+          <IsFolder>true</IsFolder>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6461</Id>
+          <ParentId>11303</ParentId>
+          <Title>2.02_КР_Стены ~ 2.02_КР_Стены</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.2}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6462</Id>
+          <ParentId>11303</ParentId>
+          <Title>2.02_КР_Стены ~ 2.01_КР_Фундаменты</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.4" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.5" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.6" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.2}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6464</Id>
+          <ParentId>11303</ParentId>
+          <Title>2.01_КР_Фундаменты ~ 2.01_КР_Фундаменты</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.4" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.5" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.6" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.4" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.5" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.6" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.3}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>11304</Id>
+          <ParentId xsi:nil="true" />
+          <Title>02_КР ~ 02_КР / Дублирование</Title>
+          <IsFolder>true</IsFolder>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.IntersectionValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6460</Id>
+          <ParentId>11304</ParentId>
+          <Title>2.02_КР_Стены ~ 2.02_КР_Стены</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.ФС.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.DuplicationValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+        <BaseExportProfileItem xsi:type="CollisionsExportProfileItem">
+          <Id>6463</Id>
+          <ParentId>11304</ParentId>
+          <Title>2.01_КР_Фундаменты ~ 2.01_КР_Фундаменты</Title>
+          <IsFolder>false</IsFolder>
+          <ConditionBlock1 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.4" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.5" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.6" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock1>
+          <ConditionBlock2 Type="Block" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+            <Signal>
+              <Messages />
+            </Signal>
+            <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="true" IsUndefinedFieldName="false">
+              <Signal>
+                <Messages>
+                  <SignalMessage>
+                    <Level>Info</Level>
+                    <Text>Имя не указано</Text>
+                  </SignalMessage>
+                </Messages>
+              </Signal>
+            </Condition>
+            <ConditionsBlocks>
+              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="" FieldIsNumeric="false" Operator="Equal" Value="" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.1" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.2" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.3" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.4" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.5" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+                <Signal>
+                  <Messages />
+                </Signal>
+                <Condition FieldName="Тип:\Код по классификатору" FieldIsNumeric="false" Operator="Equal" Value="ОС.КР.2.6" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                  <Signal>
+                    <Messages />
+                  </Signal>
+                </Condition>
+                <ConditionsBlocks />
+              </ConditionsBlock>
+                </ConditionsBlocks>
+              </ConditionsBlock>
+            </ConditionsBlocks>
+          </ConditionBlock2>
+          <ParentCondition1Id xsi:nil="true" />
+          <ParentCondition2Id xsi:nil="true" />
+          <ParentElementGuids1Id xsi:nil="true" />
+          <ParentElementGuids2Id xsi:nil="true" />
+          <ItemParams>{"$type":"EstimoCore.Entities.CollisionsValidating.ValidationTypes.DuplicationValidationData, MainEstimoCore.NetFramework","Admission":{"$type":"EstimoCore.Entities.CollisionsValidating.Admissions.LinearAdmission, MainEstimoCore.NetFramework","Value":0.0}}</ItemParams>
+        </BaseExportProfileItem>
+      </ProfileItems>
+    </BaseExportProfile>
+  </Profiles>
+</ExportProfilesCollection>

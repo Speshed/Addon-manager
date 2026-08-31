@@ -11,7 +11,6 @@ from shared.app_common import (
 from shared.theme_toggle import enable_theme_sync
 from shared.version import APP_VERSION, APP_VERSION_DATE, VERSION_HISTORY
 
-
 MANAGER_CARDS = [
     ("adapters", "Адаптеры", "", "adapter.png"),
     ("larix_set", "Наборы", "", "set.png"),
@@ -22,10 +21,9 @@ MANAGER_CARDS = [
 MANAGER_MODULE_LOADERS = {
     "adapters": ("Adapters", "ui", "MainWin", True),
     "larix_set": ("Sets", "ui", "ContentWidget", False),
-    "matrix": ("Matrix", "ui", "MainWindow", True),
+    "matrix": ("Matrix", "ui_larix", "MainWindow", True),
     "parameters": ("Validator", "ui", "MainWindow", True),
 }
-
 MANAGER_MODULE_TITLES = {
     "adapters": "Larix — Создание адаптеров",
     "larix_set": "Larix — Создание наборов",
@@ -46,7 +44,6 @@ def main():
         enable_theme_sync(app, ICON_DIR)
     except Exception:
         pass
-
     window = AppMainWindow(
         app_title="Larix Plugin Manager",
         cards_data=MANAGER_CARDS,
@@ -60,7 +57,6 @@ def main():
         app_version_history=VERSION_HISTORY,
     )
     window.show()
-
     if hasattr(app, "exec"):
         sys.exit(app.exec())
     sys.exit(app.exec_())

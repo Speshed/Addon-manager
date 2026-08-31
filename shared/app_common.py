@@ -551,14 +551,14 @@ class AppMenuWidget(QWidget):
         main_layout.addStretch(1)
 
         if self._show_template_download:
-            self._download_template_link = QLabel("<a href='download'>Скачать шаблон Excel</a>")
-            self._download_template_link.setTextFormat(Qt.RichText)
-            self._download_template_link.setTextInteractionFlags(Qt.TextBrowserInteraction)
-            self._download_template_link.setOpenExternalLinks(False)
-            self._download_template_link.setCursor(QCursor(Qt.PointingHandCursor))
-            self._download_template_link.linkActivated.connect(lambda _link: self._download_template())
-            main_layout.addWidget(self._download_template_link, 0, Qt.AlignCenter)
-            self._update_template_link_style()
+            self._download_template_button = QPushButton("Скачать шаблон")
+            self._download_template_button.setCursor(QCursor(Qt.PointingHandCursor))
+            self._download_template_button.setFixedHeight(40)
+            self._download_template_button.setMinimumWidth(190)
+            self._download_template_button.setToolTip("Скачать общий Excel-шаблон")
+            self._download_template_button.clicked.connect(self._download_template)
+            main_layout.addWidget(self._download_template_button, 0, Qt.AlignCenter)
+            self._update_template_button_style()
 
         api_row = QHBoxLayout()
         api_row.addStretch(1)
@@ -742,7 +742,7 @@ class AppMenuWidget(QWidget):
                 pass
         self._update_logo()
         if self._show_template_download:
-            self._update_template_link_style()
+            self._update_template_button_style()
         self._update_version_link_style()
         try:
             self._set_connect_button_icon()
@@ -750,12 +750,41 @@ class AppMenuWidget(QWidget):
         except Exception:
             pass
 
-    def _update_template_link_style(self):
-        color = "#e0e0e0" if self._is_dark else "#303030"
-        self._download_template_link.setStyleSheet("QLabel { font-size: 11pt; background: transparent; }")
-        self._download_template_link.setText(
-            f"<a href='download' style='color: {color}; text-decoration: underline;'>Скачать шаблон Excel</a>"
-        )
+    def _update_template_button_style(self):
+        if self._is_dark:
+            background = "#8a5a24"
+            hover = "#9a672d"
+            pressed = "#754b1d"
+            border = "#b27a3d"
+            text = "#fff7ec"
+        else:
+            background = "#f2c078"
+            hover = "#e9ae58"
+            pressed = "#dc9d42"
+            border = "#cc8e3d"
+            text = "#5a3a16"
+
+        self._download_template_button.setStyleSheet(f"""
+            QPushButton {{
+                background: {background};
+                color: {text};
+                border: 1px solid {border};
+                border-radius: 14px;
+                padding: 7px 18px;
+                font-size: 11pt;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background: {hover};
+                border-color: {border};
+                color: {text};
+            }}
+            QPushButton:pressed {{
+                background: {pressed};
+                border-color: {border};
+                color: {text};
+            }}
+        """)
 
     def _update_version_link_style(self):
         color = "#a8a8a8" if self._is_dark else "#606060"

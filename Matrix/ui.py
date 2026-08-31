@@ -828,60 +828,64 @@ def list_sheets(xlsx_path: str) -> list[str]:
     except Exception:
         return []
 
-class MatrixSheetsDialog(QtWidgets.QDialog):
-    def __init__(self, parent, sheet_names: list[str], selected: list[str] | None = None):
-        super().__init__(parent)
-        self.setWindowTitle("Выбор листов матрицы")
-        self.resize(460, 520)
-        selected_set = set(selected or [])
-        root = QtWidgets.QVBoxLayout(self)
-        root.setContentsMargins(12, 12, 12, 12)
-        root.setSpacing(8)
-        root.addWidget(QtWidgets.QLabel("Отметьте листы, из которых нужно создать профили матриц:"))
-        self.list = QtWidgets.QListWidget()
-        self.list.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
-        for name in sheet_names:
-            item = QtWidgets.QListWidgetItem(str(name), self.list)
-            item.setToolTip(str(name))
-            item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable)
-            item.setCheckState(QtCore.Qt.Checked if name in selected_set else QtCore.Qt.Unchecked)
-        root.addWidget(self.list, 1)
-        quick = QtWidgets.QHBoxLayout()
-        btn_all = QtWidgets.QPushButton("Выбрать все")
-        btn_none = QtWidgets.QPushButton("Снять все")
-        btn_all.clicked.connect(lambda: self._set_all(True))
-        btn_none.clicked.connect(lambda: self._set_all(False))
-        quick.addWidget(btn_all); quick.addWidget(btn_none); quick.addStretch(1)
-        root.addLayout(quick)
-        box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
-        ok_btn = box.button(QtWidgets.QDialogButtonBox.Ok)
-        cancel_btn = box.button(QtWidgets.QDialogButtonBox.Cancel)
-        if ok_btn is not None: ok_btn.setText("Выбрать")
-        if cancel_btn is not None: cancel_btn.setText("Отмена")
-        box.accepted.connect(self._accept_checked)
-        box.rejected.connect(self.reject)
-        root.addWidget(box)
-
-    def _set_all(self, checked: bool):
-        state = QtCore.Qt.Checked if checked else QtCore.Qt.Unchecked
-        for i in range(self.list.count()):
-            self.list.item(i).setCheckState(state)
-
-    def selected_sheets(self) -> list[str]:
-        return [self.list.item(i).text() for i in range(self.list.count()) if self.list.item(i).checkState() == QtCore.Qt.Checked]
-
-    def _accept_checked(self):
-        if not self.selected_sheets():
-            show_warning(self, "Выберите хотя бы один лист матрицы.", "Не выбраны листы")
-            return
-        self.accept()
-
-
 def xml_attr_escape(s: str) -> str:
-    return (s.replace('&', '&amp;')
-             .replace('"', '&quot;')
-             .replace('<', '&lt;')
-             .replace('>', '&gt;'))
+    text = str(s or "")
+    return (text.replace('&', '&amp;')
+                .replace('"', '&quot;')
+                .replace('<', '&lt;')
+                .replace('>', '&gt;'))
+
+
+def xml_text_escape(s: str) -> str:
+    """Escape text inserted between XML tags while preserving Unicode symbols like ≤ and ≥."""
+    text = str(s or "")
+    return (text.replace('&', '&amp;')
+                .replace('<', '&lt;')
+                .replace('>', '&gt;'))
+
+
+def parse_numeric_filter_value(raw_value):
+    """Parse a numeric comparison written in Excel.
+
+    Supported forms include >50, <50, >=50, =>50, <=50, =<50, ≥50 and ≤50.
+    A short text/unit suffix is allowed, so names like ``ВИС_Трубы≥50мм`` are
+    understood as a numeric comparison too. Plain values stay text filters.
+    """
+    if raw_value is None:
+        return None
+    text = str(raw_value).strip()
+    if not text or text.lower() == "nan":
+        return None
+
+    # Prefer the last comparison expression in the value. This keeps the old
+    # compact Excel notation working and also handles labels such as
+    # ``ВИС_Трубы≥50мм`` without pushing the sign itself into XML as text.
+    matches = list(re.finditer(
+        r'(?P<op>>=|=>|<=|=<|≥|≤|>|<|=)\s*'
+        r'(?P<number>[-+]?\d+(?:[\.,]\d+)?)'
+        r'(?P<suffix>\s*[^\d<>≤≥=]*)$',
+        text,
+    ))
+    if not matches:
+        return None
+
+    match = matches[-1]
+    op_raw = match.group('op')
+    number = match.group('number').replace(',', '.')
+    op_key = {
+        '>': 'gt',
+        '<': 'lt',
+        '>=': 'ge',
+        '=>': 'ge',
+        '≥': 'ge',
+        '<=': 'le',
+        '=<': 'le',
+        '≤': 'le',
+        '=': 'eq',
+    }.get(op_raw)
+    if not op_key:
+        return None
+    return op_key, number
 
 
 def split_filter_values(raw_value) -> list[str]:
@@ -890,31 +894,44 @@ def split_filter_values(raw_value) -> list[str]:
     text = str(raw_value).strip()
     if not text or text.lower() == "nan":
         return []
-    text = text.replace(";", ",").replace("\n", ",")
+
+    # Semicolon/newline are the safest separators. Keep a decimal comma inside
+    # numeric comparisons (for example >=50,5) instead of splitting it in two.
+    chunks = re.split(r'[;\r\n]+', text)
     values: list[str] = []
     seen: set[str] = set()
-    for item in text.split(","):
-        value = normalize_name(item)
-        if value and value not in seen:
-            seen.add(value)
-            values.append(value)
+    for chunk in chunks:
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        if parse_numeric_filter_value(chunk) is not None:
+            parts = [chunk]
+        else:
+            # Backward compatibility: comma-separated text values are still
+            # accepted for old Excel files.
+            parts = chunk.split(',')
+        for item in parts:
+            value = normalize_name(item)
+            if value and value not in seen:
+                seen.add(value)
+                values.append(value)
     return values
 
 
-_FILTER_CONDITION_SINGLE_TEMPLATE = '''              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
+_FILTER_CONDITION_SINGLE_TEMPLATE = """              <ConditionsBlock Type="Single" LogicalOperator="And" IsNegative="false" IsEnabled="true">
                 <Signal>
                   <Messages />
                 </Signal>
-                <Condition FieldName="{param_field}" FieldIsNumeric="false" Operator="Equal" Value="{value}" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
+                <Condition FieldName="{param_field}" FieldIsNumeric="{field_is_numeric}" Operator="{operator}" Value="{value}" TextCaseSensitive="false" TextSpaceSensitive="false" IsUndefinedFieldName="false">
                   <Signal>
                     <Messages />
                   </Signal>
                 </Condition>
                 <ConditionsBlocks />
-              </ConditionsBlock>'''
+              </ConditionsBlock>"""
 
 
-_FILTER_CONDITION_GROUP_TEMPLATE = '''              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
+_FILTER_CONDITION_GROUP_TEMPLATE = """              <ConditionsBlock Type="Block" LogicalOperator="Or" IsNegative="false" IsEnabled="true">
                 <Signal>
                   <Messages />
                 </Signal>
@@ -926,7 +943,53 @@ _FILTER_CONDITION_GROUP_TEMPLATE = '''              <ConditionsBlock Type="Block
                 <ConditionsBlocks>
 {items}
                 </ConditionsBlocks>
-              </ConditionsBlock>'''
+              </ConditionsBlock>"""
+
+
+def _build_single_filter_condition(param_field: str, value: str, *, operator: str = "Equal", is_numeric: bool = False) -> str:
+    return _FILTER_CONDITION_SINGLE_TEMPLATE.format(
+        param_field=xml_attr_escape(param_field),
+        field_is_numeric="true" if is_numeric else "false",
+        operator=operator,
+        value=xml_attr_escape(value),
+    )
+
+
+def _build_or_filter_group(items: list[str]) -> str:
+    clean_items = [item for item in items if item]
+    if not clean_items:
+        return ""
+    if len(clean_items) == 1:
+        return clean_items[0]
+    return _FILTER_CONDITION_GROUP_TEMPLATE.format(items="\n".join(clean_items))
+
+
+def _build_filter_value_xml(param_field: str, raw_value: str) -> str:
+    numeric = parse_numeric_filter_value(raw_value)
+    if numeric is None:
+        return _build_single_filter_condition(param_field, raw_value, operator="Equal", is_numeric=False)
+
+    op_key, number = numeric
+    # Larix already uses More for numeric checks elsewhere in Manager. For >=
+    # and <= we compose the condition from OR(More/Less, Equal), avoiding any
+    # dependency on a separate combined operator name.
+    if op_key == 'gt':
+        return _build_single_filter_condition(param_field, number, operator="More", is_numeric=True)
+    if op_key == 'lt':
+        return _build_single_filter_condition(param_field, number, operator="Less", is_numeric=True)
+    if op_key == 'eq':
+        return _build_single_filter_condition(param_field, number, operator="Equal", is_numeric=True)
+    if op_key == 'ge':
+        return _build_or_filter_group([
+            _build_single_filter_condition(param_field, number, operator="More", is_numeric=True),
+            _build_single_filter_condition(param_field, number, operator="Equal", is_numeric=True),
+        ])
+    if op_key == 'le':
+        return _build_or_filter_group([
+            _build_single_filter_condition(param_field, number, operator="Less", is_numeric=True),
+            _build_single_filter_condition(param_field, number, operator="Equal", is_numeric=True),
+        ])
+    return _build_single_filter_condition(param_field, raw_value, operator="Equal", is_numeric=False)
 
 
 def build_filter_condition_blocks_xml(param_field: str, raw_value) -> str:
@@ -935,17 +998,8 @@ def build_filter_condition_blocks_xml(param_field: str, raw_value) -> str:
     if not field or not values:
         return ""
 
-    field_xml = xml_attr_escape(field)
-    items = [
-        _FILTER_CONDITION_SINGLE_TEMPLATE.format(
-            param_field=field_xml,
-            value=xml_attr_escape(value),
-        )
-        for value in values
-    ]
-    if len(items) == 1:
-        return items[0]
-    return _FILTER_CONDITION_GROUP_TEMPLATE.format(items="\n".join(items))
+    items = [_build_filter_value_xml(field, value) for value in values]
+    return _build_or_filter_group(items)
 
 # -----------------------------
 # Worker: генерация XML в отдельном потоке
@@ -960,22 +1014,20 @@ class GeneratorWorker(QtCore.QObject):
                  sheet_nabory: str, sheet_matrix: str,
                  map_a: float, map_b: float, map_c: float,
                  profile_title: str, param_field: str,
-                 build_filters: bool):
+                 build_filters: bool, group_by_sections: bool = True):
         super().__init__()
         self.nabory_path = nabory_path
         self.matrix_path = matrix_path
         self.out_path = out_path
-        self.sheet_nabory = sheet_nabory
-        if isinstance(sheet_matrix, (list, tuple, set)):
-            self.sheet_matrices = [str(s).strip() for s in sheet_matrix if str(s).strip()]
-        else:
-            self.sheet_matrices = [str(sheet_matrix).strip()] if str(sheet_matrix).strip() else []
+        self.sheet_nabory = str(sheet_nabory or "").strip()
+        self.sheet_matrix = str(sheet_matrix or "").strip()
         self.map_a = map_a
         self.map_b = map_b
         self.map_c = map_c
         self.profile_title = profile_title or "Матрица"
         self.param_field = param_field or "Категория:\\"
         self.build_filters = bool(build_filters)
+        self.group_by_sections = bool(group_by_sections)
 
     def letter_to_value(self, letter: str) -> float:
         letter = str(letter).strip().upper()
@@ -983,52 +1035,13 @@ class GeneratorWorker(QtCore.QObject):
         return mapping.get(letter, self.map_a)
 
     def run(self):
-        temp_paths = []
         try:
-            if not self.sheet_matrices:
-                raise ValueError("Не выбраны листы матрицы")
-
-            if len(self.sheet_matrices) == 1:
-                sheet_matrix = self.sheet_matrices[0]
-                self._generate_one(sheet_matrix, self.out_path, self.profile_title)
-                self.done.emit(self.out_path)
-                return
-
-            profile_blocks = []
-            for sheet_matrix in self.sheet_matrices:
-                fd, temp_path = tempfile.mkstemp(prefix="larix_matrix_", suffix=".cv")
-                os.close(fd)
-                temp_paths.append(temp_path)
-                profile_title = f"{self.profile_title} - {sheet_matrix}"
-                self._generate_one(sheet_matrix, temp_path, profile_title)
-                with open(temp_path, "r", encoding="utf-8") as f:
-                    xml_text = f.read()
-                match = re.search(r"<Profiles>\s*(.*?)\s*</Profiles>", xml_text, flags=re.S)
-                if not match:
-                    raise ValueError(f"Не удалось сформировать профиль для листа '{sheet_matrix}'")
-                profile_blocks.append(match.group(1).strip())
-
-            full_xml = (
-                '<?xml version="1.0"?>\n'
-                '<ExportProfilesCollection xmlns:xsd="http://www.w3.org/2001/XMLSchema" '
-                'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n'
-                '  <Profiles>\n'
-                + "\n".join(profile_blocks)
-                + '\n  </Profiles>\n</ExportProfilesCollection>'
-            )
-            out_dir = os.path.dirname(self.out_path) or os.getcwd()
-            os.makedirs(out_dir, exist_ok=True)
-            with open(self.out_path, "w", encoding="utf-8") as f:
-                f.write(full_xml)
+            if not self.sheet_matrix:
+                raise ValueError("Не выбран лист матрицы")
+            self._generate_one(self.sheet_matrix, self.out_path, self.profile_title)
             self.done.emit(self.out_path)
         except Exception:
             self.failed.emit(traceback.format_exc())
-        finally:
-            for temp_path in temp_paths:
-                try:
-                    os.remove(temp_path)
-                except Exception:
-                    pass
 
     def _generate_one(self, sheet_matrix: str, out_path: str, profile_title: str):
         category_map = {}
@@ -1055,6 +1068,21 @@ class GeneratorWorker(QtCore.QObject):
                     continue
                 desc = normalize_name(row.get('Описание', name))
                 prefix = name.split('_')[0] if '_' in name else 'OTHER'
+                if name in category_map:
+                    previous = category_map.get(name, "")
+                    if previous != desc:
+                        warning_text = (
+                            f"Лист наборов «{self.sheet_nabory}»: набор «{name}» указан несколько раз "
+                            f"с разными значениями фильтра: «{previous}» и «{desc}». "
+                            "Будет использовано последнее значение."
+                        )
+                    else:
+                        warning_text = (
+                            f"Лист наборов «{self.sheet_nabory}»: набор «{name}» указан несколько раз. "
+                            "Повторная строка не нужна."
+                        )
+                    self.log.emit(warning_text)
+                    self.warning.emit(warning_text)
                 category_map[name] = desc
                 prefix_map[name] = prefix
 
@@ -1073,21 +1101,107 @@ class GeneratorWorker(QtCore.QObject):
                 s = str(v).strip()
                 return s
 
+        # Detect the first matrix column from the header row with set names.
+        # Legacy sheets use A=code, B=name, matrix from C. The current demo template
+        # may additionally show a section column on the left: A=section, B=code,
+        # C=name, matrix from D. Both layouts remain supported.
+        matrix_start_col = None
+        for j in range(2, len(df_matrix.columns)):
+            value = df_matrix.iloc[1, j]
+            if pd.notna(value) and normalize_name(value):
+                matrix_start_col = j
+                break
+        if matrix_start_col is None or matrix_start_col < 2:
+            raise ValueError("Не удалось определить начало матрицы по строке наименований наборов")
+
+        row_name_col = matrix_start_col - 1
+        row_code_col = matrix_start_col - 2
+
         # Column names and their codes from rows 1 (names) and 2 (codes)
         col_names = []
         col_codes = []
-        for j in range(2, len(df_matrix.columns)):
+        for j in range(matrix_start_col, len(df_matrix.columns)):
             col_names.append(normalize_name(df_matrix.iloc[1, j]))
             col_codes.append(fmt_code(df_matrix.iloc[2, j]))
 
-        # Row names and their codes from columns 1 (names) and 0 (codes)
+        # Row names and their codes are immediately to the left of matrix values.
         row_names = []
         row_codes = []
         data_rows = []
         for i in range(3, len(df_matrix)):
-            row_names.append(normalize_name(df_matrix.iloc[i, 1]))
-            row_codes.append(fmt_code(df_matrix.iloc[i, 0]))
-            data_rows.append([df_matrix.iloc[i, j] for j in range(2, len(df_matrix.columns))])
+            row_names.append(normalize_name(df_matrix.iloc[i, row_name_col]))
+            row_codes.append(fmt_code(df_matrix.iloc[i, row_code_col]))
+            data_rows.append([df_matrix.iloc[i, j] for j in range(matrix_start_col, len(df_matrix.columns))])
+
+        def emit_warning(message: str):
+            text = str(message or "").strip()
+            if text:
+                self.log.emit(text)
+                self.warning.emit(text)
+
+        def duplicate_values(values):
+            counts = Counter(v for v in values if v)
+            return sorted(v for v, count in counts.items() if count > 1)
+
+        def code_conflicts(names, codes):
+            code_map = defaultdict(set)
+            for name, code in zip(names, codes):
+                if name and code:
+                    code_map[code].add(name)
+            return {code: sorted(items) for code, items in code_map.items() if len(items) > 1}
+
+        # Preflight of both matrix axes. A rectangular matrix is technically readable,
+        # but it is easy to miss checks accidentally, so the user must be warned.
+        row_dups = duplicate_values(row_names)
+        col_dups = duplicate_values(col_names)
+        if row_dups:
+            emit_warning(
+                f"Лист «{sheet_matrix}»: повторяются наборы слева: {', '.join(row_dups)}. "
+                "Проверки для повторяющихся строк могут дублироваться или конфликтовать."
+            )
+        if col_dups:
+            emit_warning(
+                f"Лист «{sheet_matrix}»: повторяются наборы сверху: {', '.join(col_dups)}. "
+                "Проверки для повторяющихся столбцов могут дублироваться или конфликтовать."
+            )
+
+        row_set = {n for n in row_names if n}
+        col_set = {n for n in col_names if n}
+        only_left = sorted(row_set - col_set)
+        only_top = sorted(col_set - row_set)
+        if only_left or only_top:
+            parts = []
+            if only_left:
+                parts.append("только слева: " + ", ".join(only_left))
+            if only_top:
+                parts.append("только сверху: " + ", ".join(only_top))
+            emit_warning(
+                f"Лист «{sheet_matrix}»: наборы по осям различаются ({'; '.join(parts)}). "
+                "Матрица будет обработана как прямоугольная, но часть пар может отсутствовать."
+            )
+        elif [n for n in row_names if n] != [n for n in col_names if n]:
+            emit_warning(
+                f"Лист «{sheet_matrix}»: наборы слева и сверху совпадают, но идут в разном порядке. "
+                "Проверьте матрицу: диагональ может визуально не соответствовать одинаковым наборам."
+            )
+
+        row_code_conflicts = code_conflicts(row_names, row_codes)
+        col_code_conflicts = code_conflicts(col_names, col_codes)
+        for axis_name, conflicts in (("слева", row_code_conflicts), ("сверху", col_code_conflicts)):
+            for code, names in sorted(conflicts.items()):
+                emit_warning(
+                    f"Лист «{sheet_matrix}»: код {code} {axis_name} используется для нескольких наборов: "
+                    f"{', '.join(names)}."
+                )
+
+        row_codes_by_name = {n: c for n, c in zip(row_names, row_codes) if n and c}
+        col_codes_by_name = {n: c for n, c in zip(col_names, col_codes) if n and c}
+        for name in sorted(set(row_codes_by_name) & set(col_codes_by_name)):
+            if row_codes_by_name[name] != col_codes_by_name[name]:
+                emit_warning(
+                    f"Лист «{sheet_matrix}»: у набора «{name}» разные коды по осям: "
+                    f"слева {row_codes_by_name[name]}, сверху {col_codes_by_name[name]}."
+                )
 
         # Build lookup maps name -> code (prefer non-empty)
         row_code_map = {}
@@ -1099,8 +1213,26 @@ class GeneratorWorker(QtCore.QObject):
             if n and c and n not in col_code_map:
                 col_code_map[n] = c
 
-        # Collect matrix pairs
-        pairs = []  # (set1, set2, letter)
+        def parse_matrix_tokens(raw_value):
+            text = str(raw_value or "").strip().upper()
+            if not text:
+                return [], ""
+            # A/B, D\B, A;D, переносы строк и пробелы считаются разделителями.
+            tokens = [part for part in re.split(r"[\s,;/\\|]+", text) if part]
+            valid = []
+            invalid = []
+            for token in tokens:
+                if token in ("A", "B", "C", "D"):
+                    if token not in valid:
+                        valid.append(token)
+                else:
+                    invalid.append(token)
+            return valid, ", ".join(invalid)
+
+        # Collect matrix pairs and report malformed cells instead of silently
+        # interpreting unknown text as tolerance A.
+        pairs = []  # (set1, set2, normalized letters)
+        pair_cells = {}
         for i, set1 in enumerate(row_names):
             if not set1:
                 continue
@@ -1108,14 +1240,49 @@ class GeneratorWorker(QtCore.QObject):
                 if not set2 or j >= len(data_rows[i]):
                     continue
                 cell_value = data_rows[i][j]
-                if pd.notna(cell_value) and str(cell_value).strip() != '':
-                    pairs.append((set1, set2, str(cell_value).strip()))
+                if pd.isna(cell_value) or str(cell_value).strip() == '':
+                    continue
+                letters, invalid_text = parse_matrix_tokens(cell_value)
+                if invalid_text:
+                    emit_warning(
+                        f"Лист «{sheet_matrix}»: ячейка «{set1} × {set2}» содержит "
+                        f"неизвестное обозначение: {invalid_text}. Допустимы только A, B, C и D."
+                    )
+                if not letters:
+                    continue
+                normalized = "/".join(letters)
+                pairs.append((set1, set2, normalized))
+                pair_cells[(set1, set2)] = tuple(sorted(letters))
+
+        # If both mirrored cells are filled, they describe the same pair. Different
+        # values are a real conflict, so make it visible instead of taking the first one.
+        reported_mirror_conflicts = set()
+        for (set1, set2), letters in pair_cells.items():
+            if set1 == set2:
+                continue
+            reverse = pair_cells.get((set2, set1))
+            key = tuple(sorted((set1, set2)))
+            if reverse is not None and reverse != letters and key not in reported_mirror_conflicts:
+                reported_mirror_conflicts.add(key)
+                emit_warning(
+                    f"Лист «{sheet_matrix}»: конфликт зеркальных ячеек для пары "
+                    f"«{set1} ↔ {set2}»: указаны {'/'.join(letters)} и {'/'.join(reverse)}. "
+                    "При генерации будет использовано первое найденное значение."
+                )
 
         self.log.emit(f"Всего коллизий в матрице: {len(pairs)}")
 
         all_sets = set()
         all_sets.update([n for n in row_names if n])
         all_sets.update([n for n in col_names if n])
+
+        if self.group_by_sections:
+            without_prefix = sorted(name for name in all_sets if "_" not in name)
+            if without_prefix:
+                emit_warning(
+                    f"Лист «{sheet_matrix}»: у {len(without_prefix)} набор(а) нет префикса вида АР_/КР_/ОВ_: "
+                    f"{', '.join(without_prefix)}. Они попадут в общую группу OTHER."
+                )
 
         if not category_map:
             for name in sorted(all_sets):
@@ -1179,8 +1346,7 @@ class GeneratorWorker(QtCore.QObject):
             return (code_val + "_" if code_val else "") + raw_name
 
         def parse_cell_value(cell_val: str) -> list[str]:
-            parts = [p.strip().upper() for p in cell_val.replace('\\', '/').split('/')]
-            return [p for p in parts if p]
+            return parse_matrix_tokens(cell_val)[0]
 
         def get_validation_type(letter: str) -> str:
             letter = letter.strip().upper()
@@ -1190,6 +1356,14 @@ class GeneratorWorker(QtCore.QObject):
                 return 'intersection'
             return 'intersection'
 
+        # При выключенной группировке все типы проверок собираются в одну
+        # общую матрицу. Это важно для ячеек вроде B/D: пересечение и
+        # дублирование остаются двумя CollisionsExportProfileItem, но имеют
+        # одного ParentId и отображаются как две проверки одной пары наборов.
+        # При включённой группировке сохраняется прежняя структура Larix
+        # с папками по парам разделов и типам проверок.
+        all_combined_items = []
+
         for i in range(len(prefixes)):
             for j in range(i, len(prefixes)):
                 p1, p2 = prefixes[i], prefixes[j]
@@ -1198,6 +1372,14 @@ class GeneratorWorker(QtCore.QObject):
                 items_duplication = []
                 added_pairs_intersection = set()
                 added_pairs_duplication = set()
+
+                # Резервируем два ID на пару разделов. Так ParentId остаётся
+                # корректным даже если в паре есть только дублирование без
+                # проверки пересечений.
+                intersection_folder_id = folder_counter
+                duplication_folder_id = folder_counter + 1
+                intersection_parent_id = intersection_folder_id if self.group_by_sections else 11300
+                duplication_parent_id = duplication_folder_id if self.group_by_sections else 11300
 
                 for set1 in groups[p1]:
                     for set2 in groups[p2]:
@@ -1236,8 +1418,8 @@ class GeneratorWorker(QtCore.QObject):
 
                                 item_xml = ITEM_TEMPLATE.format(
                                     id=item_counter,
-                                    parent_id=folder_counter,
-                                    title=title,
+                                    parent_id=intersection_parent_id,
+                                    title=xml_text_escape(title),
                                     condition_block1_items=condition_block1_items,
                                     condition_block2_items=condition_block2_items,
                                     admission_value=admission_value,
@@ -1267,8 +1449,8 @@ class GeneratorWorker(QtCore.QObject):
 
                                 item_xml = ITEM_TEMPLATE_DUPLICATION.format(
                                     id=item_counter,
-                                    parent_id=folder_counter + 1,
-                                    title=title,
+                                    parent_id=duplication_parent_id,
+                                    title=xml_text_escape(title),
                                     condition_block1_items=condition_block1_items,
                                     condition_block2_items=condition_block2_items,
                                     admission_value=admission_value,
@@ -1276,29 +1458,40 @@ class GeneratorWorker(QtCore.QObject):
                                 items_duplication.append(item_xml)
                                 item_counter += 1
 
-                if items_intersection:
-                    folder_title_intersection = f"{format_prefix(p1)} ~ {format_prefix(p2)} / Пересечение"
-                    folder_xml = FOLDER_TEMPLATE.format(
-                        folder_id=folder_counter,
-                        folder_title=folder_title_intersection
-                    )
-                    profile_items.append(folder_xml)
-                    profile_items.extend(items_intersection)
-                    folder_counter += 1
+                if self.group_by_sections:
+                    if items_intersection:
+                        folder_title_intersection = f"{format_prefix(p1)} ~ {format_prefix(p2)} / Пересечение"
+                        folder_xml = FOLDER_TEMPLATE.format(
+                            folder_id=intersection_folder_id,
+                            folder_title=xml_text_escape(folder_title_intersection)
+                        )
+                        profile_items.append(folder_xml)
+                        profile_items.extend(items_intersection)
 
-                if items_duplication:
-                    folder_title_duplication = f"{format_prefix(p1)} ~ {format_prefix(p2)} / Дублирование"
-                    folder_xml = FOLDER_TEMPLATE.format(
-                        folder_id=folder_counter,
-                        folder_title=folder_title_duplication
-                    )
-                    profile_items.append(folder_xml)
-                    profile_items.extend(items_duplication)
-                    folder_counter += 1
+                    if items_duplication:
+                        folder_title_duplication = f"{format_prefix(p1)} ~ {format_prefix(p2)} / Дублирование"
+                        folder_xml = FOLDER_TEMPLATE.format(
+                            folder_id=duplication_folder_id,
+                            folder_title=xml_text_escape(folder_title_duplication)
+                        )
+                        profile_items.append(folder_xml)
+                        profile_items.extend(items_duplication)
+
+                    folder_counter += 2
+                else:
+                    all_combined_items.extend(items_intersection)
+                    all_combined_items.extend(items_duplication)
+
+        if not self.group_by_sections and all_combined_items:
+            profile_items.append(FOLDER_TEMPLATE.format(
+                folder_id=11300,
+                folder_title=xml_text_escape("Матрица"),
+            ))
+            profile_items.extend(all_combined_items)
 
         full_xml = XML_TEMPLATE.format(
             profile_items="\n".join(profile_items),
-            title=profile_title
+            title=xml_text_escape(profile_title)
         )
 
         out_dir = os.path.dirname(out_path) or os.getcwd()
@@ -1394,9 +1587,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Larix — Матрицы")
-        self.resize(900, 600)
+        self.resize(1000, 680)
         self._pending_theme_apply = False
-        self._matrix_sheets: list[str] = []
         # theme state (aligned with AddUser)
         self._BG = BG
         self._FG = FG
@@ -1408,6 +1600,7 @@ class MainWindow(QtWidgets.QMainWindow):
             pass
         self._apply_app_font()
         self._build_ui()
+        self._apply_main_button_rounding()
         self._apply_stylesheet()
 
     def changeEvent(self, event: QtCore.QEvent) -> None:
@@ -1475,6 +1668,21 @@ class MainWindow(QtWidgets.QMainWindow):
             pass
         return widget
 
+    def _apply_main_button_rounding(self):
+        """Keep Matrix action buttons visually consistent with the rest of Manager."""
+        for attr_name in (
+            "btn_matrix",
+            "btn_nabory",
+            "btn_select_api",
+            "btn_select_adapter",
+        ):
+            button = getattr(self, attr_name, None)
+            if button is not None:
+                button.setStyleSheet("QPushButton { border-radius: 14px; }")
+        button = getattr(self, "btn_generate", None)
+        if button is not None:
+            button.setStyleSheet("QPushButton { border-radius: 14px; }")
+
     def _tune_combo_editor(self, combo: QtWidgets.QComboBox):
         line_edit = combo.lineEdit()
         if line_edit is None:
@@ -1504,10 +1712,8 @@ class MainWindow(QtWidgets.QMainWindow):
         for attr_name in (
             "ed_title",
             "ed_matrix",
-            "ed_matrix_sheets",
             "ed_nabory",
             "btn_matrix",
-            "btn_matrix_sheets",
             "btn_nabory",
             "btn_select_api",
             "btn_select_adapter",
@@ -1574,19 +1780,23 @@ class MainWindow(QtWidgets.QMainWindow):
         l.addWidget(self.ed_matrix, 1, 1)
         l.addWidget(self.btn_matrix, 1, 2)
 
-        self.ed_matrix_sheets = self._tune_form_control(QtWidgets.QLineEdit(), height=form_row_height)
-        self.ed_matrix_sheets.setReadOnly(True)
-        self.ed_matrix_sheets.setPlaceholderText("Листы матриц не выбраны")
-        self.btn_matrix_sheets = self._tune_form_control(QtWidgets.QPushButton("Выбрать листы"), height=form_row_height)
-        self.btn_matrix_sheets.setEnabled(False)
-        self.btn_matrix_sheets.clicked.connect(self._pick_matrix_sheets)
-        l.addWidget(self._make_form_label("Листы матриц", height=form_row_height), 2, 0)
-        l.addWidget(self.ed_matrix_sheets, 2, 1)
-        l.addWidget(self.btn_matrix_sheets, 2, 2)
+        self.cb_sheet_matrix = self._tune_form_control(QtWidgets.QComboBox(), height=form_row_height)
+        self.cb_sheet_matrix.setCurrentIndex(-1)
+        self.cb_sheet_matrix.setToolTip("Выберите один лист Excel, содержащий матрицу проверок.")
+        l.addWidget(self._make_form_label("Лист матрицы", height=form_row_height), 2, 0)
+        l.addWidget(self.cb_sheet_matrix, 2, 1, 1, 2)
 
-        # Compatibility widget retained for old styling/helpers; it is not shown.
-        self.cb_sheet_matrix = QtWidgets.QComboBox(self)
-        self.cb_sheet_matrix.hide()
+        self.cb_group_sections = QtWidgets.QCheckBox("Группировать по разделам")
+        self.cb_group_sections.setChecked(True)
+        self.cb_group_sections.setToolTip(
+            "Раздел определяется автоматически по префиксу имени набора до первого символа «_»: "
+            "АР_Стены → АР, КР_Колонны → КР, ОВ_Воздуховоды → ОВ. "
+            "Отдельные подписи групп в Excel не нужны. Если включено, проверки распределяются "
+            "по папкам разделов, например 01_АР ~ 02_КР. Если выключено, все проверки "
+            "собираются в одну общую матрицу без разделения на «Пересечение» и «Дублирование». "
+            "Ячейка B/D при этом остаётся одной парой наборов с двумя типами проверки."
+        )
+        l.addWidget(self.cb_group_sections, 3, 0, 1, 3)
 
         root.addWidget(self.sec_files)
 
@@ -1803,6 +2013,7 @@ class MainWindow(QtWidgets.QMainWindow):
             pass
         try:
             self._refresh_form_alignment()
+            self._apply_main_button_rounding()
         except Exception:
             pass
         try:
@@ -1847,8 +2058,10 @@ class MainWindow(QtWidgets.QMainWindow):
         ]
 
         if enabled:
-            for widget in labels + text_inputs + buttons + [self.cb_sheet_nabory]:
+            for widget in labels + text_inputs + [self.cb_sheet_nabory]:
                 widget.setStyleSheet("")
+            for button in buttons:
+                button.setStyleSheet("QPushButton { border-radius: 14px; }")
             for combo in (self.cb_sheet_nabory, self.cmb_filter_param):
                 self._tune_combo_editor(combo)
             return
@@ -1870,7 +2083,7 @@ class MainWindow(QtWidgets.QMainWindow):
             f"color: {label_color};"
             f"background-color: {button_bg};"
             f"border: 1px solid {border_color};"
-            "border-radius: 4px;"
+            "border-radius: 14px;"
             "padding: 4px 10px;"
         )
         combo_qss = f"""
@@ -1905,6 +2118,11 @@ class MainWindow(QtWidgets.QMainWindow):
         for combo in (self.cb_sheet_nabory, self.cmb_filter_param):
             self._tune_combo_editor(combo)
 
+        # Лист матрицы относится к блоку «Файлы», а не к фильтру.
+        # Он должен оставаться визуально активным независимо от состояния фильтра.
+        self.cb_sheet_matrix.setStyleSheet("")
+        self._tune_combo_editor(self.cb_sheet_matrix)
+
     def _on_filter_enabled_toggled(self, checked: bool):
         enabled = bool(checked)
         controls = [
@@ -1931,7 +2149,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not path:
             return
         self.ed_nabory.setText(path)
-        self._populate_sheets(path, self.cb_sheet_nabory)
+        self._populate_sheets(path, self.cb_sheet_nabory, preferred_names=("наборы матрицы", "наборы для матриц"), fallback_to_first=True)
 
     def _pick_matrix(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -1941,44 +2159,52 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self.ed_matrix.setText(path)
         self.ed_nabory.setText(path)
-        self._matrix_sheets = []
-        self.ed_matrix_sheets.clear()
-        self.btn_matrix_sheets.setEnabled(True)
-        self._populate_sheets(path, self.cb_sheet_nabory)
-        self._pick_matrix_sheets()
+        self._populate_sheets(
+            path,
+            self.cb_sheet_matrix,
+            preferred_names=("матрица",),
+            fallback_to_first=True,
+        )
+        self._populate_sheets(
+            path,
+            self.cb_sheet_nabory,
+            preferred_names=("наборы матрицы", "наборы для матриц"),
+            fallback_to_first=False,
+        )
 
-    def _pick_matrix_sheets(self):
-        path = self.ed_matrix.text().strip()
-        if not path or not os.path.exists(path):
-            show_warning(_get_visible_parent(self), "Сначала выберите Excel-файл.", "Файл не выбран")
-            return
-        sheets = list_sheets(path)
-        if not sheets:
-            show_warning(_get_visible_parent(self), "В Excel-файле не найдено листов.", "Нет листов")
-            return
-        dlg = MatrixSheetsDialog(_get_visible_parent(self), sheets, self._matrix_sheets)
-        ok = dlg.exec() if hasattr(dlg, "exec") else dlg.exec_()
-        if ok:
-            self._matrix_sheets = dlg.selected_sheets()
-            self.ed_matrix_sheets.setText(", ".join(self._matrix_sheets))
-
-    def _populate_sheets(self, file_path: str, combo: QtWidgets.QComboBox):
+    def _populate_sheets(
+        self,
+        file_path: str,
+        combo: QtWidgets.QComboBox,
+        preferred_names: tuple[str, ...] = (),
+        fallback_to_first: bool = False,
+    ):
         sheets = list_sheets(file_path)
         combo.clear()
-        if sheets:
-            combo.addItems(sheets)
-            preferred = next((s for s in sheets if s.lower() in ("наборы матрицы", "наборы для матриц")), "")
-            if preferred:
-                combo.setCurrentText(preferred)
-            else:
-                combo.setCurrentIndex(-1)
-                if combo.lineEdit() is not None:
-                    combo.lineEdit().clear()
+        if not sheets:
+            combo.setCurrentIndex(-1)
+            return
+
+        combo.addItems(sheets)
+        preferred_lookup = {str(name).strip().lower() for name in preferred_names}
+        preferred = next(
+            (s for s in sheets if str(s).strip().lower() in preferred_lookup),
+            "",
+        )
+        if preferred:
+            combo.setCurrentText(preferred)
+        elif fallback_to_first:
+            combo.setCurrentIndex(0)
         else:
             combo.setCurrentIndex(-1)
-            if combo.lineEdit() is not None:
-                combo.lineEdit().clear()
-    
+
+        model = combo.model()
+        for index, sheet_name in enumerate(sheets):
+            try:
+                model.setData(model.index(index, 0), str(sheet_name), QtCore.Qt.ToolTipRole)
+            except Exception:
+                pass
+
     def _on_select_from_api(self):
         """Открывает диалог выбора из API и заполняет параметр фильтрации."""
         try:
@@ -2023,7 +2249,7 @@ class MainWindow(QtWidgets.QMainWindow):
         param_field = ((self.cmb_filter_param.currentText() or "").strip() or "Категория:\\") if build_filters else ""
 
         sheet_nabory = self.cb_sheet_nabory.currentText().strip() if build_filters else ""
-        sheet_matrix = list(self._matrix_sheets)
+        sheet_matrix = self.cb_sheet_matrix.currentText().strip()
 
         if not os.path.exists(matrix):
             show_warning(_get_visible_parent(self), "Выберите корректный Excel-файл.", "Файл не найден")
@@ -2035,7 +2261,7 @@ class MainWindow(QtWidgets.QMainWindow):
             show_warning(_get_visible_parent(self), "Выберите лист наборов.", "Не выбран лист")
             return
         if not sheet_matrix:
-            show_warning(_get_visible_parent(self), "Выберите хотя бы один лист матрицы.", "Не выбраны листы")
+            show_warning(_get_visible_parent(self), "Выберите лист матрицы.", "Не выбран лист")
             return
 
         out, _ = QtWidgets.QFileDialog.getSaveFileName(_get_visible_parent(self), "Выберите выходной файл", "matrix.cv", "Профиль (*.cv *.xml)")
@@ -2054,7 +2280,8 @@ class MainWindow(QtWidgets.QMainWindow):
             nabory, matrix, out,
             sheet_nabory, sheet_matrix,
             self.spin_a.value(), self.spin_b.value(), self.spin_c.value(),
-            profile_title, param_field, build_filters
+            profile_title, param_field, build_filters,
+            self.cb_group_sections.isChecked()
         )
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
@@ -2079,7 +2306,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.status.showMessage("Готово")
 
     def _on_failed(self, err: str):
-        self._pending_error_msg = "Произошла ошибка при генерации. Подробности в журнале."
+        lines = [line.strip() for line in str(err or "").splitlines() if line.strip()]
+        detail = lines[-1] if lines else "Неизвестная ошибка"
+        self._pending_error_msg = f"Не удалось сгенерировать профиль:\n{detail}"
         self.status.showMessage("Ошибка")
 
     def _on_thread_finished(self):

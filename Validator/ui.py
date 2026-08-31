@@ -1337,63 +1337,58 @@ def _split_filter_values(raw_value) -> list[str]:
     return values
 
 
+def _append_simple_condition_block(parent_el, field_name: str, value: str):
+    """Append a Larix-style single filtering condition block."""
+    field = str(field_name or "").strip()
+    text = str(value or "").strip()
+    if not field or not text:
+        return None
+    block = ET.SubElement(parent_el, "ConditionsBlock")
+    ET.SubElement(block, "Condition", {
+        "FieldName": field,
+        "FieldIsNumeric": "false",
+        "Value": text,
+        "IsUndefinedFieldName": "false",
+    })
+    ET.SubElement(block, "ConditionsBlocks")
+    return block
+
+
+def _append_or_value_group(parent_el, field_name: str, values: list[str], *, force_group: bool = False):
+    """Append one field: one value directly, several values as OR alternatives."""
+    field = str(field_name or "").strip()
+    unique_values: list[str] = []
+    for value in values or []:
+        text = str(value or "").strip()
+        if text and text not in unique_values:
+            unique_values.append(text)
+    if not field or not unique_values:
+        return
+
+    if len(unique_values) == 1 and not force_group:
+        _append_simple_condition_block(parent_el, field, unique_values[0])
+        return
+
+    group = ET.SubElement(parent_el, "ConditionsBlock", {
+        "Type": "Block",
+        "LogicalOperator": "Or",
+    })
+    ET.SubElement(group, "Condition", {"IsUndefinedFieldName": "false"})
+    inner = ET.SubElement(group, "ConditionsBlocks")
+    for value in unique_values:
+        _append_simple_condition_block(inner, field, value)
+
+
 def _append_filter_conditions(parent_el, field_values_pairs: list[tuple[str, list[str]]]):
+    """Backward-compatible helper using correct AND-between-fields semantics."""
     for field_name, values in field_values_pairs:
-        field = str(field_name or "").strip()
-        if not field:
-            continue
-        for value in values or []:
-            text = str(value or "").strip()
-            if not text:
-                continue
-            cond_block = ET.SubElement(parent_el, "ConditionsBlock", {
-                "Type": "Single", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
-            })
-            cond_signal = ET.SubElement(cond_block, "Signal")
-            cond_signal.append(_empty_messages())
-            cond = ET.SubElement(cond_block, "Condition", {
-                "FieldName": field,
-                "FieldIsNumeric": "false",
-                "Operator": "Equal",
-                "Value": text,
-                "TextCaseSensitive": "false",
-                "TextSpaceSensitive": "false",
-                "IsUndefinedFieldName": "false"
-            })
-            cond_signal = ET.SubElement(cond, "Signal")
-            cond_signal.append(_empty_messages())
-            ET.SubElement(cond_block, "ConditionsBlocks")
+        _append_or_value_group(parent_el, field_name, values, force_group=False)
 
 
 def _append_grouped_filter_conditions(parent_el, field_values_pairs: list[tuple[str, list[str]]]):
+    """Explicitly group every FieldName while keeping the same filter semantics."""
     for field_name, values in field_values_pairs:
-        field = str(field_name or "").strip()
-        unique_values = []
-        for value in values or []:
-            text = str(value or "").strip()
-            if text and text not in unique_values:
-                unique_values.append(text)
-        if not field or not unique_values:
-            continue
-        group_block = ET.SubElement(parent_el, "ConditionsBlock", {
-            "Type": "Block", "LogicalOperator": "Or", "IsNegative": "false", "IsEnabled": "true"
-        })
-        group_signal = ET.SubElement(group_block, "Signal")
-        group_signal.append(_empty_messages())
-        group_condition = ET.SubElement(group_block, "Condition", {
-            "FieldName": "",
-            "FieldIsNumeric": "false",
-            "Operator": "Equal",
-            "Value": "",
-            "TextCaseSensitive": "false",
-            "TextSpaceSensitive": "false",
-            "IsUndefinedFieldName": "false"
-        })
-        group_condition_signal = ET.SubElement(group_condition, "Signal")
-        group_condition_signal.append(_empty_messages())
-        inner = ET.SubElement(group_block, "ConditionsBlocks")
-        _append_filter_conditions(inner, [(field, unique_values)])
-
+        _append_or_value_group(parent_el, field_name, values, force_group=True)
 
 def _configure_combo_popup(combo: QtWidgets.QComboBox, *, accent_border: bool = False):
     combo.setMaxVisibleItems(18)
@@ -1628,6 +1623,18 @@ def _build_sheet_categories(layout, sheet_name: str, mode: str, filter_field_map
     warnings: list[str] = []
     validation_codes: set[tuple[str, bool]] = set()
 
+    field_to_columns: dict[str, list[str]] = {}
+    for col_name, field_name in selected_filter_map.items():
+        field = str(field_name or "").strip()
+        if field:
+            field_to_columns.setdefault(field, []).append(str(col_name))
+    for field, columns in sorted(field_to_columns.items()):
+        if len(columns) > 1:
+            warnings.append(
+                f"Лист '{sheet_name}': несколько колонок фильтра сопоставлены одному FieldName '{field}': "
+                + ", ".join(columns) + ". Их значения будут объединены."
+            )
+
     def _get_or_create_node(kind: str, key: str, title: str, parent_key: str | None, order: int) -> dict[str, object]:
         node = nodes_by_key.get(key)
         if node is None:
@@ -1652,8 +1659,15 @@ def _build_sheet_categories(layout, sheet_name: str, mode: str, filter_field_map
                 except Exception:
                     pass
         else:
-            # keep first "order"/"parent_key"/"title" as created
-            pass
+            existing_title = str(node.get("title") or "")
+            existing_parent = node.get("parent_key")
+            if existing_title != str(title or "") or existing_parent != parent_key:
+                warnings.append(
+                    f"Лист '{sheet_name}': структурный ключ '{key}' используется повторно с другим "
+                    f"названием или родителем. Первое значение «{existing_title}» будет сохранено, "
+                    f"повтор «{title}» будет объединён с ним."
+                )
+            # keep first order/parent/title as created
         return node
 
     order_counter = 0
@@ -1957,38 +1971,42 @@ def _classifier_code_desc_values(code_raw, desc_raw, excel_row_number: int, warn
     return codes, descs
 
 def _append_classifier_pair_filter_conditions(parent_el, code_field: str, desc_field: str, pairs: list[dict[str, str]]):
+    """Append classifier code/description pairs as (code AND description) alternatives."""
     code_field = str(code_field or "").strip()
     desc_field = str(desc_field or "").strip()
-    if not code_field and not desc_field:
-        return
+    normalized: list[tuple[str, str]] = []
     for pair in pairs or []:
         code_value = str((pair or {}).get("code") or "").strip()
         desc_value = str((pair or {}).get("description") or "").strip()
-        if not code_value and not desc_value:
-            continue
+        if code_value or desc_value:
+            normalized.append((code_value, desc_value))
+    if not normalized or (not code_field and not desc_field):
+        return
 
-        pair_block = ET.SubElement(parent_el, "ConditionsBlock", {
-            "Type": "Block", "LogicalOperator": "Or", "IsNegative": "false", "IsEnabled": "true"
-        })
-        pair_signal = ET.SubElement(pair_block, "Signal")
-        pair_signal.append(_empty_messages())
-        pair_condition = ET.SubElement(pair_block, "Condition", {
-            "FieldName": "",
-            "FieldIsNumeric": "false",
-            "Operator": "Equal",
-            "Value": "",
-            "TextCaseSensitive": "false",
-            "TextSpaceSensitive": "false",
-            "IsUndefinedFieldName": "false"
-        })
-        pair_condition_signal = ET.SubElement(pair_condition, "Signal")
-        pair_condition_signal.append(_empty_messages())
-        inner = ET.SubElement(pair_block, "ConditionsBlocks")
-
+    # One pair can live directly in the outer AND block.
+    if len(normalized) == 1:
+        code_value, desc_value = normalized[0]
         if code_field and code_value:
-            _append_filter_conditions(inner, [(code_field, [code_value])])
+            _append_simple_condition_block(parent_el, code_field, code_value)
         if desc_field and desc_value:
-            _append_filter_conditions(inner, [(desc_field, [desc_value])])
+            _append_simple_condition_block(parent_el, desc_field, desc_value)
+        return
+
+    # Several code/description pairs are OR alternatives; every pair itself is AND.
+    alternatives = ET.SubElement(parent_el, "ConditionsBlock", {
+        "Type": "Block",
+        "LogicalOperator": "Or",
+    })
+    ET.SubElement(alternatives, "Condition", {"IsUndefinedFieldName": "false"})
+    alternatives_inner = ET.SubElement(alternatives, "ConditionsBlocks")
+    for code_value, desc_value in normalized:
+        pair_block = ET.SubElement(alternatives_inner, "ConditionsBlock", {"Type": "Block"})
+        ET.SubElement(pair_block, "Condition", {"IsUndefinedFieldName": "false"})
+        pair_inner = ET.SubElement(pair_block, "ConditionsBlocks")
+        if code_field and code_value:
+            _append_simple_condition_block(pair_inner, code_field, code_value)
+        if desc_field and desc_value:
+            _append_simple_condition_block(pair_inner, desc_field, desc_value)
 
 def _import_adapter_mapping(parent, excel_path: str) -> dict:
     path, sheet = choose_adapter_sheet(parent, excel_path, title="Выбор адаптера")
@@ -2030,6 +2048,7 @@ def excel_to_pv_profile(
     build_filters=True,
     grouped=False,
     merge_sheets=False,
+    filter_logic="or",
 ):
     if pd is None:
         return False, "ERROR: Требуется пакет pandas"
@@ -2094,17 +2113,14 @@ def excel_to_pv_profile(
                 ET.SubElement(folder, "IsFolder").text = "true"
                 ET.SubElement(folder, "ExtFieldParamCodes")
 
-                fcb = ET.SubElement(folder, "FilteringConditionBlock", {
-                    "Type": "Block", "LogicalOperator": "Or", "IsNegative": "false", "IsEnabled": "true"
-                })
-                fcb_signal = ET.SubElement(fcb, "Signal")
-                fcb_signal.append(_empty_messages())
-                fcb_condition = ET.SubElement(fcb, "Condition", {
-                    "FieldName": "", "FieldIsNumeric": "false", "Operator": "Equal", "Value": "",
-                    "TextCaseSensitive": "false", "TextSpaceSensitive": "true", "IsUndefinedFieldName": "false"
-                })
-                fcb_condition_signal = ET.SubElement(fcb_condition, "Signal")
-                fcb_condition_signal.append(_info_message("Имя не указано"))
+                # The root operator is user-selectable. Larix represents AND by a
+                # plain Block and OR by LogicalOperator="Or". Alternative values of
+                # one FieldName are still grouped with OR inside this root block.
+                root_filter_attrs = {"Type": "Block"}
+                if build_filters and str(filter_logic or "or").strip().lower() == "or":
+                    root_filter_attrs["LogicalOperator"] = "Or"
+                fcb = ET.SubElement(folder, "FilteringConditionBlock", root_filter_attrs)
+                ET.SubElement(fcb, "Condition", {"IsUndefinedFieldName": "false"})
                 cb = ET.SubElement(fcb, "ConditionsBlocks")
 
                 if build_filters:
@@ -2132,17 +2148,8 @@ def excel_to_pv_profile(
                         _append_filter_conditions(cb, filter_pairs)
 
                 ET.SubElement(folder, "ParentFilteringProfileItemId", {"xsi:nil": "true"})
-                vcb = ET.SubElement(folder, "ValidatingConditionBlock", {
-                    "Type": "Block", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
-                })
-                vcb_signal = ET.SubElement(vcb, "Signal")
-                vcb_signal.append(_info_message("Нет ни одного включенного условия в наборе условий"))
-                vcb_condition = ET.SubElement(vcb, "Condition", {
-                    "FieldName": "", "FieldIsNumeric": "false", "Operator": "Equal", "Value": "",
-                    "TextCaseSensitive": "false", "TextSpaceSensitive": "true", "IsUndefinedFieldName": "false"
-                })
-                vcb_condition_signal = ET.SubElement(vcb_condition, "Signal")
-                vcb_condition_signal.append(_info_message("Имя не указано"))
+                vcb = ET.SubElement(folder, "ValidatingConditionBlock", {"Type": "Block"})
+                ET.SubElement(vcb, "Condition", {"IsUndefinedFieldName": "false"})
                 ET.SubElement(vcb, "ConditionsBlocks")
 
             # 2) Add parameter nodes as children
@@ -2160,49 +2167,34 @@ def excel_to_pv_profile(
                     ET.SubElement(child, "IsFolder").text = "true"
                     ET.SubElement(child, "ExtFieldParamCodes")
 
-                    fcb_child = ET.SubElement(child, "FilteringConditionBlock", {
-                        "Type": "Block", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
-                    })
-                    fcb_child_signal = ET.SubElement(fcb_child, "Signal")
-                    fcb_child_signal.append(_info_message("Нет ни одного включенного условия в наборе условий"))
-                    fcb_child_condition = ET.SubElement(fcb_child, "Condition", {
-                        "FieldName": "", "FieldIsNumeric": "true", "Operator": "Equal", "Value": "",
-                        "TextCaseSensitive": "false", "TextSpaceSensitive": "false", "IsUndefinedFieldName": "false"
-                    })
-                    fcb_child_condition_signal = ET.SubElement(fcb_child_condition, "Signal")
-                    fcb_child_condition_signal.append(_info_message("Имя не указано"))
+                    fcb_child = ET.SubElement(child, "FilteringConditionBlock", {"Type": "Block"})
+                    ET.SubElement(fcb_child, "Condition", {"IsUndefinedFieldName": "false"})
                     ET.SubElement(fcb_child, "ConditionsBlocks")
 
                     ET.SubElement(child, "ParentFilteringProfileItemId", {"xsi:nil": "true"})
 
-                    vcb_child = ET.SubElement(child, "ValidatingConditionBlock", {
-                        "Type": "Block", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
-                    })
-                    vcb_child_signal = ET.SubElement(vcb_child, "Signal")
-                    vcb_child_signal.append(_empty_messages())
-                    vcb_child_condition = ET.SubElement(vcb_child, "Condition", {
-                        "FieldName": "", "FieldIsNumeric": "false", "Operator": "Equal", "Value": "",
-                        "TextCaseSensitive": "false", "TextSpaceSensitive": "true", "IsUndefinedFieldName": "false"
-                    })
-                    vcb_child_condition_signal = ET.SubElement(vcb_child_condition, "Signal")
-                    vcb_child_condition_signal.append(_info_message("Имя не указано"))
-
+                    vcb_child = ET.SubElement(child, "ValidatingConditionBlock", {"Type": "Block"})
+                    ET.SubElement(vcb_child, "Condition", {"IsUndefinedFieldName": "false"})
                     conditions_blocks = ET.SubElement(vcb_child, "ConditionsBlocks")
-                    single_cond = ET.SubElement(conditions_blocks, "ConditionsBlock", {
-                        "Type": "Single", "LogicalOperator": "And", "IsNegative": "false", "IsEnabled": "true"
-                    })
-                    single_cond_signal = ET.SubElement(single_cond, "Signal")
-                    single_cond_signal.append(_empty_messages())
+                    single_cond = ET.SubElement(conditions_blocks, "ConditionsBlock")
 
-                    op = "More" if param['is_numeric'] else "Default"
-                    val = "0" if param['is_numeric'] else ""
-                    cond = ET.SubElement(single_cond, "Condition", {
-                        "FieldName": param['field_name'], "FieldIsNumeric": str(param['is_numeric']).lower(),
-                        "Operator": op, "Value": val, "TextCaseSensitive": "false",
-                        "TextSpaceSensitive": "false", "Layer": "-1", "IsUndefinedFieldName": "false"
-                    })
-                    cond_signal = ET.SubElement(cond, "Signal")
-                    cond_signal.append(_empty_messages())
+                    if param['is_numeric']:
+                        cond_attrs = {
+                            "FieldName": param['field_name'],
+                            "Operator": "More",
+                            "Value": "0",
+                            "Layer": "-1",
+                            "IsUndefinedFieldName": "false",
+                        }
+                    else:
+                        cond_attrs = {
+                            "FieldName": param['field_name'],
+                            "FieldIsNumeric": "false",
+                            "Operator": "Default",
+                            "Layer": "-1",
+                            "IsUndefinedFieldName": "false",
+                        }
+                    ET.SubElement(single_cond, "Condition", cond_attrs)
                     ET.SubElement(single_cond, "ConditionsBlocks")
 
             return item_id, folder_idx
@@ -3944,6 +3936,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_filter.setEnabled(False)
         self.cb_filter.setToolTip("Создаёт условия отбора по отмеченным полям Excel.")
         settings_box.addWidget(self.cb_filter)
+
+        self.lbl_filter_logic = QtWidgets.QLabel("Логика:")
+        self.cmb_filter_logic = QtWidgets.QComboBox()
+        self.cmb_filter_logic.addItem("ИЛИ", "or")
+        self.cmb_filter_logic.addItem("И", "and")
+        self.cmb_filter_logic.setCurrentIndex(0)
+        self.cmb_filter_logic.setEnabled(False)
+        self.cmb_filter_logic.setToolTip(
+            "ИЛИ — достаточно одного условия. И — должны выполняться все выбранные условия."
+        )
+        self.cmb_filter_logic.setMinimumWidth(76)
+        settings_box.addWidget(self.lbl_filter_logic)
+        settings_box.addWidget(self.cmb_filter_logic)
+
         self.cb_grouped = QtWidgets.QCheckBox("Группировать фильтры")
         self.cb_grouped.setChecked(False)
         self.cb_grouped.setEnabled(False)
@@ -4112,6 +4118,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_filter_toggle(self, checked: bool):
         self.cb_grouped.setEnabled(checked)
+        self.lbl_filter_logic.setEnabled(checked)
+        self.cmb_filter_logic.setEnabled(checked)
         if checked:
             self.cb_grouped.setToolTip(self._cb_grouped_tooltip)
         else:
@@ -4147,12 +4155,16 @@ class MainWindow(QtWidgets.QMainWindow):
             self.cb_grouped.setEnabled(True)
             self.cb_grouped.setChecked(True)
             self.cb_grouped.setToolTip(self._cb_grouped_tooltip)
+            self.lbl_filter_logic.setEnabled(True)
+            self.cmb_filter_logic.setEnabled(True)
         else:
             self.cb_auto.setChecked(False)
             self.cb_filter.setChecked(False)
             self.cb_grouped.setChecked(False)
             self.cb_grouped.setEnabled(False)
             self.cb_grouped.setToolTip(self._cb_grouped_tooltip_disabled)
+            self.lbl_filter_logic.setEnabled(False)
+            self.cmb_filter_logic.setEnabled(False)
 
     def choose_models(self):
         dlg = ProjectSelectionWindow()
@@ -4415,6 +4427,7 @@ class MainWindow(QtWidgets.QMainWindow):
             build_filters=self.cb_filter.isChecked(),
             grouped=self.cb_grouped.isChecked(),
             merge_sheets=self.cb_merge_sheets.isChecked(),
+            filter_logic=self.cmb_filter_logic.currentData() or "or",
         )
         if ok and "\nWARNINGS:\n" in msg:
             summary, warning_text = msg.split("\nWARNINGS:\n", 1)

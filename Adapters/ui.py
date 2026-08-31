@@ -126,6 +126,16 @@ def show_error_dialog(parent, title: str, message: str):
     dlg.exec()
 
 
+def show_warning_dialog(parent, title: str, message: str):
+    msg = QtWidgets.QMessageBox(parent)
+    msg.setWindowTitle(title)
+    msg.setIcon(QtWidgets.QMessageBox.Warning)
+    msg.setText(str(message or ""))
+    msg.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+    msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+    msg.exec()
+
+
 class InfoDialog(QtWidgets.QDialog):
     def __init__(self, parent, title: str, message: str):
         super().__init__(parent)
@@ -2494,16 +2504,17 @@ class _ExcelSheetSelectDialog(QtWidgets.QDialog):
         return [name for name, checked in self._check_states.items() if checked]
 
 
-def _parse_excel_sheet(ws) -> tuple[dict, dict, dict, list[str]]:
+def _parse_excel_sheet(ws) -> tuple[dict, dict, dict, list[str], list[str]]:
     """
     Парсит один лист Excel и возвращает данные для объединения.
     
     Returns:
-        tuple: (queues_dict, attr_types, attr_groups, errors)
+        tuple: (queues_dict, attr_types, attr_groups, errors, warnings)
         - queues_dict: dict[str, BindingQueue] - словарь атрибутов
         - attr_types: dict[str, bool] - типы атрибутов (число/строка)
         - attr_groups: dict[str, str] - группы атрибутов
-        - errors: list[str] - список ошибок при парсинге
+        - errors: list[str] - ошибки, из-за которых лист нельзя корректно загрузить
+        - warnings: list[str] - конфликты, при которых импорт можно продолжить
     """
     from PySide6 import QtWidgets
     
@@ -2555,12 +2566,14 @@ def _parse_excel_sheet(ws) -> tuple[dict, dict, dict, list[str]]:
             break
     
     if not header_row:
-        return {}, {}, {}, ["Не найдена строка заголовков (ожидаются: Наименование параметра / Тип параметра / Список параметров)"]
+        return {}, {}, {}, ["Не найдена строка заголовков (ожидаются: Наименование параметра / Тип параметра / Список параметров)"], []
     
     queues_dict: dict = {}
     attr_types: dict = {}
     attr_groups: dict = {}
     errors: list[str] = []
+    warnings: list[str] = []
+    seen_attribute_rows: dict[str, int] = {}
     
     r = header_row + 1
     while r <= ws.max_row:
@@ -2584,9 +2597,26 @@ def _parse_excel_sheet(ws) -> tuple[dict, dict, dict, list[str]]:
             errors.append(f"Строка {r}: не заполнена колонка \"Группа параметров\"")
             r += 1
             continue
+        if not name:
+            errors.append(f"Строка {r}: не заполнена колонка \"Наименование параметра\"")
+            r += 1
+            continue
         
         isnum = True if "чис" in ptype else False
         full_name = f"{grp}.{name}" if grp else name
+        
+        if full_name in seen_attribute_rows:
+            warnings.append(
+                f"Строки {seen_attribute_rows[full_name]} и {r}: повторяется итоговый параметр \"{full_name}\". "
+                "Привязки будут объединены в один атрибут."
+            )
+            if full_name in attr_types and attr_types[full_name] != isnum:
+                warnings.append(
+                    f"Строка {r}: для \"{full_name}\" указан другой тип параметра. "
+                    "Будет использован тип из последней строки."
+                )
+        else:
+            seen_attribute_rows[full_name] = r
         
         if full_name not in queues_dict:
             queues_dict[full_name] = BindingQueue(attribute_full_name=full_name)
@@ -2598,10 +2628,24 @@ def _parse_excel_sheet(ws) -> tuple[dict, dict, dict, list[str]]:
         
         lefts = _split_list(rep_from)
         rights = _split_list(rep_to)
+        if len(lefts) != len(rights) and (lefts or rights):
+            warnings.append(
+                f"Строка {r}: количество значений в \"Замена с\" ({len(lefts)}) и \"Замена на\" ({len(rights)}) различается. "
+                "Будут использованы только пары, для которых есть обе стороны."
+            )
         pairs = [(l, rights[i]) for i, l in enumerate(lefts) if i < len(rights)]
         
         params = _split_list(plist)
+        if len(params) != len(set(params)):
+            warnings.append(f"Строка {r}: в \"Список параметров\" есть повторяющиеся значения.")
+        existing_codes = {getattr(b, "parameter_code", "") for b in queues_dict[full_name].bindings}
         for code in params:
+            if code in existing_codes:
+                warnings.append(
+                    f"Строка {r}: исходный параметр \"{code}\" уже привязан к \"{full_name}\". "
+                    "Повторная привязка будет добавлена ещё раз."
+                )
+            existing_codes.add(code)
             b = Binding(parameter_code=code, src_is_numeric=None, is_enabled=True, src_model_title="Excel")
             if pairs:
                 t = TransformSettings()
@@ -2610,7 +2654,7 @@ def _parse_excel_sheet(ws) -> tuple[dict, dict, dict, list[str]]:
             queues_dict[full_name].bindings.append(b)
         r += 1
     
-    return queues_dict, attr_types, attr_groups, errors
+    return queues_dict, attr_types, attr_groups, errors, warnings
 
 
 def _deamon_import_excel(self):
@@ -2655,14 +2699,16 @@ def _deamon_import_excel(self):
         
         loaded_sheets: list[str] = []
         skipped_sheets: list[tuple[str, str]] = []
+        import_warnings: list[str] = []
         total_bindings = 0
         
         for sheet_name in selected_sheets:
             ws = wb[sheet_name]
-            queues_dict, attr_types, attr_groups, errors = _parse_excel_sheet(ws)
+            queues_dict, attr_types, attr_groups, errors, warnings = _parse_excel_sheet(ws)
+            import_warnings.extend([f"{sheet_name}: {w}" for w in warnings])
             
             if errors:
-                skipped_sheets.append((sheet_name, errors[0]))
+                skipped_sheets.append((sheet_name, "; ".join(errors)))
                 continue
             
             if not queues_dict:
@@ -2734,7 +2780,11 @@ def _deamon_import_excel(self):
             for name, reason in skipped_sheets:
                 result_msg += f"• {name}: {reason}\n"
         
-        show_error_dialog(self, "Импорт Excel", result_msg)
+        if import_warnings:
+            result_msg += "\n\nПредупреждения:\n" + "\n".join(f"• {w}" for w in import_warnings)
+            show_warning_dialog(self, "Импорт с предупреждениями", result_msg)
+        else:
+            show_info_dialog(self, "Импорт Excel", result_msg)
     except Exception as e:
         show_error_dialog(self, "Импорт Excel", f"Не удалось импортировать Excel:\n{e}")
 # Подмешиваем метод в класс, если его не было

@@ -3,7 +3,7 @@ setlocal EnableExtensions
 chcp 65001 >nul
 cd /d "%~dp0"
 
-set "APP_NAME=Larix_Main"
+set "APP_NAME=Manager"
 set "ENTRY=main.py"
 set "ICON_ARG="
 

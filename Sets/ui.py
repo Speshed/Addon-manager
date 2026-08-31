@@ -2428,12 +2428,16 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
                 existing["condition_pairs"] = _merge_condition_pairs(existing["condition_pairs"], row_data["condition_pairs"])
         rows_data = merged_rows
 
-    rows_data.sort(key=lambda r: (r["prefix"] or "zzz", r["name"]))
+    # Keep the exact row order from Excel.  Auto-numbering is positional:
+    # a section receives 01_, 02_, ... and its following rows receive
+    # 01.01_, 01.02_, ... .  Alphabetical sorting here breaks that contract.
+    rows_data.sort(key=lambda r: r["orig_idx"])
 
     razdel_rows = [r for r in rows_data if r["is_razdel"]]
     other_rows = [r for r in rows_data if not r["is_razdel"]]
 
     razdel_orig_idx_to_id: Dict[int, int] = {}
+    razdel_orig_idx_to_code: Dict[int, str] = {}
     for ri, _, _ in razdel_blocks:
         razdel_orig_idx_to_id[ri] = None
 
@@ -2456,6 +2460,7 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
         if auto_number:
             group_idx += 1
             code = f"{group_idx:02d}"
+            razdel_orig_idx_to_code[orig_idx] = code
             ET.SubElement(item, "Title").text = f"{code}_{clean_name}"
         else:
             ET.SubElement(item, "Title").text = clean_name
@@ -2501,24 +2506,25 @@ def df_to_items_gui(df, profile_items_el, *, id_start, profile_title, group_colu
         clean_name = strip_prefix(name_1st)
         if auto_number:
             if prefix:
+                # Explicit numeric prefixes in Excel are preserved as-is.
                 ET.SubElement(item, "Title").text = name_1st
                 if not grouped or prefix not in prefix_to_id:
                     prefix_to_id[prefix] = item_id
             else:
-                parent_prefix = find_existing_parent(prefix, prefix_to_id) if prefix else None
-                
-                if parent_prefix is None:
+                section_code = razdel_orig_idx_to_code.get(razdel_parent_orig_idx)
+                if section_code:
+                    # Rows following a «Раздел ...» row are numbered inside
+                    # that section: 01.01_, 01.02_, ... .
+                    counter_key = f"section:{razdel_parent_orig_idx}"
+                    child_counters[counter_key] = child_counters.get(counter_key, 0) + 1
+                    code = f"{section_code}.{child_counters[counter_key]:02d}"
+                else:
+                    # A row outside any «Раздел ...» remains a top-level item.
                     group_idx += 1
                     code = f"{group_idx:02d}"
-                    if not grouped or code not in prefix_to_id:
-                        prefix_to_id[code] = item_id
-                else:
-                    if parent_prefix not in child_counters:
-                        child_counters[parent_prefix] = 0
-                    child_counters[parent_prefix] += 1
-                    code = f"{parent_prefix}.{child_counters[parent_prefix]:02d}"
-                    if not grouped or code not in prefix_to_id:
-                        prefix_to_id[code] = item_id
+
+                if not grouped or code not in prefix_to_id:
+                    prefix_to_id[code] = item_id
                 ET.SubElement(item, "Title").text = f"{code}_{clean_name}"
         else:
             ET.SubElement(item, "Title").text = clean_name
@@ -3129,6 +3135,97 @@ class ContentWidget(QtWidgets.QWidget):
                 result[row.column_name] = value
         return result
 
+    def _collect_generation_warnings(self) -> List[str]:
+        warnings: List[str] = []
+
+        # Active Excel columns without FieldName are silently ignored by the
+        # generator, so make that visible to the user.
+        blank_mappings = [
+            row.column_name for row in self._param_rows
+            if row.is_active() and not row.mapping_value()
+        ]
+        if blank_mappings:
+            warnings.append(
+                "Для включённых колонок не задан параметр Larix: " + ", ".join(blank_mappings) +
+                ". Эти колонки не попадут в фильтр."
+            )
+
+        field_to_columns: Dict[str, List[str]] = {}
+        for row in self._param_rows:
+            if not row.is_active():
+                continue
+            field = row.mapping_value()
+            if field:
+                field_to_columns.setdefault(field, []).append(row.column_name)
+        for field, columns in sorted(field_to_columns.items()):
+            if len(columns) > 1:
+                warnings.append(
+                    f"Несколько колонок Excel сопоставлены одному параметру «{field}»: "
+                    f"{', '.join(columns)}. Их значения будут объединены в одном условии."
+                )
+
+        if not self._excel_path or not self._selected_sheets:
+            return warnings
+
+        try:
+            import pandas as pd
+            common_set = set(self._excel_param_columns)
+            for sheet in self._selected_sheets:
+                header_row = self._header_rows_by_sheet.get(sheet)
+                if header_row is None:
+                    header_row = self._detect_header_row_index(self._excel_path, sheet)
+                df = pd.read_excel(self._excel_path, sheet_name=sheet, header=header_row, dtype=object)
+                all_columns = [str(c).strip() for c in df.columns if str(c).strip()]
+                params_columns = self._columns_for_params(all_columns)
+                params_set = set(params_columns)
+                only_here = [c for c in params_columns if c not in common_set]
+                missing_here = [c for c in self._excel_param_columns if c not in params_set]
+                if only_here:
+                    warnings.append(
+                        f"Лист «{sheet}»: есть колонки, которых нет на всех выбранных листах и поэтому они не используются: "
+                        + ", ".join(only_here) + "."
+                    )
+                if missing_here:
+                    warnings.append(
+                        f"Лист «{sheet}»: отсутствуют общие колонки: " + ", ".join(missing_here) + "."
+                    )
+
+                roles = self._detect_excel_column_roles(all_columns)
+                group_col = roles.get("group") or (GROUP_COL_DEFAULT if GROUP_COL_DEFAULT in df.columns else "")
+                if not group_col:
+                    warnings.append(
+                        f"Лист «{sheet}»: не найден столбец структуры «{GROUP_COL_DEFAULT}». "
+                        "Проверьте заголовки Excel перед генерацией."
+                    )
+                    continue
+
+                prefix_to_name: Dict[str, str] = {}
+                for value in df[group_col].tolist():
+                    name = sanitize_str(value)
+                    if not name:
+                        continue
+                    match = re.match(r"^(\d+(?:\.\d+)*)_", name)
+                    if not match:
+                        continue
+                    prefix = match.group(1)
+                    previous = prefix_to_name.get(prefix)
+                    if previous and previous != name:
+                        warnings.append(
+                            f"Лист «{sheet}»: один структурный код «{prefix}» используется для разных строк: "
+                            f"«{previous}» и «{name}». Родительская структура может стать неоднозначной."
+                        )
+                    else:
+                        prefix_to_name[prefix] = name
+        except Exception as exc:
+            warnings.append(f"Не удалось полностью проверить Excel перед генерацией: {exc}")
+
+        # Preserve order while removing identical messages.
+        unique: List[str] = []
+        for item in warnings:
+            if item and item not in unique:
+                unique.append(item)
+        return unique
+
     def _refresh_for_theme(self):
         pass
 
@@ -3261,6 +3358,14 @@ class ContentWidget(QtWidgets.QWidget):
             if not auto_cols:
                 warning_box(self, "Не найдены параметры в Excel (со 2-го столбца до LOI).", "Внимание")
                 return
+
+            preflight_warnings = self._collect_generation_warnings()
+            if preflight_warnings:
+                preview = preflight_warnings[:20]
+                text = "Перед генерацией найдены возможные конфликты:\n\n" + "\n".join(f"• {w}" for w in preview)
+                if len(preflight_warnings) > len(preview):
+                    text += f"\n\nЕщё предупреждений: {len(preflight_warnings) - len(preview)}"
+                show_warning_dialog(text, title="Проверка Excel", parent=self, modal=True)
 
             out_path = self._pick_out_file(title)
             if not out_path:
